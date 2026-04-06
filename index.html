@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>GeoJSON → SVG</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif; margin: 1rem; }
+    .controls { display: grid; gap: 0.5rem; grid-template-columns: 1fr 300px; align-items: start; }
+    textarea { width: 100%; height: 220px; font-family: monospace; font-size: 13px; }
+    #svgContainer { border: 1px solid #ddd; margin-top: 1rem; display: flex; justify-content: center; align-items: center; background: #fafafa; min-height: 320px; overflow:auto; }
+    #svgContainer svg { max-width: 100%; height: auto; display: block; }
+    .row { display:flex; gap:0.5rem; align-items:center; margin-bottom:0.5rem; }
+    label { font-size: 14px; min-width: 90px; }
+    input[type="number"], select { width: 140px; }
+    button { padding: 0.5rem 0.75rem; }
+    .small { font-size: 13px; color:#555; }
+  </style>
+</head>
+<body>
+  <h3>GeoJSON を座標値ごと縮小して SVG に変換</h3>
+
+  <div class="controls">
+    <div>
+      <div class="row">
+        <label><strong>GeoJSON ファイル</strong></label>
+        <input id="fileInput" type="file" accept=".json,.geojson,application/geo+json" />
+      </div>
+
+      <p class="small">または下のテキストエリアに GeoJSON を貼り付けてください。</p>
+      <textarea id="geojsonInput" placeholder='{"type":"FeatureCollection","features":[...]}'>{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [139.7670, 35.6814] },
+      "properties": { "r": 6 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "LineString", "coordinates": [[139.7,35.66],[139.8,35.7]] },
+      "properties": {}
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Polygon", "coordinates": [[[139.75,35.67],[139.78,35.67],[139.78,35.69],[139.75,35.69],[139.75,35.67]]] },
+      "properties": {}
+    }
+  ]
+}</textarea>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:0.5rem; align-items:flex-end;">
+      <div style="width:100%;">
+        <div class="row">
+          <label for="scaleSelect"><strong>縮尺</strong></label>
+          <select id="scaleSelect">
+            <option value="250">250分の1</option>
+            <option value="300">300分の1</option>
+            <option value="450">450分の1</option>
+            <option value="500" selected>500分の1</option>
+            <option value="600">600分の1</option>
+            <option value="750">750分の1</option>
+            <option value="900">900分の1</option>
+            <option value="1000">1000分の1</option>
+            <option value="1200">1200分の1</option>
+            <option value="1250">1250分の1</option>
+            <option value="1500">1500分の1</option>
+            <option value="1800">1800分の1</option>
+            <option value="2500">2500分の1</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="width"><strong>幅</strong></label>
+          <input id="width" type="number" value="1000" min="10" />
+        </div>
+        <div class="row">
+          <label for="height"><strong>高さ</strong></label>
+          <input id="height" type="number" value="800" min="10" />
+        </div>
+        <div class="row">
+          <label for="padding" class="small">パディング</label>
+          <input id="padding" type="number" value="10" min="0" />
+        </div>
+
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:0.25rem; width:100%;">
+        <button id="convertBtn">変換</button>
+        <button id="downloadSvgBtn" disabled>SVG をダウンロード</button>
+        <button id="downloadGeojsonBtn" disabled>GeoJSON をダウンロード</button>
+<button id="analyzeBtn" disabled>辺を選択して解析</button>
+      </div>
+    </div>
+  </div>
+
+  <h3>SVG 出力</h3>
+  <div id="svgContainer" aria-live="polite">変換後の SVG がここに表示されます</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/geojson2svg/2.0.3/geojson2svg.min.js"></script>
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const geojsonInput = document.getElementById('geojsonInput');
+    const convertBtn = document.getElementById('convertBtn');
+    const svgContainer = document.getElementById('svgContainer');
+    const widthInput = document.getElementById('width');
+    const heightInput = document.getElementById('height');
+    const paddingInput = document.getElementById('padding');
+    const downloadSvgBtn = document.getElementById('downloadSvgBtn');
+    const downloadGeojsonBtn = document.getElementById('downloadGeojsonBtn');
+    const scaleSelect = document.getElementById('scaleSelect');
+
+
+    let lastSvgString = '';
+    let lastGeojsonText = '';
+
+    fileInput.addEventListener('change', async (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      try {
+        const txt = await f.text();
+        geojsonInput.value = txt;
+      } catch (err) {
+        alert('ファイルの読み込みに失敗しました');
+      }
+    });
+
+    function deepClone(obj) {
+      return JSON.parse(JSON.stringify(obj));
+    }
+
+    function scaleGeoJSONCoordinates(geojson, scale) {
+      function scaleCoords(coords) {
+        if (!Array.isArray(coords)) return coords;
+        if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+          return [coords[0] * scale, coords[1] * scale];
+        } else {
+          return coords.map(scaleCoords);
+        }
+      }
+
+      function scaleGeometry(geom) {
+        if (!geom) return geom;
+        const t = geom.type;
+        if (t === 'GeometryCollection') {
+          geom.geometries = (geom.geometries || []).map(g => scaleGeometry(g));
+          return geom;
+        } else {
+          geom.coordinates = scaleCoords(geom.coordinates);
+          return geom;
+        }
+      }
+
+      const out = deepClone(geojson);
+
+      if (out.type === 'FeatureCollection') {
+        out.features = (out.features || []).map(f => {
+          if (f.geometry) f.geometry = scaleGeometry(f.geometry);
+          if (f.properties) {
+            if (typeof f.properties.r === 'number') f.properties.r = f.properties.r * scale;
+            if (typeof f.properties['stroke-width'] === 'number') f.properties['stroke-width'] = f.properties['stroke-width'] * scale;
+            if (typeof f.properties['strokeWidth'] === 'number') f.properties['strokeWidth'] = f.properties['strokeWidth'] * scale;
+          }
+          return f;
+        });
+      } else if (out.type === 'Feature') {
+        if (out.geometry) out.geometry = scaleGeometry(out.geometry);
+        if (out.properties) {
+          if (typeof out.properties.r === 'number') out.properties.r = out.properties.r * scale;
+          if (typeof out.properties['stroke-width'] === 'number') out.properties['stroke-width'] = out.properties['stroke-width'] * scale;
+          if (typeof out.properties['strokeWidth'] === 'number') out.properties['strokeWidth'] = out.properties['strokeWidth'] * scale;
+        }
+      } else {
+        scaleGeometry(out);
+      }
+
+      return out;
+    }
+
+    function computeGeoJSONBBox(geojson) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let found = false;
+
+      function inspectCoords(coords) {
+        if (!coords) return;
+        if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+          const x = coords[0], y = coords[1];
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+          found = true;
+        } else if (Array.isArray(coords)) {
+          coords.forEach(inspectCoords);
+        }
+      }
+
+      function inspectGeometry(geom) {
+        if (!geom) return;
+        const t = geom.type;
+        if (t === 'GeometryCollection') {
+          (geom.geometries || []).forEach(inspectGeometry);
+        } else {
+          inspectCoords(geom.coordinates);
+        }
+      }
+
+      if (!geojson) return null;
+      if (geojson.type === 'FeatureCollection') {
+        (geojson.features || []).forEach(f => inspectGeometry(f.geometry));
+      } else if (geojson.type === 'Feature') {
+        inspectGeometry(geojson.geometry);
+      } else {
+        inspectGeometry(geojson);
+      }
+
+      if (!found) return null;
+      return [minX, minY, maxX, maxY];
+    }
+
+    convertBtn.addEventListener('click', () => {
+      let geojson;
+      try {
+        geojson = JSON.parse(geojsonInput.value);
+analyzeBtn.disabled = false;
+      } catch (err) {
+        alert('GeoJSON のパースに失敗しました');
+        return;
+      }
+
+      const outW = Number(widthInput.value) || 1000;
+      const outH = Number(heightInput.value) || 800;
+      const pad = Number(paddingInput.value) || 0;
+      const scaleN = Number(scaleSelect.value) || 500;
+
+      // 縮尺 s = 100 / N
+      const s = 100 / scaleN;
+
+      // 1) 元の bbox を取得（mapExtent に使用）
+      const origBBox = computeGeoJSONBBox(geojson);
+      if (!origBBox) {
+        alert('ジオメトリが見つかりません');
+        return;
+      }
+
+      // 2) 座標を直接スケールしたコピーを作成
+      const scaledGeojson = scaleGeoJSONCoordinates(geojson, s);
+
+      // 3) mapExtent は元の bbox を使う（縮尺効果を得るため）
+      const mapExtent = { left: origBBox[0], bottom: origBBox[1], right: origBBox[2], top: origBBox[3] };
+
+      // Geojson2Svg インスタンス
+      const converter = new GeoJSON2SVG({
+        mapExtent: mapExtent,
+        viewportSize: { width: outW, height: outH },
+        attributes: [
+          'properties.fill',
+          'properties.stroke',
+          'properties["stroke-width"]',
+          'properties.r',
+          'properties.opacity'
+        ]
+      });
+
+      // scaledGeojson を変換（座標は既にスケール済み）
+      const svgParts = converter.convert(scaledGeojson);
+
+      // 一時 SVG を作って描画要素の bbox を計測
+      const tempSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      tempSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      tempSvg.setAttribute('width', outW);
+      tempSvg.setAttribute('height', outH);
+      tempSvg.setAttribute('viewBox', `0 0 ${outW} ${outH}`);
+      tempSvg.style.position = 'absolute';
+      tempSvg.style.left = '-9999px';
+      tempSvg.style.top = '-9999px';
+      document.body.appendChild(tempSvg);
+
+      tempSvg.innerHTML = svgParts.join('\n');
+
+      let combinedBBox = null;
+      try {
+        const children = Array.from(tempSvg.children);
+        children.forEach((el) => {
+          try {
+            const b = el.getBBox();
+            if (b.width === 0 && b.height === 0) return;
+            if (!combinedBBox) {
+              combinedBBox = { x: b.x, y: b.y, x2: b.x + b.width, y2: b.y + b.height };
+            } else {
+              combinedBBox.x = Math.min(combinedBBox.x, b.x);
+              combinedBBox.y = Math.min(combinedBBox.y, b.y);
+              combinedBBox.x2 = Math.max(combinedBBox.x2, b.x + b.width);
+              combinedBBox.y2 = Math.max(combinedBBox.y2, b.y + b.height);
+            }
+          } catch (e) {}
+        });
+      } catch (e) {
+        combinedBBox = null;
+      }
+
+      if (!combinedBBox) {
+        alert('描画可能なジオメトリが見つかりません');
+        document.body.removeChild(tempSvg);
+        return;
+      }
+
+      // viewBox 用の値（パディングを含む）
+      const vbX = combinedBBox.x - pad;
+      const vbY = combinedBBox.y - pad;
+      const vbW = (combinedBBox.x2 - combinedBBox.x) + pad * 2;
+      const vbH = (combinedBBox.y2 - combinedBBox.y) + pad * 2;
+
+      // 最終 SVG を作成
+      const finalSvgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      finalSvgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      finalSvgEl.setAttribute('width', outW);
+      finalSvgEl.setAttribute('height', outH);
+
+
+        finalSvgEl.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
+      
+      finalSvgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+      // デフォルトスタイル
+      const defaultFill = '#e6e6e6';
+      const defaultStroke = '#000000';
+
+      // グループを作って必要なら translate を適用
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+
+      // tempSvg の子要素を複製して g に追加（スタイル統一）
+      Array.from(tempSvg.children).forEach((child) => {
+        const node = child.cloneNode(true);
+        const tag = node.tagName.toLowerCase();
+        const strokeWidth = node.getAttribute('stroke-width') || node.getAttribute('strokeWidth') || '1';
+
+        if (tag === 'path' || tag === 'polyline' || tag === 'line' || tag === 'polygon') {
+          if (!node.hasAttribute('fill') || node.getAttribute('fill') === 'none') {
+            node.setAttribute('fill', defaultFill);
+          }
+          if (!node.hasAttribute('stroke')) {
+            node.setAttribute('stroke', defaultStroke);
+          }
+          if (!node.hasAttribute('stroke-width')) {
+            node.setAttribute('stroke-width', strokeWidth);
+          }
+          node.setAttribute('stroke-linecap', node.getAttribute('stroke-linecap') || 'round');
+          node.setAttribute('stroke-linejoin', node.getAttribute('stroke-linejoin') || 'round');
+        } else if (tag === 'circle') {
+          if (!node.hasAttribute('fill') || node.getAttribute('fill') === 'none') {
+            node.setAttribute('fill', defaultFill);
+          }
+          if (!node.hasAttribute('stroke')) {
+            node.setAttribute('stroke', defaultStroke);
+          }
+          if (!node.hasAttribute('stroke-width')) {
+            node.setAttribute('stroke-width', strokeWidth);
+          }
+        } else {
+          if (!node.hasAttribute('fill') && !node.hasAttribute('stroke')) {
+            node.setAttribute('fill', defaultFill);
+            node.setAttribute('stroke', defaultStroke);
+            node.setAttribute('stroke-width', strokeWidth);
+          }
+        }
+
+        g.appendChild(node);
+      });
+
+      finalSvgEl.appendChild(g);
+currentPaths = Array.from(finalSvgEl.querySelectorAll('path'));
+currentSegments = extractSegmentsFromPaths(currentPaths);
+drawEdgeOverlay(finalSvgEl, g, currentSegments);
+
+      // 表示
+      svgContainer.innerHTML = '';
+      svgContainer.appendChild(finalSvgEl);
+
+      // 後始末
+      document.body.removeChild(tempSvg);
+
+      // 保存用に保持（文字列化）
+      lastSvgString = new XMLSerializer().serializeToString(finalSvgEl);
+      lastGeojsonText = JSON.stringify(scaledGeojson, null, 2);
+      downloadSvgBtn.disabled = false;
+      downloadGeojsonBtn.disabled = false;
+    });
+
+    downloadSvgBtn.addEventListener('click', () => {
+      if (!lastSvgString) return;
+      const blob = new Blob([lastSvgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'map.svg';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    downloadGeojsonBtn.addEventListener('click', () => {
+      if (!lastGeojsonText) return;
+      const blob = new Blob([lastGeojsonText], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'data_scaled.geojson';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+const analyzeBtn = document.getElementById('analyzeBtn');
+
+let currentPaths = [];
+let currentSegments = [];
+let selectedSegment = null;
+
+function parsePathToPoints(d) {
+  const pts = [];
+  d.replace(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g, (_, x, y) => {
+    pts.push({ x: +x, y: +y });
+  });
+  return pts;
+}
+
+function extractSegmentsFromPaths(paths) {
+  const segs = [];
+
+  paths.forEach(p => {
+    const d = p.getAttribute('d');
+    const pts = [];
+    let isClosed = /Z/i.test(d); // ← 追加
+
+    d.replace(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g, (_, x, y) => {
+      pts.push({ x: +x, y: +y });
+    });
+
+    for (let i = 1; i < pts.length; i++) {
+      segs.push({ p1: pts[i-1], p2: pts[i] });
+    }
+
+    // 🔥 ここが重要
+    if (isClosed && pts.length > 2) {
+      segs.push({
+        p1: pts[pts.length - 1],
+        p2: pts[0]
+      });
+    }
+  });
+
+  return segs;
+}
+
+function drawEdgeOverlay(svg, g, segments) {
+  segments.forEach(seg => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+
+    line.setAttribute('x1', seg.p1.x);
+    line.setAttribute('y1', seg.p1.y);
+    line.setAttribute('x2', seg.p2.x);
+    line.setAttribute('y2', seg.p2.y);
+
+    line.setAttribute('stroke', 'rgba(0,0,255,0.001)');
+    line.setAttribute('stroke-width', 10);
+    line.setAttribute('pointer-events', 'stroke');
+
+    line.style.cursor = 'pointer';
+
+    line.addEventListener('mouseenter', () => {
+      line.setAttribute('stroke', 'rgba(0,0,255,0.2)');
+    });
+
+    line.addEventListener('mouseleave', () => {
+      line.setAttribute('stroke', 'rgba(0,0,255,0.001)');
+    });
+
+    line.addEventListener('click', () => {
+      selectedSegment = seg;
+
+      document.querySelectorAll('.edge-highlight').forEach(e => e.remove());
+
+      const hl = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      hl.setAttribute('x1', seg.p1.x);
+      hl.setAttribute('y1', seg.p1.y);
+      hl.setAttribute('x2', seg.p2.x);
+      hl.setAttribute('y2', seg.p2.y);
+      hl.setAttribute('stroke', 'red');
+      hl.setAttribute('stroke-width', 3);
+      hl.classList.add('edge-highlight');
+
+      g.appendChild(hl);
+    });
+
+    g.appendChild(line); // ← svgじゃなくg
+  });
+}
+
+function getAngle(seg) {
+  return Math.atan2(seg.p2.y - seg.p1.y, seg.p2.x - seg.p1.x);
+}
+
+function rotatePoint(p, angle, origin) {
+  const x = p.x - origin.x;
+  const y = p.y - origin.y;
+  return {
+    x: x * Math.cos(-angle) - y * Math.sin(-angle) + origin.x,
+    y: x * Math.sin(-angle) + y * Math.cos(-angle) + origin.y
+  };
+}
+
+function rotatePath(d, angle, origin) {
+  return d.replace(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g, (_, x, y) => {
+    const p = rotatePoint({ x: +x, y: +y }, angle, origin);
+    return `${p.x},${p.y}`;
+  });
+}
+
+function computeBBox(paths) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  paths.forEach(p => {
+    const d = p.getAttribute('d');
+    d.replace(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g, (_, x, y) => {
+      x = +x; y = +y;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    });
+  });
+
+  return { minX, minY, maxX, maxY };
+}
+
+function createRect(svg, bbox) {
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', bbox.minX);
+  rect.setAttribute('y', bbox.minY);
+  rect.setAttribute('width', bbox.maxX - bbox.minX);
+  rect.setAttribute('height', bbox.maxY - bbox.minY);
+  rect.setAttribute('fill', 'none');
+  rect.setAttribute('stroke', 'blue');
+  rect.setAttribute('stroke-width', 2);
+  svg.appendChild(rect);
+}
+
+function addDimensions(svg, bbox) {
+  const w = bbox.maxX - bbox.minX;
+  const h = bbox.maxY - bbox.minY;
+
+  const t1 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  t1.textContent = w.toFixed(2);
+  t1.setAttribute('x', (bbox.minX + bbox.maxX) / 2);
+  t1.setAttribute('y', bbox.minY - 5);
+  t1.setAttribute('text-anchor', 'middle');
+
+  const t2 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  t2.textContent = h.toFixed(2);
+  t2.setAttribute('x', bbox.maxX + 5);
+  t2.setAttribute('y', (bbox.minY + bbox.maxY) / 2);
+  t2.setAttribute('writing-mode', 'vertical-rl');
+
+  svg.appendChild(t1);
+  svg.appendChild(t2);
+}
+
+analyzeBtn.addEventListener('click', () => {
+  if (!selectedSegment) {
+    alert('辺をクリックしてください');
+    return;
+  }
+
+  const svg = svgContainer.querySelector('svg');
+  const paths = Array.from(svg.querySelectorAll('path'));
+
+  const angle = -getAngle(selectedSegment);
+
+ rotateAnnotateAndReturnHandle(svg, angle)
+rotateAndAnnotate(svg, - angle)
+
+
+
+  lastSvgString = new XMLSerializer().serializeToString(svg);
+});
+
+/* ======= ユーティリティ ======= */
+const ns = 'http://www.w3.org/2000/svg';
+const fmt = n => Number(n.toFixed(6));
+
+function parseSVGString(svgText) {
+  const p = new DOMParser();
+  const doc = p.parseFromString(svgText, 'image/svg+xml');
+  return doc.querySelector('svg');
+}
+
+function rotatePointAround(x, y, cx, cy, sinA, cosA) {
+  const dx = x - cx, dy = y - cy;
+  return [dx * cosA - dy * sinA + cx, dx * sinA + dy * cosA + cy];
+}
+
+/* 簡易 path パーサ: M x,y x,y ... Z 形式を想定 */
+function parseSimplePathPoints(d) {
+  if (!d) return null;
+  const re = /[a-zA-Z]|[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?/g;
+  const tokens = [];
+  let m;
+  while ((m = re.exec(d)) !== null) tokens.push(m[0]);
+  if (!tokens.length) return null;
+  let i = 0;
+  const pts = [];
+  while (i < tokens.length) {
+    const t = tokens[i++];
+    if (t.toUpperCase() === 'M' || t.toUpperCase() === 'L') {
+      while (i < tokens.length && !isNaN(Number(tokens[i]))) {
+        const x = Number(tokens[i++]);
+        if (i >= tokens.length) break;
+        const y = Number(tokens[i++]);
+        pts.push([x, y]);
+      }
+    } else if (t.toUpperCase() === 'Z') {
+      break;
+    } else if (!isNaN(Number(t))) {
+      let x = Number(t);
+      if (i < tokens.length && !isNaN(Number(tokens[i]))) {
+        const y = Number(tokens[i++]);
+        pts.push([x, y]);
+      } else break;
+    } else {
+      return null;
+    }
+  }
+  return pts;
+}
+
+function buildPathDFromPoints(points) {
+  if (!points || !points.length) return '';
+  let s = `M ${fmt(points[0][0])} ${fmt(points[0][1])}`;
+  for (let i = 1; i < points.length; i++) s += ` L ${fmt(points[i][0])} ${fmt(points[i][1])}`;
+  s += ' Z';
+  return s;
+}
+
+/* ======= メイン関数 ======= */
+function rotateAnnotateAndReturnHandle(svgContainer, angleRad) {
+  if (!svgContainer || typeof angleRad !== 'number') throw new Error('svgContainer と angleRad を指定してください');
+
+  // 保存: 元の viewBox / width / height
+  const rootSvg = svgContainer.tagName.toLowerCase() === 'svg' ? svgContainer : (svgContainer.ownerSVGElement || svgContainer.closest('svg'));
+  const originalViewBox = rootSvg.getAttribute('viewBox');
+  const originalWidth = rootSvg.getAttribute('width');
+  const originalHeight = rootSvg.getAttribute('height');
+
+  // 回転中心: viewBox 中心優先、なければ要素群の結合BBox中心、最終的に 0,0
+  function computeCenter(container) {
+    const vb = container.getAttribute && container.getAttribute('viewBox');
+    if (vb) {
+      const parts = vb.trim().split(/\s+/).map(Number);
+      if (parts.length === 4 && parts.every(p => !isNaN(p))) {
+        return { cx: parts[0] + parts[2] / 2, cy: parts[1] + parts[3] / 2 };
+      }
+    }
+    try {
+      const children = Array.from(container.querySelectorAll('path,polyline,polygon,line'));
+      if (children.length) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const el of children) {
+          const b = el.getBBox();
+          minX = Math.min(minX, b.x);
+          minY = Math.min(minY, b.y);
+          maxX = Math.max(maxX, b.x + b.width);
+          maxY = Math.max(maxY, b.y + b.height);
+        }
+        if (isFinite(minX)) return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+      }
+    } catch (e) {}
+    return { cx: 0, cy: 0 };
+  }
+
+  const center = computeCenter(svgContainer);
+  const sinA = Math.sin(angleRad), cosA = Math.cos(angleRad);
+
+  // 元属性を保存
+  const originalMap = new Map();
+  const elements = Array.from(svgContainer.querySelectorAll('path,polyline,polygon,line'));
+  for (const el of elements) {
+    const saved = {};
+    for (let i = 0; i < el.attributes.length; i++) {
+      const a = el.attributes[i];
+      saved[a.name] = a.value;
+    }
+    originalMap.set(el, saved);
+
+    // 回転適用（数値的に）
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'path') {
+      const d = el.getAttribute('d');
+      const pts = parseSimplePathPoints(d);
+      if (pts) {
+        const rotated = pts.map(p => rotatePointAround(p[0], p[1], center.cx, center.cy, sinA, cosA));
+        el.setAttribute('d', buildPathDFromPoints(rotated));
+        if (el.hasAttribute('transform')) el.removeAttribute('transform');
+      } else {
+        console.warn('unsupported path format, skipped rotation for', el);
+      }
+    } else if (tag === 'polyline' || tag === 'polygon') {
+      const ptsAttr = el.getAttribute('points') || '';
+      const coords = ptsAttr.trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+      if (coords.length >= 2) {
+        const pts = [];
+        for (let i = 0; i < coords.length; i += 2) pts.push([coords[i], coords[i + 1]]);
+        const rotated = pts.map(p => rotatePointAround(p[0], p[1], center.cx, center.cy, sinA, cosA));
+        el.setAttribute('points', rotated.map(p => `${fmt(p[0])},${fmt(p[1])}`).join(' '));
+        if (el.hasAttribute('transform')) el.removeAttribute('transform');
+      }
+    } else if (tag === 'line') {
+      const x1 = Number(el.getAttribute('x1')), y1 = Number(el.getAttribute('y1'));
+      const x2 = Number(el.getAttribute('x2')), y2 = Number(el.getAttribute('y2'));
+      if (![x1, y1, x2, y2].some(v => isNaN(v))) {
+        const r1 = rotatePointAround(x1, y1, center.cx, center.cy, sinA, cosA);
+        const r2 = rotatePointAround(x2, y2, center.cx, center.cy, sinA, cosA);
+        el.setAttribute('x1', fmt(r1[0])); el.setAttribute('y1', fmt(r1[1]));
+        el.setAttribute('x2', fmt(r2[0])); el.setAttribute('y2', fmt(r2[1]));
+        if (el.hasAttribute('transform')) el.removeAttribute('transform');
+      }
+    }
+  }
+
+  // 回転後の全頂点から bbox を計算（矩形は回転後座標系で axis-aligned）
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  function considerPoint(x, y) {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  const rotatedElements = Array.from(svgContainer.querySelectorAll('path,polyline,polygon,line'));
+  for (const el of rotatedElements) {
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'path') {
+      const d = el.getAttribute('d');
+      const pts = parseSimplePathPoints(d);
+      if (pts) for (const p of pts) considerPoint(p[0], p[1]);
+    } else if (tag === 'polyline' || tag === 'polygon') {
+      const ptsAttr = el.getAttribute('points') || '';
+      const coords = ptsAttr.trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+      for (let i = 0; i < coords.length; i += 2) considerPoint(coords[i], coords[i + 1]);
+    } else if (tag === 'line') {
+      const x1 = Number(el.getAttribute('x1')), y1 = Number(el.getAttribute('y1'));
+      const x2 = Number(el.getAttribute('x2')), y2 = Number(el.getAttribute('y2'));
+      if (![x1, y1, x2, y2].some(v => isNaN(v))) { considerPoint(x1, y1); considerPoint(x2, y2); }
+    }
+  }
+
+  if (!isFinite(minX)) {
+    // 対象頂点が見つからない場合は復元だけ可能なハンドルを返す
+    return {
+      restore() {
+        for (const [el, attrs] of originalMap.entries()) {
+          const names = Array.from(el.getAttributeNames());
+          for (const n of names) el.removeAttribute(n);
+          for (const k of Object.keys(attrs)) el.setAttribute(k, attrs[k]);
+        }
+        if (originalViewBox !== null) rootSvg.setAttribute('viewBox', originalViewBox); else rootSvg.removeAttribute('viewBox');
+        if (originalWidth !== null) rootSvg.setAttribute('width', originalWidth); else rootSvg.removeAttribute('width');
+        if (originalHeight !== null) rootSvg.setAttribute('height', originalHeight); else rootSvg.removeAttribute('height');
+      }
+    };
+  }
+
+  const width = maxX - minX;
+  const height = maxY - minY;
+
+  // annotation group を作成（矩形は回転後座標系で axis-aligned）
+  const annotG = document.createElementNS(ns, 'g');
+  annotG.setAttribute('data-rotate-annot', 'true');
+
+  const rect = document.createElementNS(ns, 'rect');
+  rect.setAttribute('x', fmt(minX));
+  rect.setAttribute('y', fmt(minY));
+  rect.setAttribute('width', fmt(width));
+  rect.setAttribute('height', fmt(height));
+  rect.setAttribute('fill', 'none');
+  rect.setAttribute('stroke', '#ff0000');
+  rect.setAttribute('stroke-width', '1');
+  rect.setAttribute('stroke-dasharray', '4 2');
+  annotG.appendChild(rect);
+
+  // 幅ラベル（上中央）
+  const textW = document.createElementNS(ns, 'text');
+  textW.setAttribute('x', fmt(minX + width / 2));
+  textW.setAttribute('y', fmt(minY - Math.max(8, Math.min(20, height * 0.02))));
+  textW.setAttribute('text-anchor', 'middle');
+  textW.setAttribute('font-size', '10');
+  textW.setAttribute('fill', '#000');
+  textW.textContent = `W ${fmt(width)}`;
+  annotG.appendChild(textW);
+
+  // 高さラベル（右中央）を矩形に沿わせるため一旦通常に置き、後でグループ回転で縦表示にする
+  const textH = document.createElementNS(ns, 'text');
+  textH.setAttribute('x', fmt(maxX + Math.max(4, Math.min(20, width * 0.02))));
+  textH.setAttribute('y', fmt(minY + height / 2));
+  textH.setAttribute('text-anchor', 'middle');
+  textH.setAttribute('font-size', '10');
+  textH.setAttribute('fill', '#000');
+  textH.setAttribute('transform', `rotate(90 ${fmt(maxX + 0)} ${fmt(minY + height / 2)})`);
+  textH.textContent = `H ${fmt(height)}`;
+  annotG.appendChild(textH);
+
+  // annotG を元の座標系に戻すために逆回転を適用（表示上は元の角度に戻る）
+  const angleDeg = - (angleRad * 180 / Math.PI); // 逆回転（度）
+  // 回転中心は center.cx, center.cy（回転時に使った中心）
+  annotG.setAttribute('transform', `rotate(${fmt(angleDeg)} ${fmt(center.cx)} ${fmt(center.cy)})`);
+
+  // 追加先: svg の直下に追加（viewBox 座標系に合わせる）
+  const appendTarget = rootSvg;
+  appendTarget.appendChild(annotG);
+
+  // viewBox を調整して注釈が収まるようにする
+  // annotG は表示上元に戻っているので、矩形の四隅を逆回転（元の座標系）に戻して bbox を求める
+  const corners = [
+    [minX, minY],
+    [minX + width, minY],
+    [minX + width, minY + height],
+    [minX, minY + height]
+  ];
+  // annotG has been rotated by angleDeg around center; to compute bounding box in original svg coords,
+  // rotate corners by angleDeg (which is -angleRad) around center to get their positions in original coords.
+  const sinBack = Math.sin(angleDeg * Math.PI / 180), cosBack = Math.cos(angleDeg * Math.PI / 180);
+  let vbMinX = Infinity, vbMinY = Infinity, vbMaxX = -Infinity, vbMaxY = -Infinity;
+  for (const c of corners) {
+    const p = rotatePointAround(c[0], c[1], center.cx, center.cy, sinBack, cosBack);
+    vbMinX = Math.min(vbMinX, p[0]); vbMinY = Math.min(vbMinY, p[1]);
+    vbMaxX = Math.max(vbMaxX, p[0]); vbMaxY = Math.max(vbMaxY, p[1]);
+  }
+
+  // さらに既存の（回転済み）要素の bbox も含める（すでに回転済みなのでそのまま考慮）
+  vbMinX = Math.min(vbMinX, minX); vbMinY = Math.min(vbMinY, minY);
+  vbMaxX = Math.max(vbMaxX, maxX); vbMaxY = Math.max(vbMaxY, maxY);
+
+  const newVBX = fmt(vbMinX), newVBY = fmt(vbMinY), newVBW = fmt(vbMaxX - vbMinX), newVBH = fmt(vbMaxY - vbMinY);
+  rootSvg.setAttribute('viewBox', `${newVBX} ${newVBY} ${newVBW} ${newVBH}`);
+  // width/height を残す（元のアスペクト比で表示される）
+  if (originalWidth) rootSvg.setAttribute('width', originalWidth);
+  if (originalHeight) rootSvg.setAttribute('height', originalHeight);
+
+  // 返却ハンドル
+  function restore() {
+    // remove annotation
+    if (annotG.parentNode) annotG.parentNode.removeChild(annotG);
+    // restore attributes of elements
+    for (const [el, attrs] of originalMap.entries()) {
+      const names = Array.from(el.getAttributeNames());
+      for (const n of names) el.removeAttribute(n);
+      for (const k of Object.keys(attrs)) el.setAttribute(k, attrs[k]);
+    }
+    // restore viewBox/width/height
+    if (originalViewBox !== null) rootSvg.setAttribute('viewBox', originalViewBox); else rootSvg.removeAttribute('viewBox');
+    if (originalWidth !== null) rootSvg.setAttribute('width', originalWidth); else rootSvg.removeAttribute('width');
+    if (originalHeight !== null) rootSvg.setAttribute('height', originalHeight); else rootSvg.removeAttribute('height');
+  }
+
+  return {
+    bbox: { minX, minY, maxX, maxY, width, height },
+    annotationGroup: annotG,
+    restore
+  };
+}
+
+
+/**
+ * rotateAndAnnotate
+ * - svgContainer: SVGElement (例: <svg> または <g>)
+ * - angleRad: 回転角（ラジアン）
+ * 
+ * 動作:
+ * 1. svgContainer 内の対象要素の座標を angleRad だけ回転して上書きする
+ * 2. 回転後の全頂点から minX,minY,maxX,maxY を計算する
+ * 3. その矩形を描画し、幅と高さを示す text を描画する
+ * 4. 描画要素と元属性を保持したオブジェクトを返す
+ *    - 呼び出し側は returned.restore() を呼ぶと元に戻る
+ *
+ * 例:
+ * const handle = rotateAndAnnotate(svgEl, Math.PI/6);
+ * // 確認や別処理を行う
+ * handle.restore(); // 元に戻す
+ */
+function rotateAndAnnotate(svgContainer, angleRad) {
+  if (!svgContainer || typeof angleRad !== 'number') {
+    throw new Error('svgContainer と angleRad を指定してください');
+  }
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const fmt = n => Number(n.toFixed(6));
+
+  // 回転中心: viewBox 中心を優先、なければ要素群の結合BBox中心、最終的に 0,0
+  function computeCenter(container) {
+    const vb = container.getAttribute && container.getAttribute('viewBox');
+    if (vb) {
+      const parts = vb.trim().split(/\s+/).map(Number);
+      if (parts.length === 4 && parts.every(p => !isNaN(p))) {
+        return { cx: parts[0] + parts[2] / 2, cy: parts[1] + parts[3] / 2 };
+      }
+    }
+    try {
+      const children = Array.from(container.querySelectorAll('path,polyline,polygon,line'));
+      if (children.length) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const el of children) {
+          const b = el.getBBox();
+          minX = Math.min(minX, b.x);
+          minY = Math.min(minY, b.y);
+          maxX = Math.max(maxX, b.x + b.width);
+          maxY = Math.max(maxY, b.y + b.height);
+        }
+        if (isFinite(minX)) return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+      }
+    } catch (e) {}
+    return { cx: 0, cy: 0 };
+  }
+
+  const center = computeCenter(svgContainer);
+  const sinA = Math.sin(angleRad), cosA = Math.cos(angleRad);
+  const rotatePoint = (x, y) => {
+    const dx = x - center.cx, dy = y - center.cy;
+    return [dx * cosA - dy * sinA + center.cx, dx * sinA + dy * cosA + center.cy];
+  };
+
+  // 元属性を保存する Map
+  const originalMap = new Map();
+
+  // path の簡易パーサ（M x,y x,y ... Z 形式を想定）
+  function parseSimplePathPoints(d) {
+    if (!d) return null;
+    const re = /[a-zA-Z]|[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?/g;
+    const tokens = [];
+    let m;
+    while ((m = re.exec(d)) !== null) tokens.push(m[0]);
+    if (!tokens.length) return null;
+    let i = 0;
+    const pts = [];
+    while (i < tokens.length) {
+      const t = tokens[i++];
+      if (t.toUpperCase() === 'M' || t.toUpperCase() === 'L') {
+        while (i < tokens.length && !isNaN(Number(tokens[i]))) {
+          const x = Number(tokens[i++]);
+          if (i >= tokens.length) break;
+          const y = Number(tokens[i++]);
+          pts.push([x, y]);
+        }
+      } else if (t.toUpperCase() === 'Z') {
+        break;
+      } else if (!isNaN(Number(t))) {
+        let x = Number(t);
+        if (i < tokens.length && !isNaN(Number(tokens[i]))) {
+          const y = Number(tokens[i++]);
+          pts.push([x, y]);
+        } else break;
+      } else {
+        return null;
+      }
+    }
+    return pts;
+  }
+
+  function buildPathDFromPoints(points) {
+    if (!points || !points.length) return '';
+    let s = `M ${fmt(points[0][0])} ${fmt(points[0][1])}`;
+    for (let i = 1; i < points.length; i++) s += ` L ${fmt(points[i][0])} ${fmt(points[i][1])}`;
+    s += ' Z';
+    return s;
+  }
+
+  // 対象要素を列挙して保存し回転
+  const elements = Array.from(svgContainer.querySelectorAll('path,polyline,polygon,line'));
+  for (const el of elements) {
+    // 保存
+    const saved = {};
+    for (let i = 0; i < el.attributes.length; i++) {
+      const a = el.attributes[i];
+      saved[a.name] = a.value;
+    }
+    originalMap.set(el, saved);
+
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'path') {
+      const d = el.getAttribute('d');
+      const pts = parseSimplePathPoints(d);
+      if (pts) {
+        const rotated = pts.map(p => rotatePoint(p[0], p[1]));
+        el.setAttribute('d', buildPathDFromPoints(rotated));
+        if (el.hasAttribute('transform')) el.removeAttribute('transform');
+      } else {
+        console.warn('rotateAndAnnotate: unsupported path format, skipped', el);
+      }
+    } else if (tag === 'polyline' || tag === 'polygon') {
+      const ptsAttr = el.getAttribute('points') || '';
+      const coords = ptsAttr.trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+      if (coords.length >= 2) {
+        const pts = [];
+        for (let i = 0; i < coords.length; i += 2) pts.push([coords[i], coords[i + 1]]);
+        const rotated = pts.map(p => rotatePoint(p[0], p[1]));
+        el.setAttribute('points', rotated.map(p => `${fmt(p[0])},${fmt(p[1])}`).join(' '));
+        if (el.hasAttribute('transform')) el.removeAttribute('transform');
+      }
+    } else if (tag === 'line') {
+      const x1 = Number(el.getAttribute('x1')), y1 = Number(el.getAttribute('y1'));
+      const x2 = Number(el.getAttribute('x2')), y2 = Number(el.getAttribute('y2'));
+      if (![x1, y1, x2, y2].some(v => isNaN(v))) {
+        const r1 = rotatePoint(x1, y1), r2 = rotatePoint(x2, y2);
+        el.setAttribute('x1', fmt(r1[0])); el.setAttribute('y1', fmt(r1[1]));
+        el.setAttribute('x2', fmt(r2[0])); el.setAttribute('y2', fmt(r2[1]));
+        if (el.hasAttribute('transform')) el.removeAttribute('transform');
+      }
+    }
+  }
+
+  // 回転後の全頂点から bbox を計算
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  function considerPoint(x, y) {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+
+  // 再走査して頂点を収集
+  const rotatedElements = Array.from(svgContainer.querySelectorAll('path,polyline,polygon,line'));
+  for (const el of rotatedElements) {
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'path') {
+      const d = el.getAttribute('d');
+      const pts = parseSimplePathPoints(d);
+      if (pts) for (const p of pts) considerPoint(p[0], p[1]);
+    } else if (tag === 'polyline' || tag === 'polygon') {
+      const ptsAttr = el.getAttribute('points') || '';
+      const coords = ptsAttr.trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
+      for (let i = 0; i < coords.length; i += 2) considerPoint(coords[i], coords[i + 1]);
+    } else if (tag === 'line') {
+      const x1 = Number(el.getAttribute('x1')), y1 = Number(el.getAttribute('y1'));
+      const x2 = Number(el.getAttribute('x2')), y2 = Number(el.getAttribute('y2'));
+      if (![x1, y1, x2, y2].some(v => isNaN(v))) {
+        considerPoint(x1, y1); considerPoint(x2, y2);
+      }
+    }
+  }
+
+  if (!isFinite(minX)) {
+    // 対象頂点が見つからない場合は空のハンドルを返す
+    return {
+      restore() {
+        // restore nothing
+      }
+    };
+  }
+
+  const width = maxX - minX;
+  const height = maxY - minY;
+
+  // 描画用 g を作成して追加
+  const annotG = document.createElementNS(ns, 'g');
+  annotG.setAttribute('data-rotate-annot', 'true');
+
+  // 矩形
+  const rect = document.createElementNS(ns, 'rect');
+  rect.setAttribute('x', fmt(minX));
+  rect.setAttribute('y', fmt(minY));
+  rect.setAttribute('width', fmt(width));
+  rect.setAttribute('height', fmt(height));
+  rect.setAttribute('fill', 'none');
+  rect.setAttribute('stroke', '#ff0000');
+  rect.setAttribute('stroke-width', '1');
+  rect.setAttribute('stroke-dasharray', '4 2');
+  annotG.appendChild(rect);
+
+  // テキストスタイル
+  const textStyle = {
+    'font-size': '10',
+    'fill': '#000',
+    'font-family': 'sans-serif',
+    'text-anchor': 'start'
+  };
+
+  // 幅ラベル（矩形上部中央）
+  const textW = document.createElementNS(ns, 'text');
+  textW.setAttribute('x', fmt(minX + width / 2));
+  textW.setAttribute('y', fmt(minY - (height === 0 ? 10 : Math.max(10, Math.min(20, height * 0.02)))));
+  textW.setAttribute('text-anchor', 'middle');
+  Object.entries(textStyle).forEach(([k, v]) => textW.setAttribute(k, v));
+  textW.textContent = `W ${fmt(width)}`;
+
+
+  // 高さラベル（矩形右側中央、回転しない座標系で縦に表示）
+  const textH = document.createElementNS(ns, 'text');
+  textH.setAttribute('x', fmt(maxX + (width === 0 ? 4 : Math.max(4, Math.min(20, width * 0.02)))));
+  textH.setAttribute('y', fmt(minY + height / 2));
+  // rotate the height label so it reads vertically along the right edge
+  textH.setAttribute('transform', `rotate(90 ${fmt(maxX + 0)} ${fmt(minY + height / 2)})`);
+  Object.entries(textStyle).forEach(([k, v]) => textH.setAttribute(k, v));
+  textH.setAttribute('text-anchor', 'middle');
+  textH.textContent = `H ${fmt(height)}`;
+
+
+  // 追加先: svgContainer が <svg> ならその直下、<g> ならその親 svg に追加して viewBox 座標系に合わせる
+  let appendTarget = svgContainer;
+  if (svgContainer.tagName.toLowerCase() !== 'svg') {
+    // 親の SVG を探す
+    const rootSvg = svgContainer.ownerSVGElement || svgContainer.closest('svg');
+    if (rootSvg) appendTarget = rootSvg;
+  }
+
+
+  // 返却ハンドル: restore で元に戻す
+  function restore() {
+    // remove annotation
+    if (annotG.parentNode) annotG.parentNode.removeChild(annotG);
+    // restore attributes
+    for (const [el, attrs] of originalMap.entries()) {
+      // remove all current attributes
+      const names = Array.from(el.getAttributeNames());
+      for (const n of names) el.removeAttribute(n);
+      // restore saved
+      for (const k of Object.keys(attrs)) el.setAttribute(k, attrs[k]);
+    }
+  }
+
+  return {
+    bbox: { minX, minY, maxX, maxY, width, height },
+    annotationGroup: annotG,
+    restore
+  };
+}
+  </script>
+</body>
+</html>
