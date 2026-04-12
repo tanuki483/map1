@@ -1,1139 +1,1980 @@
 <!DOCTYPE html>
+<!--
+  This application uses the following open-source library:
+
+  geojson2svg
+  Copyright (c) Gagan Bansal
+  Licensed under the MIT License
+  https://github.com/gagan-bansal/geojson2svg
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+-->
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <title>GeoJSON → SVG</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GeoJSON形式の測量データをSVGに変換し、回転・寸法表示を行うローカルツール">
+  <title>GeoJSON → SVG 加工ツール</title>
+  <!-- geojson2svg: MIT License, Copyright (c) Gagan Bansal -->
+  <script>! function(f) {
+	"object" == typeof exports && "undefined" != typeof module ? module.exports =
+		f() : "function" == typeof define && define.amd ? define([], f) : (
+			"undefined" != typeof window ? window : "undefined" != typeof global ?
+			global : "undefined" != typeof self ? self : this).GeoJSON2SVG = f()
+}(function() {
+	return function r(e, n, t) {
+		function o(i, f) {
+			if (!n[i]) {
+				if (!e[i]) {
+					var c = "function" == typeof require && require;
+					if (!f && c) return c(i, !0);
+					if (u) return u(i, !0);
+					throw (f = new Error("Cannot find module '" + i + "'")).code =
+						"MODULE_NOT_FOUND", f
+				}
+				c = n[i] = {
+					exports: {}
+				}, e[i][0].call(c.exports, function(r) {
+					return o(e[i][1][r] || r)
+				}, c, c.exports, r, e, n, t)
+			}
+			return n[i].exports
+		}
+		for (var u = "function" == typeof require && require, i = 0; i < t.length; i++)
+			o(t[i]);
+		return o
+	}({
+		1: [function(require, module, exports) {
+			require = require("./src/index.js").GeoJSON2SVG;
+			module.exports = require
+		}, {
+			"./src/index.js": 6
+		}],
+		2: [function(require, module, exports) {
+			"use strict";
+
+			function isArray(arr) {
+				return "function" == typeof Array.isArray ? Array.isArray(arr) :
+					"[object Array]" === toStr.call(arr)
+			}
+
+			function isPlainObject(obj) {
+				if (obj && "[object Object]" === toStr.call(obj)) {
+					var key, hasOwnConstructor = hasOwn.call(obj, "constructor"),
+						hasIsPrototypeOf = obj.constructor && obj.constructor.prototype &&
+						hasOwn.call(obj.constructor.prototype, "isPrototypeOf");
+					if (!obj.constructor || hasOwnConstructor || hasIsPrototypeOf) {
+						for (key in obj);
+						return void 0 === key || hasOwn.call(obj, key)
+					}
+				}
+			}
+
+			function setProperty(target, options) {
+				defineProperty && "__proto__" === options.name ? defineProperty(target,
+					options.name, {
+						enumerable: !0,
+						configurable: !0,
+						value: options.newValue,
+						writable: !0
+					}) : target[options.name] = options.newValue
+			}
+
+			function getProperty(obj, name) {
+				if ("__proto__" === name) {
+					if (!hasOwn.call(obj, name)) return;
+					if (gOPD) return gOPD(obj, name).value
+				}
+				return obj[name]
+			}
+			var hasOwn = Object.prototype.hasOwnProperty,
+				toStr = Object.prototype.toString,
+				defineProperty = Object.defineProperty,
+				gOPD = Object.getOwnPropertyDescriptor;
+			module.exports = function extend() {
+				var options, name, copy, copyIsArray, src, target = arguments[0],
+					i = 1,
+					length = arguments.length,
+					deep = !1;
+				for ("boolean" == typeof target && (deep = target, target = arguments[
+						1] || {}, i = 2), (null == target || "object" != typeof target &&
+						"function" != typeof target) && (target = {}); i < length; ++i)
+					if (null != (options = arguments[i]))
+						for (name in options) src = getProperty(target, name), target !== (
+							copy = getProperty(options, name)) && (deep && copy && (
+							isPlainObject(copy) || (copyIsArray = isArray(copy))) ? (src =
+							copyIsArray ? (copyIsArray = !1, src && isArray(src) ? src : []) :
+							src && isPlainObject(src) ? src : {}, setProperty(target, {
+								name: name,
+								newValue: extend(deep, src, copy)
+							})) : void 0 !== copy && setProperty(target, {
+							name: name,
+							newValue: copy
+						}));
+				return target
+			}
+		}, {}],
+		3: [function(require, module, exports) {
+			module.exports = function(gj) {
+				var bbox;
+				if (gj.hasOwnProperty("type")) return gj = function getCoordinatesDump(
+					gj) {
+					var coords;
+					"Point" == gj.type ? coords = [gj.coordinates] : "LineString" ==
+						gj.type || "MultiPoint" == gj.type ? coords = gj.coordinates :
+						"Polygon" == gj.type || "MultiLineString" == gj.type ? coords =
+						gj.coordinates.reduce(function(dump, part) {
+							return dump.concat(part)
+						}, []) : "MultiPolygon" == gj.type ? coords = gj.coordinates.reduce(
+							function(dump, poly) {
+								return dump.concat(poly.reduce(function(points, part) {
+									return points.concat(part)
+								}, []))
+							}, []) : "Feature" == gj.type ? coords = getCoordinatesDump(gj.geometry) :
+						"GeometryCollection" == gj.type ? coords = gj.geometries.reduce(
+							function(dump, g) {
+								return dump.concat(getCoordinatesDump(g))
+							}, []) : "FeatureCollection" == gj.type && (coords = gj.features
+							.reduce(function(dump, f) {
+								return dump.concat(getCoordinatesDump(f))
+							}, []));
+					return coords
+				}(gj), bbox = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY,
+					Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY
+				], gj.reduce(function(prev, coord) {
+					return [Math.min(coord[0], prev[0]), Math.min(coord[1], prev[1]),
+						Math.max(coord[0], prev[2]), Math.max(coord[1], prev[3])
+					]
+				}, bbox)
+			}
+		}, {}],
+		4: [function(require, module, exports) {
+			var singles, multies, multigeojson;
+			singles = ["Point", "LineString", "Polygon"], multies = ["MultiPoint",
+					"MultiLineString", "MultiPolygon"
+				], multigeojson = {
+					explode: function(g) {
+						return -1 < multies.indexOf(g.type) && g.coordinates.map(function(
+							part) {
+							var single = {};
+							return single.type = g.type.replace("Multi", ""), single.coordinates =
+								part, g.crs && (single.crs = g.crs), single
+						})
+					},
+					implode: function(gs) {
+						var multi, sameType = gs.every(function(g) {
+								return -1 < singles.indexOf(g.type)
+							}),
+							crs = gs[0].crs || 0,
+							sameCrs = gs.every(function(g) {
+								return (g.crs || 0) == crs
+							});
+						return !(!sameType || !sameCrs) && ((multi = {}).type = "Multi" +
+							gs[0].type, multi.coordinates = [], 0 != crs && (multi.crs = crs),
+							gs.forEach(function(g) {
+								multi.coordinates.push(g.coordinates)
+							}), multi)
+					}
+				}, void 0 !== module && module.exports ? module.exports = multigeojson :
+				window && (window.multigeojson = multigeojson)
+		}, {}],
+		5: [function(require, module, exports) {
+			var multi = require("multigeojson");
+
+			function getCoordString(coords, res, origin, precision, opt) {
+				return coords.map(function(coord) {
+					return [((coord = opt.coordinateConverter ? opt.coordinateConverter(
+							coord) : coord)[0] - origin.x) / res, (origin.y - coord[1]) /
+						res
+					]
+				}).map(function(coord) {
+					return precision ? coord[0].toFixed(precision) + "," + coord[1].toFixed(
+						precision) : coord[0] + "," + coord[1]
+				}).join(" ")
+			}
+
+			function point(geom, res, origin, opt) {
+				var r = opt && opt.r ? opt.r : 1,
+					pointAsCircle = !(!opt || !opt.hasOwnProperty("pointAsCircle")) &&
+					opt.pointAsCircle,
+					geom = getCoordString([geom.coordinates], res, origin, opt.precision,
+						opt);
+				return pointAsCircle ? [geom] : ["M" + geom + " m" + -r + ",0 a" + r +
+					"," + r + " 0 1,1 " + 2 * r + ",0 a" + r + "," + r + " 0 1,1 " + -2 *
+					r + ",0"
+				]
+			}
+
+			function lineString(geom, res, origin, opt) {
+				return ["M" + getCoordString(geom.coordinates, res, origin, opt.precision,
+					opt)]
+			}
+
+			function polygon(geom, res, origin, opt) {
+				var holes, path = "M" + getCoordString(geom.coordinates[0], res,
+					origin, opt.precision, opt);
+				if (holes = 1 < geom.coordinates.length ? geom.coordinates.slice(1,
+						geom.coordinates.length) : holes)
+					for (var i = 0; i < holes.length; i++) path += " M" + getCoordString(
+						holes[i], res, origin, opt.precision, opt);
+				return [path += "Z"]
+			}
+			module.exports = {
+				Point: point,
+				MultiPoint: function(geom, res, origin, opt) {
+					var explode = !(!opt || !opt.hasOwnProperty("explode")) && opt.explode,
+						geom = multi.explode(geom).map(function(single) {
+							return point(single, res, origin, opt)[0]
+						});
+					return explode ? geom : [geom.join(" ")]
+				},
+				LineString: lineString,
+				MultiLineString: function(geom, res, origin, opt) {
+					var explode = !(!opt || !opt.hasOwnProperty("explode")) && opt.explode,
+						geom = multi.explode(geom).map(function(single) {
+							return lineString(single, res, origin, opt)[0]
+						});
+					return explode ? geom : [geom.join(" ")]
+				},
+				Polygon: polygon,
+				MultiPolygon: function(geom, res, origin, opt) {
+					var explode = !!opt.hasOwnProperty("explode") && opt.explode,
+						geom = multi.explode(geom).map(function(single) {
+							return polygon(single, res, origin, opt)[0]
+						});
+					return explode ? geom : [geom.join(" ").replace(/Z/g, "") + "Z"]
+				}
+			}
+		}, {
+			multigeojson: 4
+		}],
+		6: [function(require, module, exports) {
+			function GeoJSON2SVG(options = {}) {
+				if (options.mapExtent ? this.mapExtentFromGeojson = options.mapExtentFromGeojson :
+					this.mapExtentFromGeojson = !0, options.fitTo && !/^(width|height)$/i
+					.test(options.fitTo)) throw new Error(
+					'"fitTo" option should be "width" or "height" ');
+				if (this.options = options, this.viewportSize = options.viewportSize || {
+						width: 256,
+						height: 256
+					}, options.coordinateConverter && "function" != typeof options.coordinateConverter)
+					throw new Error('"coordinateConverter" option should be function');
+				var rightTop, leftBottom;
+				this.coordinateConverter = options.coordinateConverter, options.mapExtent &&
+					this.coordinateConverter ? (rightTop = this.coordinateConverter([
+						options.mapExtent.right, options.mapExtent.top
+					]), leftBottom = this.coordinateConverter([options.mapExtent.left,
+						options.mapExtent.bottom
+					]), this.mapExtent = {
+						left: leftBottom[0],
+						bottom: leftBottom[1],
+						right: rightTop[0],
+						top: rightTop[1]
+					}) : this.mapExtent = options.mapExtent, this.mapExtent && (this.res =
+						this.calResolution(this.mapExtent, this.viewportSize, this.options.fitTo)
+					)
+			}
+			var bbox = require("geojson-bbox"),
+				extend = require("extend"),
+				converter = require("./converter.js");
+
+			function valueAt(obj, path) {
+				return path.split(".").reduce(function(prev, cur, i, arr) {
+					if (prev.hasOwnProperty(cur)) return prev[cur];
+					throw new Error(arr.slice(0, i + 1).join(".") +
+						" is not a valid property path")
+				}, obj)
+			}
+			GeoJSON2SVG.prototype.calResolution = function(extent, size, fitTo) {
+				var xres = (extent.right - extent.left) / size.width,
+					extent = (extent.top - extent.bottom) / size.height;
+				if (fitTo) {
+					if ("width" === fitTo.toLowerCase()) return xres;
+					if ("height" === fitTo.toLowerCase()) return extent;
+					throw new Error('"fitTo" option should be "width" or "height" ')
+				}
+				return Math.max(xres, extent)
+			}, GeoJSON2SVG.prototype.convert = function(geojson, options) {
+				var extent, resetExtent = !1,
+					opt = (!this.res && this.mapExtentFromGeojson && (resetExtent = !0,
+						extent = bbox(geojson), this.coordinateConverter && (extent =
+							function(extent, converter) {
+								var leftBottom = converter([extent[0], extent[1]]),
+									converter = converter([extent[2], extent[3]]);
+								return [...leftBottom, ...converter]
+							}(extent, this.coordinateConverter)), this.mapExtent = {
+							left: extent[0],
+							bottom: extent[1],
+							right: extent[2],
+							top: extent[3]
+						}, this.res = this.calResolution(this.mapExtent, this.viewportSize,
+							this.options.fitTo)), extend(!0, {}, this.options, options || {})),
+					svgElements = [];
+				if ("FeatureCollection" == geojson.type)
+					for (var i = 0; i < geojson.features.length; i++) svgElements =
+						svgElements.concat(this.convertFeature(geojson.features[i], opt));
+				else if ("Feature" == geojson.type) svgElements = this.convertFeature(
+					geojson, opt);
+				else if ("GeometryCollection" == geojson.type)
+					for (i = 0; i < geojson.geometries.length; i++) svgElements =
+						svgElements.concat(this.convertGeometry(geojson.geometries[i], opt));
+				else {
+					if (!converter[geojson.type]) throw new Error(
+						"Geojson type not supported.");
+					svgElements = this.convertGeometry(geojson, opt)
+				}
+				return resetExtent && (this.res = null, this.mapExtent = null), opt.callback &&
+					opt.callback.call(this, svgElements), svgElements
+			}, GeoJSON2SVG.prototype.convertFeature = function(feature, options) {
+				var arr;
+				if (feature || feature.geometry) return (options = extend(!0, {},
+						this.options, options || {})).attributes && options.attributes instanceof Array ?
+					(arr = options.attributes, options.attributes = arr.reduce(function(
+						sum, property) {
+						if ("string" == typeof property) {
+							var key = property.split(".").pop();
+							try {
+								val = valueAt(feature, property)
+							} catch (e) {
+								val = void 0
+							}
+							void 0 !== val && (sum[key] = val)
+						} else if ("object" == typeof property && property.type &&
+							property.property)
+							if ("dynamic" === property.type) {
+								var val, key = property.key || property.property.split(".").pop();
+								try {
+									val = valueAt(feature, property.property)
+								} catch (e) {
+									val = void 0
+								}
+								void 0 !== val && (sum[key] = val)
+							} else "static" === property.type && property.value && (sum[
+								property.property] = property.value);
+						return sum
+					}, {})) : options.attributes = options.attributes || {}, (arr =
+						options.attributes.id || feature.id || (feature.properties &&
+							feature.properties.id ? feature.properties.id : null)) && (
+						options.attributes.id = arr), this.convertGeometry(feature.geometry,
+						options)
+			}, GeoJSON2SVG.prototype.convertGeometry = function(geom, options) {
+				var opt, paths;
+				if (converter[geom.type]) return options = (opt = extend(!0, {}, this
+						.options, options || {})).output || "svg", paths = converter[geom.type]
+					.call(this, geom, this.res, {
+						x: this.mapExtent.left,
+						y: this.mapExtent.top
+					}, opt), "svg" == options.toLowerCase() ? paths.map(function(path) {
+						return function(path, type, attributes, opt) {
+							var key, svg = {},
+								pointAsCircle = !(!opt || !opt.hasOwnProperty("pointAsCircle")) &&
+								opt.pointAsCircle;
+							"Point" != type && "MultiPoint" != type || !pointAsCircle ? (
+								svg = {
+									d: path
+								}, "Polygon" != type && "MultiPolygon" != type || svg[
+									"fill-rule"]) : (svg.cx = path.split(",")[0], svg.cy = path.split(
+								",")[1], svg.r = opt && opt.r ? opt.r : "1");
+							for (key in attributes) svg[key] = attributes[key];
+							return svg
+						}(path, geom.type, opt.attributes, opt)
+					}).map(function(json) {
+						return function(json, type, opt) {
+							var key, opt = !(!opt || !opt.hasOwnProperty("pointAsCircle")) &&
+								opt.pointAsCircle,
+								ele = "<path";
+							"Point" != type && "MultiPoint" != type || !opt || (ele =
+								"<circle");
+							for (key in json) ele += " " + key + '="' + json[key] + '"';
+							return ele += "/>"
+						}(json, geom.type, opt)
+					}) : paths;
+				throw new Error("Geojson type not supported.")
+			}, module.exports = {
+				GeoJSON2SVG: GeoJSON2SVG
+			}
+		}, {
+			"./converter.js": 5,
+			extend: 2,
+			"geojson-bbox": 3
+		}]
+	}, {}, [1])(1)
+});
+</script>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif; margin: 1rem; }
-    .controls { display: grid; gap: 0.5rem; grid-template-columns: 1fr 300px; align-items: start; }
-    textarea { width: 100%; height: 220px; font-family: monospace; font-size: 13px; }
-    #svgContainer { border: 1px solid #ddd; margin-top: 1rem; display: flex; justify-content: center; align-items: center; background: #fafafa; min-height: 320px; overflow:auto; }
-    #svgContainer svg { max-width: 100%; height: auto; display: block; }
-    .row { display:flex; gap:0.5rem; align-items:center; margin-bottom:0.5rem; }
-    label { font-size: 14px; min-width: 90px; }
-    input[type="number"], select { width: 140px; }
-    button { padding: 0.5rem 0.75rem; }
-    .small { font-size: 13px; color:#555; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    :root {
+      --bg-primary: #080c14;
+      --bg-secondary: #0f1520;
+      --bg-tertiary: #161d2e;
+      --surface-glass: rgba(15, 21, 32, 0.82);
+      --border-primary: rgba(56, 189, 248, 0.15);
+      --border-active: rgba(56, 189, 248, 0.45);
+      --border-hover: rgba(56, 189, 248, 0.3);
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted: #475569;
+      --accent-blue: #38bdf8;
+      --accent-cyan: #22d3ee;
+      --accent-green: #4ade80;
+      --accent-orange: #fb923c;
+      --accent-red: #f87171;
+      --accent-purple: #c084fc;
+      --accent-yellow: #fbbf24;
+      --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px;
+      --shadow-lg: 0 8px 40px rgba(0,0,0,0.6);
+      --transition-fast: 0.12s ease;
+      --transition-normal: 0.22s ease;
+      --font-mono: 'JetBrains Mono','Fira Code','Consolas',monospace;
+      --font-body: 'Inter','Segoe UI',-apple-system,sans-serif;
+    }
+    /* ── Theme: Warm (DEFAULT) ── */
+    body.theme-warm {
+      --bg-primary: #faf7f2;
+      --bg-secondary: #f5f0e8;
+      --bg-tertiary: #ede6d8;
+      --surface-glass: rgba(245, 240, 232, 0.92);
+      --border-primary: rgba(180, 140, 80, 0.2);
+      --border-active: rgba(180, 140, 80, 0.5);
+      --border-hover: rgba(180, 140, 80, 0.35);
+      --text-primary: #3d2e1c;
+      --text-secondary: #7a6b57;
+      --text-muted: #a89880;
+      --accent-blue: #b4721a;
+      --accent-cyan: #c4872e;
+      --accent-green: #2d8a56;
+      --accent-orange: #d97706;
+      --accent-red: #dc2626;
+      --shadow-lg: 0 8px 40px rgba(60,40,10,0.15);
+    }
+    body.theme-warm::before{background:radial-gradient(ellipse 700px 500px at 15% 10%,rgba(180,140,80,.06)0%,transparent 70%),radial-gradient(ellipse 500px 400px at 85% 80%,rgba(200,160,100,.04)0%,transparent 70%),radial-gradient(ellipse 400px 300px at 60% 30%,rgba(220,180,120,.03)0%,transparent 70%)}
+    body.theme-warm .scale-select option{background:var(--bg-secondary);color:var(--text-primary)}
+    body.theme-warm .mode-option input[type="radio"]:checked+label{background:linear-gradient(135deg,rgba(180,114,26,.15),rgba(196,135,46,.1));border-color:var(--accent-blue);color:var(--accent-blue);box-shadow:0 0 14px rgba(180,114,26,.15)}
+    body.theme-warm .btn-primary{background:linear-gradient(135deg,#b4721a,#c4872e);box-shadow:0 2px 14px rgba(180,114,26,.3)}
+    body.theme-warm .btn-success{background:linear-gradient(135deg,#2d8a56,#3da868);box-shadow:0 2px 14px rgba(45,138,86,.2)}
+    body.theme-warm .btn-print{background:linear-gradient(135deg,#7c5e2a,#a0783c);box-shadow:0 2px 14px rgba(124,94,42,.3)}
+    body.theme-warm .toast.info{background:linear-gradient(135deg,#b4721a,#c4872e)}
+    body.theme-warm .toast.success{background:linear-gradient(135deg,#2d8a56,#3da868)}
+    body.theme-warm .app-header h1{background:linear-gradient(120deg,#b4721a,#c4872e);-webkit-background-clip:text;background-clip:text}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font-body);background:var(--bg-primary);color:var(--text-primary);min-height:100vh;overflow-x:hidden}
+    body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 700px 500px at 15% 10%,rgba(56,189,248,.07)0%,transparent 70%),radial-gradient(ellipse 500px 400px at 85% 80%,rgba(34,211,238,.05)0%,transparent 70%),radial-gradient(ellipse 400px 300px at 60% 30%,rgba(192,132,252,.04)0%,transparent 70%);pointer-events:none;z-index:0}
+    .app-container{position:relative;z-index:1;max-width:1440px;margin:0 auto;padding:20px 24px 40px}
+
+    /* Header */
+    .app-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:16px 24px;background:var(--surface-glass);backdrop-filter:blur(16px);border:1px solid var(--border-primary);border-radius:var(--radius-lg);box-shadow:0 0 30px rgba(56,189,248,.05)}
+    .header-title-group{display:flex;align-items:center;gap:14px}
+    .header-icon{width:40px;height:40px;background:linear-gradient(135deg,rgba(56,189,248,.2),rgba(34,211,238,.1));border:1px solid rgba(56,189,248,.3);border-radius:10px;display:flex;align-items:center;justify-content:center}
+    .header-icon svg{width:22px;height:22px;color:var(--accent-blue)}
+    .app-header h1{font-size:20px;font-weight:700;background:linear-gradient(120deg,var(--accent-blue),var(--accent-cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .app-header p{color:var(--text-muted);font-size:12px;margin-top:2px}
+    .header-badge{padding:5px 12px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:100px;font-size:11px;color:var(--accent-blue);font-family:var(--font-mono)}
+
+    /* Controls Grid */
+    .controls-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px;margin-bottom:14px}
+    .control-card{background:var(--surface-glass);backdrop-filter:blur(12px);border:1px solid var(--border-primary);border-radius:var(--radius-md);padding:14px 16px;transition:border-color var(--transition-normal),box-shadow var(--transition-normal)}
+    .control-card:hover{border-color:var(--border-hover);box-shadow:0 0 20px rgba(56,189,248,.06)}
+    .card-label{display:flex;align-items:center;gap:6px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin-bottom:10px;font-weight:600}
+    .card-label svg{width:12px;height:12px}
+
+    /* File input */
+    .file-input-label{display:flex;align-items:center;gap:10px;padding:11px 14px;background:linear-gradient(135deg,rgba(56,189,248,.1),rgba(34,211,238,.06));border:1px dashed rgba(56,189,248,.4);border-radius:var(--radius-sm);cursor:pointer;transition:all var(--transition-normal);font-size:13px;color:var(--accent-cyan);font-weight:500}
+    .file-input-label:hover{background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(34,211,238,.1));border-color:var(--accent-blue);box-shadow:0 0 20px rgba(56,189,248,.15)}
+    .file-input-label svg{width:16px;height:16px;flex-shrink:0}
+    #file-input{display:none}
+    .file-name-display{margin-top:7px;font-size:11px;color:var(--text-secondary);font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    /* Mode toggle */
+    .mode-toggle{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    .mode-option{position:relative}
+    .mode-option input[type="radio"]{position:absolute;opacity:0;width:0;height:0}
+    .mode-option label{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 8px;background:var(--bg-tertiary);border:1px solid rgba(255,255,255,.06);border-radius:var(--radius-sm);cursor:pointer;font-size:12px;color:var(--text-secondary);font-weight:500;transition:all var(--transition-normal);user-select:none}
+    .mode-option label:hover{background:rgba(56,189,248,.08);color:var(--text-primary);border-color:rgba(56,189,248,.2)}
+    .mode-option input[type="radio"]:checked+label{background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(34,211,238,.1));border-color:var(--accent-blue);color:var(--accent-cyan);box-shadow:0 0 14px rgba(56,189,248,.2)}
+    .mode-option label svg{width:14px;height:14px}
+
+    /* Scale select */
+    .scale-select{width:100%;padding:10px 32px 10px 12px;background:var(--bg-tertiary);border:1px solid rgba(255,255,255,.08);border-radius:var(--radius-sm);color:var(--text-primary);font-size:13px;font-family:var(--font-mono);cursor:pointer;outline:none;transition:border-color var(--transition-fast);appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+    .scale-select:focus{border-color:var(--accent-blue);box-shadow:0 0 0 2px rgba(56,189,248,.12)}
+    .scale-select option{background:var(--bg-secondary);color:var(--text-primary)}
+
+    /* Style panel */
+    .style-panel-toggle{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:var(--radius-sm);cursor:pointer;font-size:12px;color:var(--text-secondary);margin-bottom:10px;width:fit-content;transition:all var(--transition-normal);font-family:inherit}
+    .style-panel-toggle:hover{border-color:var(--border-hover);color:var(--text-primary)}
+    .style-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:14px;max-height:0;overflow:hidden;opacity:0;transition:max-height .35s ease,opacity .2s ease,margin .3s ease}
+    .style-panel.open{max-height:500px;opacity:1}
+    .style-ctrl{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:var(--radius-sm)}
+    .style-ctrl label{font-size:11px;color:var(--text-secondary);white-space:nowrap;min-width:55px}
+    .style-ctrl input[type="color"]{width:28px;height:28px;border:none;border-radius:4px;cursor:pointer;padding:0;background:none}
+    .style-ctrl input[type="range"]{flex:1;accent-color:var(--accent-blue);max-width:90px}
+    .style-ctrl input[type="number"]{width:50px;padding:3px 5px;background:var(--bg-tertiary);border:1px solid var(--border-primary);border-radius:3px;color:var(--text-primary);font-size:12px;font-family:var(--font-mono)}
+
+    /* Action bar */
+    .action-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 16px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:var(--radius-md);backdrop-filter:blur(12px);flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 18px;border:1px solid transparent;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;transition:all var(--transition-normal);font-family:inherit;white-space:nowrap;position:relative;overflow:hidden}
+    .btn::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,.08);opacity:0;transition:opacity var(--transition-fast)}
+    .btn:hover::after{opacity:1}
+    .btn:disabled{opacity:.35;cursor:not-allowed}.btn:disabled::after{display:none}
+    .btn svg{width:15px;height:15px;flex-shrink:0}
+    .btn-primary{background:linear-gradient(135deg,#0284c7,#0ea5e9);color:#fff;box-shadow:0 2px 14px rgba(14,165,233,.35)}
+    .btn-primary:hover:not(:disabled){box-shadow:0 4px 22px rgba(14,165,233,.5)}
+    .btn-secondary{background:var(--bg-tertiary);color:var(--text-secondary);border-color:rgba(255,255,255,.08)}
+    .btn-secondary:hover:not(:disabled){background:rgba(56,189,248,.08);border-color:rgba(56,189,248,.25);color:var(--text-primary)}
+    .btn-success{background:linear-gradient(135deg,#059669,#10b981);color:#fff;box-shadow:0 2px 14px rgba(16,185,129,.3)}
+    .btn-success:hover:not(:disabled){box-shadow:0 4px 22px rgba(16,185,129,.45)}
+    .action-divider{width:1px;height:28px;background:var(--border-primary);margin:0 4px;flex-shrink:0}
+    .checkbox-wrapper{display:flex;align-items:center;gap:8px;padding:7px 14px;background:var(--bg-tertiary);border:1px solid rgba(255,255,255,.06);border-radius:var(--radius-sm);cursor:pointer}
+    .checkbox-wrapper input[type="checkbox"]{width:15px;height:15px;accent-color:var(--accent-blue);cursor:pointer}
+    .checkbox-wrapper label{font-size:12px;color:var(--text-secondary);cursor:pointer;user-select:none;white-space:nowrap}
+
+    /* Operation manual (details/summary) */
+    .op-manual{margin-bottom:12px}
+    .op-manual summary{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:var(--radius-sm);cursor:pointer;font-size:12px;color:var(--text-secondary);list-style:none;transition:all var(--transition-normal);font-family:inherit;user-select:none}
+    .op-manual summary::-webkit-details-marker{display:none}
+    .op-manual summary::before{content:'▶';font-size:10px;transition:transform .2s ease}
+    .op-manual[open] summary::before{transform:rotate(90deg)}
+    .op-manual summary:hover{border-color:var(--border-hover);color:var(--text-primary)}
+    .op-manual .manual-content{margin-top:8px;padding:14px 18px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:var(--radius-sm);font-size:12px;line-height:1.7;color:var(--text-secondary);max-height:300px;overflow-y:auto}
+    .op-manual .manual-content h4{color:var(--text-primary);font-size:13px;margin:10px 0 6px;font-weight:600}
+    .op-manual .manual-content h4:first-child{margin-top:0}
+    .op-manual .manual-content ul{margin:4px 0 8px 18px}
+    .op-manual .manual-content li{margin-bottom:3px}
+    .op-manual .manual-content kbd{display:inline-block;padding:1px 6px;background:var(--bg-tertiary);border:1px solid rgba(255,255,255,.1);border-radius:3px;font-family:var(--font-mono);font-size:11px;color:var(--accent-cyan)}
+
+    /* SVG Canvas */
+    .svg-canvas-wrapper{position:relative;background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:var(--radius-lg);overflow:hidden;min-height:520px;transition:border-color var(--transition-normal),box-shadow var(--transition-normal)}
+    .svg-canvas-wrapper.has-content{border-color:rgba(56,189,248,.2)}
+    .svg-canvas-wrapper.has-content:hover{border-color:var(--border-active);box-shadow:0 0 30px rgba(56,189,248,.08)}
+    .svg-canvas-wrapper::before,.svg-canvas-wrapper::after{content:'';position:absolute;width:16px;height:16px;border-color:rgba(56,189,248,.3);border-style:solid;z-index:2;pointer-events:none}
+    .svg-canvas-wrapper::before{top:10px;left:10px;border-width:2px 0 0 2px}
+    .svg-canvas-wrapper::after{bottom:10px;right:10px;border-width:0 2px 2px 0}
+    /* Drag & drop highlight */
+    .svg-canvas-wrapper.drag-over{border-color:var(--accent-green)!important;background:rgba(74,222,128,.06)!important;box-shadow:0 0 40px rgba(74,222,128,.18)!important}
+    .control-card.drag-over{border-color:var(--accent-green)!important;background:rgba(74,222,128,.08)!important;box-shadow:0 0 20px rgba(74,222,128,.15)!important}
+    .svg-canvas-wrapper.drag-over::before,.svg-canvas-wrapper.drag-over::after{border-color:var(--accent-green)}
+    .svg-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:520px;gap:14px;color:var(--text-muted)}
+    .svg-placeholder-icon{width:60px;height:60px;background:rgba(56,189,248,.05);border:1px solid rgba(56,189,248,.1);border-radius:16px;display:flex;align-items:center;justify-content:center}
+    .svg-placeholder-icon svg{width:28px;height:28px;opacity:.4}
+    .svg-placeholder p{font-size:13px}.svg-placeholder small{font-size:11px;opacity:.6}
+    #svg-container{width:100%;min-height:520px;display:flex;align-items:center;justify-content:center;padding:40px;position:relative}
+    #svg-container svg{max-width:100%;max-height:68vh}
+
+    /* SVG elements */
+    .geo-path{stroke-linejoin:round}
+    .geo-edge-hit{stroke:transparent;stroke-width:8px;fill:none;cursor:pointer}
+    .geo-edge{fill:none;pointer-events:none;transition:stroke var(--transition-fast),stroke-width var(--transition-fast)}
+    .geo-edge-group:hover .geo-edge{stroke:var(--accent-cyan);stroke-width:3.5px;filter:drop-shadow(0 0 5px rgba(34,211,238,.6))}
+    .geo-edge-group.selected .geo-edge{stroke:var(--accent-orange);stroke-width:3.5px;filter:drop-shadow(0 0 7px rgba(251,146,60,.55))}
+    .geo-vertex{cursor:pointer;transition:all var(--transition-fast)}
+    .geo-vertex.hovered{filter:drop-shadow(0 0 6px rgba(34,211,238,.7))}
+    .geo-vertex.selected{fill:var(--accent-orange)!important;stroke:#fff;stroke-width:2px;filter:drop-shadow(0 0 8px rgba(251,146,60,.7))}
+    #vertex-group{opacity:0;pointer-events:none}
+    #vertex-group.active{opacity:1;pointer-events:auto}
+    .guide-line{stroke:rgba(251,146,60,.75);stroke-dasharray:7 5;fill:none}
+    .bounding-rect{fill:none;stroke:var(--accent-green);stroke-dasharray:5 4;opacity:.75}
+    .dim-line{stroke:var(--accent-green);opacity:.75}
+    .dim-text{fill:var(--accent-green);font-family:var(--font-mono);font-weight:500;opacity:.9}
+    .label-assumed{fill:var(--accent-orange);font-family:var(--font-body);font-weight:700;opacity:.9}
+
+    /* Info bar */
+    .info-bar{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+    .info-chip{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:100px;font-size:11px;color:var(--text-secondary);font-family:var(--font-mono);white-space:nowrap}
+    .info-chip .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+    /* Toast */
+    .toast{position:fixed;bottom:28px;right:28px;padding:11px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;z-index:9999;transform:translateY(120px);opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);box-shadow:var(--shadow-lg);max-width:360px}
+    .toast.show{transform:translateY(0);opacity:1}
+    .toast.success{background:linear-gradient(135deg,#059669,#10b981);color:#fff}
+    .toast.error{background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff}
+    .toast.info{background:linear-gradient(135deg,#0284c7,#38bdf8);color:#fff}
+
+    @keyframes fadeSlideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .animate-in{animation:fadeSlideIn .35s ease forwards}
+    ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg-primary)}::-webkit-scrollbar-thumb{background:rgba(56,189,248,.2);border-radius:3px}
+    @media(max-width:900px){.controls-grid{grid-template-columns:1fr}.action-bar{flex-wrap:wrap}.style-panel{grid-template-columns:1fr 1fr}}
+
+    /* Theme toggle button */
+    .theme-toggle{display:flex;align-items:center;gap:6px;padding:5px 12px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:100px;font-size:11px;color:var(--accent-blue);font-family:var(--font-mono);cursor:pointer;transition:all var(--transition-normal);white-space:nowrap}
+    .theme-toggle:hover{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.4)}
+
+    /* Print button */
+    .btn-print{background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;box-shadow:0 2px 14px rgba(168,85,247,.3)}
+    .btn-print:hover:not(:disabled){box-shadow:0 4px 22px rgba(168,85,247,.45)}
+
+    /* ── @media print (A4 1-page guaranteed) ── */
+    @media print {
+      .app-container,#toast{display:none!important}
+      body{margin:0!important;padding:0!important;background:#fff!important;overflow:hidden!important;height:297mm!important}
+      body::before{display:none!important}
+      #print-target{
+        display:flex!important;align-items:center!important;justify-content:center!important;
+        width:210mm!important;height:297mm!important;
+        background:#fff!important;
+        margin:0!important;padding:10mm!important;
+        overflow:hidden!important;
+        page-break-inside:avoid!important;break-inside:avoid!important;
+        box-sizing:border-box!important;
+      }
+      #print-target svg{
+        page-break-inside:avoid!important;break-inside:avoid!important;
+        display:block!important;
+      }
+      @page{size:A4 portrait;margin:0}
+    }
+    #print-target{display:none}
   </style>
 </head>
-<body>
-  <h3>GeoJSON を座標値ごと縮小して SVG に変換</h3>
+<body class="theme-warm">
+<div class="app-container">
 
-  <div class="controls">
-    <div>
-      <div class="row">
-        <label><strong>GeoJSON ファイル</strong></label>
-        <input id="fileInput" type="file" accept=".json,.geojson,application/geo+json" />
-      </div>
-
-      <p class="small">または下のテキストエリアに GeoJSON を貼り付けてください。</p>
-      <textarea id="geojsonInput" placeholder='{"type":"FeatureCollection","features":[...]}'>{
-  "type": "FeatureCollection",
-  "features": [
-    {
-      "type": "Feature",
-      "geometry": { "type": "Point", "coordinates": [139.7670, 35.6814] },
-      "properties": { "r": 6 }
-    },
-    {
-      "type": "Feature",
-      "geometry": { "type": "LineString", "coordinates": [[139.7,35.66],[139.8,35.7]] },
-      "properties": {}
-    },
-    {
-      "type": "Feature",
-      "geometry": { "type": "Polygon", "coordinates": [[[139.75,35.67],[139.78,35.67],[139.78,35.69],[139.75,35.69],[139.75,35.67]]] },
-      "properties": {}
-    }
-  ]
-}</textarea>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-title-group">
+      <div class="header-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="3 11 12 2 21 11 21 21 3 21"/><polyline points="9 21 9 12 15 12 15 21"/></svg></div>
+      <div><h1>GeoJSON → SVG 加工ツール</h1><p>測量データの変換・回転・寸法表示をローカルで実行</p></div>
     </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="theme-toggle" id="btn-theme" type="button" title="寒色テーマに切替">❄ 寒色</button>
+      <span class="header-badge">ローカル動作</span>
+    </div>
+  </header>
 
-    <div style="display:flex; flex-direction:column; gap:0.5rem; align-items:flex-end;">
-      <div style="width:100%;">
-        <div class="row">
-          <label for="scaleSelect"><strong>縮尺</strong></label>
-          <select id="scaleSelect">
-            <option value="250">250分の1</option>
-            <option value="300">300分の1</option>
-            <option value="450">450分の1</option>
-            <option value="500" selected>500分の1</option>
-            <option value="600">600分の1</option>
-            <option value="750">750分の1</option>
-            <option value="900">900分の1</option>
-            <option value="1000">1000分の1</option>
-            <option value="1200">1200分の1</option>
-            <option value="1250">1250分の1</option>
-            <option value="1500">1500分の1</option>
-            <option value="1800">1800分の1</option>
-            <option value="2500">2500分の1</option>
-          </select>
-        </div>
-
-        <div class="row">
-          <label for="width"><strong>幅</strong></label>
-          <input id="width" type="number" value="1000" min="10" />
-        </div>
-        <div class="row">
-          <label for="height"><strong>高さ</strong></label>
-          <input id="height" type="number" value="800" min="10" />
-        </div>
-        <div class="row">
-          <label for="padding" class="small">パディング</label>
-          <input id="padding" type="number" value="10" min="0" />
-        </div>
-
+  <!-- Controls -->
+  <div class="controls-grid">
+    <!-- File -->
+    <div class="control-card" id="file-drop-card">
+      <div class="card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>ファイル入力</div>
+      <label class="file-input-label" for="file-input">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        GeoJSONファイルを選択（複数可・D&D対応）
+      </label>
+      <input type="file" id="file-input" accept=".geojson,.json" multiple>
+      <div class="file-name-display" id="file-name">ファイル未選択</div>
+    </div>
+    <!-- Mode -->
+    <div class="control-card">
+      <div class="card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>選択モード</div>
+      <div class="mode-toggle">
+        <div class="mode-option"><input type="radio" id="mode-edge" name="select-mode" value="edge" checked><label for="mode-edge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg>辺選択</label></div>
+        <div class="mode-option"><input type="radio" id="mode-vertex" name="select-mode" value="vertex"><label for="mode-vertex"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="2.5" fill="currentColor"/><circle cx="17" cy="17" r="2.5" fill="currentColor"/><line x1="9" y1="9" x2="15" y2="15" stroke-dasharray="3 2"/></svg>頂点選択</label></div>
       </div>
-
-      <div style="display:flex; flex-direction:column; gap:0.25rem; width:100%;">
-        <button id="convertBtn">変換</button>
-        <button id="downloadSvgBtn" disabled>SVG をダウンロード</button>
-        <button id="downloadGeojsonBtn" disabled>GeoJSON をダウンロード</button>
-<button id="analyzeBtn" disabled>辺を選択して解析</button>
-      </div>
+    </div>
+    <!-- Scale -->
+    <div class="control-card">
+      <div class="card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M3 21l7-7M14 10l7-7"/></svg>縮尺</div>
+      <select class="scale-select" id="scale-select" title="縮尺を選択">
+        <option value="auto">自動（GeoJSONプロパティ）</option>
+        <option value="100">1 : 100</option><option value="150">1 : 150</option><option value="200">1 : 200</option>
+        <option value="300">1 : 300</option><option value="400">1 : 400</option><option value="450">1 : 450</option>
+        <option value="500">1 : 500</option><option value="600">1 : 600</option><option value="750">1 : 750</option>
+        <option value="800">1 : 800</option><option value="900">1 : 900</option><option value="1000">1 : 1000</option>
+        <option value="1200">1 : 1200</option><option value="1250">1 : 1250</option><option value="1500">1 : 1500</option>
+        <option value="1800">1 : 1800</option><option value="2500">1 : 2500</option>
+      </select>
     </div>
   </div>
 
-  <h3>SVG 出力</h3>
-  <div id="svgContainer" aria-live="polite">変換後の SVG がここに表示されます</div>
+  <!-- Operation Manual -->
+  <details class="op-manual">
+    <summary>操作説明</summary>
+    <div class="manual-content">
+      <h4>1. ファイル読み込み</h4>
+      <ul>
+        <li>「GeoJSONファイルを選択」ボタンまたは<kbd>ドラッグ＆ドロップ</kbd>でファイルをアップロード</li>
+        <li>複数ファイルの同時読み込みに対応（自動マージ）</li>
+        <li>対応形式：Polygon / MultiPolygon</li>
+      </ul>
+      <h4>2. 辺・頂点選択と回転</h4>
+      <ul>
+        <li><kbd>辺選択</kbd>モード：辺をクリックして基準辺を選択</li>
+        <li><kbd>頂点選択</kbd>モード：2頂点をクリックして基準線を選択</li>
+        <li>「回転実行」で基準辺/線が水平になるよう回転</li>
+      </ul>
+      <h4>3. 回転維持オプション</h4>
+      <ul>
+        <li>OFF（初期値）：元の向きに戻してSVG出力（外接矩形は斜め表示）</li>
+        <li>ON：回転後の向きのまま出力（外接矩形は水平/垂直）</li>
+      </ul>
+      <h4>4. SVGダウンロード</h4>
+      <ul>
+        <li>加工済SVGをファイル保存</li>
+        <li>出力サイズ: max(幅,高さ)=1200px（A4印刷対応）</li>
+        <li>縦横比制限: height/width ≤ 1.4</li>
+      </ul>
+      <h4>5. スタイル設定</h4>
+      <ul>
+        <li>線色・塗り色・透明度・背景色・ラベルサイズなどをカスタマイズ可能</li>
+        <li>「半透明塗り」チェックで塗り表示を切替</li>
+      </ul>
+    </div>
+  </details>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/geojson2svg/2.0.3/geojson2svg.min.js"></script>
-  <script>
-    const fileInput = document.getElementById('fileInput');
-    const geojsonInput = document.getElementById('geojsonInput');
-    const convertBtn = document.getElementById('convertBtn');
-    const svgContainer = document.getElementById('svgContainer');
-    const widthInput = document.getElementById('width');
-    const heightInput = document.getElementById('height');
-    const paddingInput = document.getElementById('padding');
-    const downloadSvgBtn = document.getElementById('downloadSvgBtn');
-    const downloadGeojsonBtn = document.getElementById('downloadGeojsonBtn');
-    const scaleSelect = document.getElementById('scaleSelect');
+  <!-- Style Panel -->
+  <button class="style-panel-toggle" id="style-panel-toggle" type="button"><span id="style-arrow">▶</span> スタイル設定</button>
+  <div class="style-panel" id="style-panel">
+    <div class="style-ctrl"><label>線色</label><input type="color" id="ctrl-stroke-color" value="#8b5e34"></div>
+    <div class="style-ctrl"><label>塗り色</label><input type="color" id="ctrl-fill-color" value="#c4872e"></div>
+    <div class="style-ctrl"><label>塗り透明度</label><input type="range" id="ctrl-fill-opacity" min="0" max="1" step="0.05" value="0.15"></div>
+    <div class="style-ctrl"><label>線透明度</label><input type="range" id="ctrl-stroke-opacity" min="0" max="1" step="0.05" value="1.0"></div>
+    <div class="style-ctrl"><label>ページ背景</label><input type="color" id="ctrl-page-bg" value="#faf7f2"></div>
+    <div class="style-ctrl"><label>SVG背景</label><input type="color" id="ctrl-svg-bg" value="#f5f0e8"></div>
+    <div class="style-ctrl"><label>ラベルサイズ</label><input type="number" id="ctrl-label-size" min="4" max="60" value="12"></div>
+    <div class="style-ctrl"><label>ラベル色</label><input type="color" id="ctrl-label-color" value="#3d2e1c"></div>
+  </div>
 
+  <!-- Action Bar -->
+  <div class="action-bar">
+    <button class="btn btn-primary" id="btn-execute" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></svg>回転実行
+    </button>
+    <button class="btn btn-secondary" id="btn-reset" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>リセット
+    </button>
+    <div class="action-divider"></div>
+    <button class="btn btn-success" id="btn-download" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>SVGダウンロード
+    </button>
+    <button class="btn btn-print" id="btn-print" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>A4印刷
+    </button>
+    <div class="action-divider"></div>
+    <div class="checkbox-wrapper"><input type="checkbox" id="chk-fill" checked><label for="chk-fill">半透明塗り</label></div>
+    <div class="checkbox-wrapper"><input type="checkbox" id="chk-keep-rotation"><label for="chk-keep-rotation">回転維持</label></div>
+  </div>
 
-    let lastSvgString = '';
-    let lastGeojsonText = '';
+  <!-- SVG Canvas -->
+  <div class="svg-canvas-wrapper" id="svg-canvas-wrapper">
+    <div class="svg-placeholder" id="svg-placeholder">
+      <div class="svg-placeholder-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></div>
+      <p>GeoJSONファイルをアップロードしてください</p>
+      <small>Polygon / MultiPolygon 形式に対応（複数ファイル可・ドラッグ＆ドロップ対応）</small>
+    </div>
+    <div id="svg-container" style="display:none;"></div>
+  </div>
 
-    fileInput.addEventListener('change', async (e) => {
-      const f = e.target.files && e.target.files[0];
-      if (!f) return;
-      try {
-        const txt = await f.text();
-        geojsonInput.value = txt;
-      } catch (err) {
-        alert('ファイルの読み込みに失敗しました');
+  <!-- Info Bar -->
+  <div class="info-bar" id="info-bar" style="display:none;">
+    <div class="info-chip"><span class="dot" style="background:var(--accent-green)"></span><span id="info-paths">パス: 0</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-blue)"></span><span id="info-vertices">頂点: 0</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-orange)"></span><span id="info-selection">選択: なし</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-purple)"></span><span id="info-scale">縮尺: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-cyan)"></span><span id="info-dimensions">寸法: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-yellow)"></span><span id="info-angle">角度: -</span></div>
+  </div>
+</div>
+<div id="print-target"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+'use strict';
+const NS = 'http://www.w3.org/2000/svg';
+
+// =============================================================================
+// State
+// =============================================================================
+const State = {
+  geojson: null,
+  paths: [],             // [{pathIndex, vertices:[{x,y}]}]
+  originalPaths: [],     // deep clone before rotation
+  features: [],          // [{featureId, properties, outerRingPathIndices:[]}]
+  allVertices: [],
+  selectedEdge: null,
+  selectedVertices: [],
+  mode: 'edge',
+  isRotated: false,
+  rotationAngle: 0,
+  rotationCenter: null,  // {cx, cy} for reverse transform
+  svgBounds: null,
+  // Scale mode: 'auto' = 縮尺分母 detected (coords are meters), 'manual' = user picks scale
+  scaleMode: 'manual',     // 'auto' | 'manual'
+  autoScaleValue: null,    // the 縮尺分母 value from GeoJSON (when auto)
+  // Style settings — warm theme defaults
+  strokeColor: '#8b5e34',
+  fillColor: '#c4872e',
+  fillEnabled: true,
+  fillOpacity: 0.15,
+  strokeOpacity: 1.0,
+  svgBgColor: '#f5f0e8',
+  // Label settings
+  labelFontSize: 12,
+  labelColor: '#3d2e1c',
+};
+
+// Theme color profiles
+const ThemeProfiles = {
+  warm: {
+    strokeColor: '#8b5e34', fillColor: '#c4872e', svgBgColor: '#f5f0e8', labelColor: '#3d2e1c',
+    dimColor: '#2d8a56', boundingColor: '#2d8a56', assumedColor: '#d97706',
+    edgeHover: 'rgba(196,135,46,0.45)', vertexColor: '#8b5e34'
+  },
+  cool: {
+    strokeColor: '#38bdf8', fillColor: '#3b82f6', svgBgColor: '#0f1520', labelColor: '#e2e8f0',
+    dimColor: '#4ade80', boundingColor: '#4ade80', assumedColor: '#fb923c',
+    edgeHover: 'rgba(56,189,248,0.45)', vertexColor: '#38bdf8'
+  }
+};
+
+// =============================================================================
+// Utilities
+// =============================================================================
+function showToast(m, t = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = m; el.className = `toast ${t} show`;
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 3400);
+}
+function dist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
+
+function getScaleDenominator() {
+  const sel = document.getElementById('scale-select').value;
+  if (sel !== 'auto') return Number(sel);
+  // In auto mode, check GeoJSON properties
+  if (!State.geojson) return null;
+  const feats = State.geojson.features || (State.geojson.type === 'Feature' ? [State.geojson] : []);
+  for (const f of feats) {
+    if (!f.properties) continue;
+    const raw = f.properties.scale || f.properties.Scale || f.properties.縮尺
+      || f.properties.scaleDenominator || f.properties.scale_denominator
+      || f.properties.縮尺分母;
+    if (raw != null && !isNaN(Number(raw)) && Number(raw) > 0) return Number(raw);
+  }
+  return null;
+}
+
+/**
+ * Convert SVG coordinate distance to real-world distance.
+ *
+ * Case 1 (scaleMode='auto'): 縮尺分母 exists → coords are already meters → return as-is
+ * Case 2 (scaleMode='manual'): no 縮尺分母 → base is 1:500, apply ratio
+ *   realDist = svgDist × (selectedScale / 500)
+ */
+function convertDistance(svgDist) {
+  if (State.scaleMode === 'auto') {
+    // Coordinates are already real meters
+    return { meters: svgDist, label: `${svgDist.toFixed(3)} m`, unit: 'm' };
+  }
+  // Manual mode: base 1:500
+  const sel = document.getElementById('scale-select').value;
+  if (sel === 'auto') {
+    // No scale info available
+    return { meters: null, label: `${svgDist.toFixed(3)} px`, unit: 'px' };
+  }
+  const selectedScale = Number(sel);
+  const realDist = svgDist * (selectedScale / 500);
+  return { meters: realDist, label: `${realDist.toFixed(3)} m (手動 1:${selectedScale})`, unit: 'm' };
+}
+
+function fmtDist(v) {
+  return convertDistance(Math.abs(v)).label;
+}
+
+// =============================================================================
+// Geometry helpers (Feature 7: centroid/area)
+// =============================================================================
+function computePolygonArea(verts) {
+  let a = 0; const n = verts.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) a += verts[j].x * verts[i].y - verts[i].x * verts[j].y;
+  return Math.abs(a) / 2;
+}
+
+function computeCentroid(verts) {
+  let a = 0, cx = 0, cy = 0; const n = verts.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const cross = verts[j].x * verts[i].y - verts[i].x * verts[j].y;
+    a += cross; cx += (verts[j].x + verts[i].x) * cross; cy += (verts[j].y + verts[i].y) * cross;
+  }
+  a /= 2;
+  if (Math.abs(a) < 1e-12) {
+    const sx = verts.reduce((s, p) => s + p.x, 0), sy = verts.reduce((s, p) => s + p.y, 0);
+    return { x: sx / n, y: sy / n };
+  }
+  return { x: cx / (6 * a), y: cy / (6 * a) };
+}
+
+/** Feature 7: extract label text from GeoJSON properties */
+function extractLabelText(props) {
+  if (!props) return null;
+  const fields = ['大字名', '丁目名', '小字名', '予備名', '地番'];
+  const parts = fields.map(f => props[f]).filter(v => v != null && v !== '');
+  return parts.length > 0 ? parts.join(' ') : null;
+}
+
+// =============================================================================
+// GeoJSON → path extraction (modified for Feature 6+7)
+// =============================================================================
+function ringToVertices(ring) {
+  // GeoJSON: [longitude, latitude] — latitude (Y) increases northward
+  // SVG: Y increases downward → negate Y to fix vertical flip
+  const vs = ring.map(c => ({ x: c[0], y: -c[1] }));
+  if (vs.length < 2) return vs;
+  const f = vs[0], l = vs[vs.length - 1];
+  if (f.x !== l.x || f.y !== l.y) vs.push({ x: f.x, y: f.y });
+  return vs;
+}
+
+function extractPaths(geojson) {
+  const paths = [], features = [];
+  let pIdx = 0, fIdx = 0;
+
+  function addGeom(geom, properties) {
+    if (!geom) return;
+    const feat = { featureId: fIdx++, properties: properties || {}, outerRingPathIndices: [] };
+    function addRings(rings) {
+      for (let r = 0; r < rings.length; r++) {
+        if (rings[r].length < 2) continue;
+        const pi = pIdx++;
+        paths.push({ pathIndex: pi, vertices: ringToVertices(rings[r]) });
+        if (r === 0) feat.outerRingPathIndices.push(pi);
       }
-    });
-
-    function deepClone(obj) {
-      return JSON.parse(JSON.stringify(obj));
     }
+    if (geom.type === 'Polygon') addRings(geom.coordinates);
+    else if (geom.type === 'MultiPolygon') for (const poly of geom.coordinates) addRings(poly);
+    if (feat.outerRingPathIndices.length > 0) features.push(feat);
+  }
 
-    function scaleGeoJSONCoordinates(geojson, scale) {
-      function scaleCoords(coords) {
-        if (!Array.isArray(coords)) return coords;
-        if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
-          return [coords[0] * scale, coords[1] * scale];
-        } else {
-          return coords.map(scaleCoords);
-        }
-      }
+  if (geojson.type === 'FeatureCollection')
+    for (const f of (geojson.features || [])) addGeom(f.geometry, f.properties);
+  else if (geojson.type === 'Feature') addGeom(geojson.geometry, geojson.properties);
+  else addGeom(geojson, null);
 
-      function scaleGeometry(geom) {
-        if (!geom) return geom;
-        const t = geom.type;
-        if (t === 'GeometryCollection') {
-          geom.geometries = (geom.geometries || []).map(g => scaleGeometry(g));
-          return geom;
-        } else {
-          geom.coordinates = scaleCoords(geom.coordinates);
-          return geom;
-        }
-      }
-
-      const out = deepClone(geojson);
-
-      if (out.type === 'FeatureCollection') {
-        out.features = (out.features || []).map(f => {
-          if (f.geometry) f.geometry = scaleGeometry(f.geometry);
-          if (f.properties) {
-            if (typeof f.properties.r === 'number') f.properties.r = f.properties.r * scale;
-            if (typeof f.properties['stroke-width'] === 'number') f.properties['stroke-width'] = f.properties['stroke-width'] * scale;
-            if (typeof f.properties['strokeWidth'] === 'number') f.properties['strokeWidth'] = f.properties['strokeWidth'] * scale;
-          }
-          return f;
-        });
-      } else if (out.type === 'Feature') {
-        if (out.geometry) out.geometry = scaleGeometry(out.geometry);
-        if (out.properties) {
-          if (typeof out.properties.r === 'number') out.properties.r = out.properties.r * scale;
-          if (typeof out.properties['stroke-width'] === 'number') out.properties['stroke-width'] = out.properties['stroke-width'] * scale;
-          if (typeof out.properties['strokeWidth'] === 'number') out.properties['strokeWidth'] = out.properties['strokeWidth'] * scale;
-        }
-      } else {
-        scaleGeometry(out);
-      }
-
-      return out;
-    }
-
-    function computeGeoJSONBBox(geojson) {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      let found = false;
-
-      function inspectCoords(coords) {
-        if (!coords) return;
-        if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
-          const x = coords[0], y = coords[1];
-          minX = Math.min(minX, x);
-          minY = Math.min(minY, y);
-          maxX = Math.max(maxX, x);
-          maxY = Math.max(maxY, y);
-          found = true;
-        } else if (Array.isArray(coords)) {
-          coords.forEach(inspectCoords);
-        }
-      }
-
-      function inspectGeometry(geom) {
-        if (!geom) return;
-        const t = geom.type;
-        if (t === 'GeometryCollection') {
-          (geom.geometries || []).forEach(inspectGeometry);
-        } else {
-          inspectCoords(geom.coordinates);
-        }
-      }
-
-      if (!geojson) return null;
-      if (geojson.type === 'FeatureCollection') {
-        (geojson.features || []).forEach(f => inspectGeometry(f.geometry));
-      } else if (geojson.type === 'Feature') {
-        inspectGeometry(geojson.geometry);
-      } else {
-        inspectGeometry(geojson);
-      }
-
-      if (!found) return null;
-      return [minX, minY, maxX, maxY];
-    }
-
-    convertBtn.addEventListener('click', () => {
-      let geojson;
-      try {
-        geojson = JSON.parse(geojsonInput.value);
-analyzeBtn.disabled = false;
-      } catch (err) {
-        alert('GeoJSON のパースに失敗しました');
-        return;
-      }
-
-      const outW = Number(widthInput.value) || 1000;
-      const outH = Number(heightInput.value) || 800;
-      const pad = Number(paddingInput.value) || 0;
-      const scaleN = Number(scaleSelect.value) || 500;
-
-      // 縮尺 s = 100 / N
-      const s = 100 / scaleN;
-
-      // 1) 元の bbox を取得（mapExtent に使用）
-      const origBBox = computeGeoJSONBBox(geojson);
-      if (!origBBox) {
-        alert('ジオメトリが見つかりません');
-        return;
-      }
-
-      // 2) 座標を直接スケールしたコピーを作成
-      const scaledGeojson = scaleGeoJSONCoordinates(geojson, s);
-
-      // 3) mapExtent は元の bbox を使う（縮尺効果を得るため）
-      const mapExtent = { left: origBBox[0], bottom: origBBox[1], right: origBBox[2], top: origBBox[3] };
-
-      // Geojson2Svg インスタンス
-      const converter = new GeoJSON2SVG({
-        mapExtent: mapExtent,
-        viewportSize: { width: outW, height: outH },
-        attributes: [
-          'properties.fill',
-          'properties.stroke',
-          'properties["stroke-width"]',
-          'properties.r',
-          'properties.opacity'
-        ]
-      });
-
-      // scaledGeojson を変換（座標は既にスケール済み）
-      const svgParts = converter.convert(scaledGeojson);
-
-      // 一時 SVG を作って描画要素の bbox を計測
-      const tempSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      tempSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      tempSvg.setAttribute('width', outW);
-      tempSvg.setAttribute('height', outH);
-      tempSvg.setAttribute('viewBox', `0 0 ${outW} ${outH}`);
-      tempSvg.style.position = 'absolute';
-      tempSvg.style.left = '-9999px';
-      tempSvg.style.top = '-9999px';
-      document.body.appendChild(tempSvg);
-
-      tempSvg.innerHTML = svgParts.join('\n');
-
-      let combinedBBox = null;
-      try {
-        const children = Array.from(tempSvg.children);
-        children.forEach((el) => {
-          try {
-            const b = el.getBBox();
-            if (b.width === 0 && b.height === 0) return;
-            if (!combinedBBox) {
-              combinedBBox = { x: b.x, y: b.y, x2: b.x + b.width, y2: b.y + b.height };
-            } else {
-              combinedBBox.x = Math.min(combinedBBox.x, b.x);
-              combinedBBox.y = Math.min(combinedBBox.y, b.y);
-              combinedBBox.x2 = Math.max(combinedBBox.x2, b.x + b.width);
-              combinedBBox.y2 = Math.max(combinedBBox.y2, b.y + b.height);
-            }
-          } catch (e) {}
-        });
-      } catch (e) {
-        combinedBBox = null;
-      }
-
-      if (!combinedBBox) {
-        alert('描画可能なジオメトリが見つかりません');
-        document.body.removeChild(tempSvg);
-        return;
-      }
-
-      // viewBox 用の値（パディングを含む）
-      const vbX = combinedBBox.x - pad;
-      const vbY = combinedBBox.y - pad;
-      const vbW = (combinedBBox.x2 - combinedBBox.x) + pad * 2;
-      const vbH = (combinedBBox.y2 - combinedBBox.y) + pad * 2;
-
-      // 最終 SVG を作成
-      const finalSvgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      finalSvgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      finalSvgEl.setAttribute('width', outW);
-      finalSvgEl.setAttribute('height', outH);
-
-
-        finalSvgEl.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
-      
-      finalSvgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-
-      // デフォルトスタイル
-      const defaultFill = '#e6e6e6';
-      const defaultStroke = '#000000';
-
-      // グループを作って必要なら translate を適用
-      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-
-
-      // tempSvg の子要素を複製して g に追加（スタイル統一）
-      Array.from(tempSvg.children).forEach((child) => {
-        const node = child.cloneNode(true);
-        const tag = node.tagName.toLowerCase();
-        const strokeWidth = node.getAttribute('stroke-width') || node.getAttribute('strokeWidth') || '1';
-
-        if (tag === 'path' || tag === 'polyline' || tag === 'line' || tag === 'polygon') {
-          if (!node.hasAttribute('fill') || node.getAttribute('fill') === 'none') {
-            node.setAttribute('fill', defaultFill);
-          }
-          if (!node.hasAttribute('stroke')) {
-            node.setAttribute('stroke', defaultStroke);
-          }
-          if (!node.hasAttribute('stroke-width')) {
-            node.setAttribute('stroke-width', strokeWidth);
-          }
-          node.setAttribute('stroke-linecap', node.getAttribute('stroke-linecap') || 'round');
-          node.setAttribute('stroke-linejoin', node.getAttribute('stroke-linejoin') || 'round');
-        } else if (tag === 'circle') {
-          if (!node.hasAttribute('fill') || node.getAttribute('fill') === 'none') {
-            node.setAttribute('fill', defaultFill);
-          }
-          if (!node.hasAttribute('stroke')) {
-            node.setAttribute('stroke', defaultStroke);
-          }
-          if (!node.hasAttribute('stroke-width')) {
-            node.setAttribute('stroke-width', strokeWidth);
-          }
-        } else {
-          if (!node.hasAttribute('fill') && !node.hasAttribute('stroke')) {
-            node.setAttribute('fill', defaultFill);
-            node.setAttribute('stroke', defaultStroke);
-            node.setAttribute('stroke-width', strokeWidth);
-          }
-        }
-
-        g.appendChild(node);
-      });
-
-      finalSvgEl.appendChild(g);
-currentPaths = Array.from(finalSvgEl.querySelectorAll('path'));
-currentSegments = extractSegmentsFromPaths(currentPaths);
-drawEdgeOverlay(finalSvgEl, g, currentSegments);
-
-      // 表示
-      svgContainer.innerHTML = '';
-      svgContainer.appendChild(finalSvgEl);
-
-      // 後始末
-      document.body.removeChild(tempSvg);
-
-      // 保存用に保持（文字列化）
-      lastSvgString = new XMLSerializer().serializeToString(finalSvgEl);
-      lastGeojsonText = JSON.stringify(scaledGeojson, null, 2);
-      downloadSvgBtn.disabled = false;
-      downloadGeojsonBtn.disabled = false;
-    });
-
-    downloadSvgBtn.addEventListener('click', () => {
-      if (!lastSvgString) return;
-      const blob = new Blob([lastSvgString], { type: 'image/svg+xml;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'map.svg';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    });
-
-    downloadGeojsonBtn.addEventListener('click', () => {
-      if (!lastGeojsonText) return;
-      const blob = new Blob([lastGeojsonText], { type: 'application/json;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'data_scaled.geojson';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    });
-const analyzeBtn = document.getElementById('analyzeBtn');
-
-let currentPaths = [];
-let currentSegments = [];
-let selectedSegment = null;
-
-function parsePathToPoints(d) {
-  const pts = [];
-  d.replace(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g, (_, x, y) => {
-    pts.push({ x: +x, y: +y });
-  });
-  return pts;
+  return { paths, features };
 }
 
-function extractSegmentsFromPaths(paths) {
-  const segs = [];
-
-  paths.forEach(p => {
-    const d = p.getAttribute('d');
-    const pts = [];
-    let isClosed = /Z/i.test(d); // ← 追加
-
-    d.replace(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g, (_, x, y) => {
-      pts.push({ x: +x, y: +y });
-    });
-
-    for (let i = 1; i < pts.length; i++) {
-      segs.push({ p1: pts[i-1], p2: pts[i] });
-    }
-
-    // 🔥 ここが重要
-    if (isClosed && pts.length > 2) {
-      segs.push({
-        p1: pts[pts.length - 1],
-        p2: pts[0]
-      });
-    }
-  });
-
-  return segs;
+function uniqueRingVerts(vertices) {
+  if (!vertices.length) return [];
+  const res = [vertices[0]];
+  for (let i = 1; i < vertices.length; i++) {
+    const p = vertices[i], prev = vertices[i - 1];
+    if (p.x === prev.x && p.y === prev.y) continue;
+    if (i === vertices.length - 1 && p.x === vertices[0].x && p.y === vertices[0].y) continue;
+    res.push(p);
+  }
+  return res;
 }
 
-function drawEdgeOverlay(svg, g, segments) {
-  segments.forEach(seg => {
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-
-    line.setAttribute('x1', seg.p1.x);
-    line.setAttribute('y1', seg.p1.y);
-    line.setAttribute('x2', seg.p2.x);
-    line.setAttribute('y2', seg.p2.y);
-
-    line.setAttribute('stroke', 'rgba(0,0,255,0.001)');
-    line.setAttribute('stroke-width', 10);
-    line.setAttribute('pointer-events', 'stroke');
-
-    line.style.cursor = 'pointer';
-
-    line.addEventListener('mouseenter', () => {
-      line.setAttribute('stroke', 'rgba(0,0,255,0.2)');
-    });
-
-    line.addEventListener('mouseleave', () => {
-      line.setAttribute('stroke', 'rgba(0,0,255,0.001)');
-    });
-
-    line.addEventListener('click', () => {
-      selectedSegment = seg;
-
-      document.querySelectorAll('.edge-highlight').forEach(e => e.remove());
-
-      const hl = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      hl.setAttribute('x1', seg.p1.x);
-      hl.setAttribute('y1', seg.p1.y);
-      hl.setAttribute('x2', seg.p2.x);
-      hl.setAttribute('y2', seg.p2.y);
-      hl.setAttribute('stroke', 'red');
-      hl.setAttribute('stroke-width', 3);
-      hl.classList.add('edge-highlight');
-
-      g.appendChild(hl);
-    });
-
-    g.appendChild(line); // ← svgじゃなくg
-  });
-}
-
-function getAngle(seg) {
-  return Math.atan2(seg.p2.y - seg.p1.y, seg.p2.x - seg.p1.x);
-}
-
-function rotatePoint(p, angle, origin) {
-  const x = p.x - origin.x;
-  const y = p.y - origin.y;
-  return {
-    x: x * Math.cos(-angle) - y * Math.sin(-angle) + origin.x,
-    y: x * Math.sin(-angle) + y * Math.cos(-angle) + origin.y
-  };
-}
-
-function rotatePath(d, angle, origin) {
-  return d.replace(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g, (_, x, y) => {
-    const p = rotatePoint({ x: +x, y: +y }, angle, origin);
-    return `${p.x},${p.y}`;
-  });
-}
-
-function computeBBox(paths) {
+// =============================================================================
+// Bounds & Rotation
+// =============================================================================
+function computeBounds(paths) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-  paths.forEach(p => {
-    const d = p.getAttribute('d');
-    d.replace(/(-?\d+\.?\d*),(-?\d+\.?\d*)/g, (_, x, y) => {
-      x = +x; y = +y;
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x);
-      maxY = Math.max(maxY, y);
-    });
-  });
-
+  for (const p of paths) for (const v of p.vertices) {
+    if (v.x < minX) minX = v.x; if (v.y < minY) minY = v.y;
+    if (v.x > maxX) maxX = v.x; if (v.y > maxY) maxY = v.y;
+  }
   return { minX, minY, maxX, maxY };
 }
 
-function createRect(svg, bbox) {
-  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-  rect.setAttribute('x', bbox.minX);
-  rect.setAttribute('y', bbox.minY);
-  rect.setAttribute('width', bbox.maxX - bbox.minX);
-  rect.setAttribute('height', bbox.maxY - bbox.minY);
-  rect.setAttribute('fill', 'none');
-  rect.setAttribute('stroke', 'blue');
-  rect.setAttribute('stroke-width', 2);
-  svg.appendChild(rect);
-}
-
-function addDimensions(svg, bbox) {
-  const w = bbox.maxX - bbox.minX;
-  const h = bbox.maxY - bbox.minY;
-
-  const t1 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-  t1.textContent = w.toFixed(2);
-  t1.setAttribute('x', (bbox.minX + bbox.maxX) / 2);
-  t1.setAttribute('y', bbox.minY - 5);
-  t1.setAttribute('text-anchor', 'middle');
-
-  const t2 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-  t2.textContent = h.toFixed(2);
-  t2.setAttribute('x', bbox.maxX + 5);
-  t2.setAttribute('y', (bbox.minY + bbox.maxY) / 2);
-  t2.setAttribute('writing-mode', 'vertical-rl');
-
-  svg.appendChild(t1);
-  svg.appendChild(t2);
-}
-
-analyzeBtn.addEventListener('click', () => {
-  if (!selectedSegment) {
-    alert('辺をクリックしてください');
-    return;
+function rotatePaths(paths, theta) {
+  const c = Math.cos(theta), s = Math.sin(theta);
+  for (const p of paths) for (const v of p.vertices) {
+    const nx = v.x * c - v.y * s, ny = v.x * s + v.y * c; v.x = nx; v.y = ny;
   }
-
-  const svg = svgContainer.querySelector('svg');
-  const paths = Array.from(svg.querySelectorAll('path'));
-
-  const angle = -getAngle(selectedSegment);
-
- rotateAnnotateAndReturnHandle(svg, angle)
-rotateAndAnnotate(svg, - angle)
-
-
-
-  lastSvgString = new XMLSerializer().serializeToString(svg);
-});
-
-/* ======= ユーティリティ ======= */
-const ns = 'http://www.w3.org/2000/svg';
-const fmt = n => Number(n.toFixed(6));
-
-function parseSVGString(svgText) {
-  const p = new DOMParser();
-  const doc = p.parseFromString(svgText, 'image/svg+xml');
-  return doc.querySelector('svg');
 }
 
-function rotatePointAround(x, y, cx, cy, sinA, cosA) {
-  const dx = x - cx, dy = y - cy;
-  return [dx * cosA - dy * sinA + cx, dx * sinA + dy * cosA + cy];
+function sf() { return State.svgBounds ? Math.max(State.svgBounds.vbW, State.svgBounds.vbH) / 600 : 1; }
+
+// =============================================================================
+// SVG Rendering
+// =============================================================================
+function buildPathD(verts) {
+  let d = `M ${verts[0].x} ${verts[0].y}`;
+  for (let i = 1; i < verts.length; i++) d += ` L ${verts[i].x} ${verts[i].y}`;
+  return d + ' Z';
 }
 
-/* 簡易 path パーサ: M x,y x,y ... Z 形式を想定 */
-function parseSimplePathPoints(d) {
-  if (!d) return null;
-  const re = /[a-zA-Z]|[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?/g;
-  const tokens = [];
-  let m;
-  while ((m = re.exec(d)) !== null) tokens.push(m[0]);
-  if (!tokens.length) return null;
-  let i = 0;
-  const pts = [];
-  while (i < tokens.length) {
-    const t = tokens[i++];
-    if (t.toUpperCase() === 'M' || t.toUpperCase() === 'L') {
-      while (i < tokens.length && !isNaN(Number(tokens[i]))) {
-        const x = Number(tokens[i++]);
-        if (i >= tokens.length) break;
-        const y = Number(tokens[i++]);
-        pts.push([x, y]);
-      }
-    } else if (t.toUpperCase() === 'Z') {
-      break;
-    } else if (!isNaN(Number(t))) {
-      let x = Number(t);
-      if (i < tokens.length && !isNaN(Number(tokens[i]))) {
-        const y = Number(tokens[i++]);
-        pts.push([x, y]);
-      } else break;
-    } else {
-      return null;
+function makeLine(v1, v2, cls) {
+  const el = document.createElementNS(NS, 'line');
+  el.setAttribute('x1', v1.x); el.setAttribute('y1', v1.y);
+  el.setAttribute('x2', v2.x); el.setAttribute('y2', v2.y);
+  el.setAttribute('class', cls); return el;
+}
+
+function renderSVG(paths) {
+  const container = document.getElementById('svg-container');
+  const placeholder = document.getElementById('svg-placeholder');
+  const wrapper = document.getElementById('svg-canvas-wrapper');
+  container.innerHTML = ''; container.style.display = 'flex';
+  placeholder.style.display = 'none'; wrapper.classList.add('has-content');
+  if (!paths.length) return;
+
+  const bounds = computeBounds(paths);
+  const dw = bounds.maxX - bounds.minX, dh = bounds.maxY - bounds.minY;
+  const padBase = Math.max(dw, dh) * 0.15;
+  const vbMinX = bounds.minX - padBase, vbMinY = bounds.minY - padBase;
+  const vbW = dw + padBase * 2.8, vbH = dh + padBase * 2.8;
+  State.svgBounds = { vbMinX, vbMinY, vbW, vbH };
+
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('xmlns', NS);
+  svg.setAttribute('viewBox', `${vbMinX} ${vbMinY} ${vbW} ${vbH}`);
+  svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%');
+  svg.style.maxHeight = '68vh'; svg.style.display = 'block';
+  const s = sf();
+
+  // Determine fill/stroke from state
+  const strokeCol = State.strokeColor;
+  const strokeOp = State.strokeOpacity;
+  const fillCol = State.fillEnabled ? State.fillColor : 'none';
+  const fillOp = State.fillEnabled ? State.fillOpacity : 0;
+
+  // ① Path group (layer 1)
+  const pathGroup = document.createElementNS(NS, 'g'); pathGroup.id = 'path-group';
+  for (const p of paths) {
+    if (p.vertices.length < 2) continue;
+    const el = document.createElementNS(NS, 'path');
+    el.setAttribute('d', buildPathD(p.vertices));
+    el.setAttribute('class', 'geo-path');
+    el.setAttribute('data-path-index', p.pathIndex);
+    el.style.stroke = strokeCol; el.style.strokeWidth = `${1.8 * s}px`;
+    el.style.strokeOpacity = strokeOp;
+    el.style.fill = fillCol; el.style.fillOpacity = fillOp;
+    pathGroup.appendChild(el);
+  }
+  svg.appendChild(pathGroup);
+
+  // Edge group
+  const edgeG = document.createElementNS(NS, 'g'); edgeG.id = 'edge-group';
+  for (const p of paths) {
+    const uv = uniqueRingVerts(p.vertices), n = uv.length;
+    for (let i = 0; i < n; i++) {
+      const v1 = uv[i], v2 = uv[(i + 1) % n];
+      if (v1.x === v2.x && v1.y === v2.y) continue;
+      const g = document.createElementNS(NS, 'g');
+      g.setAttribute('class', 'geo-edge-group'); g.setAttribute('data-path-index', p.pathIndex);
+      g.setAttribute('data-edge-index', i);
+      const vis = makeLine(v1, v2, 'geo-edge'); vis.style.stroke = `rgba(56,189,248,0.45)`; vis.style.strokeWidth = `${2 * s}px`;
+      const hit = makeLine(v1, v2, 'geo-edge-hit'); hit.style.strokeWidth = `${10 * s}px`;
+      hit.addEventListener('click', onEdgeClick);
+      g.appendChild(vis); g.appendChild(hit); edgeG.appendChild(g);
     }
   }
-  return pts;
+  svg.appendChild(edgeG);
+
+  // Vertex group
+  const vtxG = document.createElementNS(NS, 'g'); vtxG.id = 'vertex-group';
+  if (State.mode === 'vertex') vtxG.classList.add('active');
+  State.allVertices = [];
+  for (const p of paths) {
+    const uv = uniqueRingVerts(p.vertices);
+    for (let i = 0; i < uv.length; i++) {
+      const v = uv[i];
+      State.allVertices.push({ x: v.x, y: v.y, pathIndex: p.pathIndex, vertexIndex: i });
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', v.x); c.setAttribute('cy', v.y); c.setAttribute('r', 4 * s);
+      c.setAttribute('class', 'geo-vertex'); c.setAttribute('data-path-index', p.pathIndex);
+      c.setAttribute('data-vertex-index', i);
+      c.style.fill = strokeCol; c.style.stroke = 'var(--bg-primary)'; c.style.strokeWidth = `${1.5 * s}px`;
+      c.addEventListener('click', onVertexClick);
+      c.addEventListener('mouseenter', () => c.classList.add('hovered'));
+      c.addEventListener('mouseleave', () => c.classList.remove('hovered'));
+      vtxG.appendChild(c);
+    }
+  }
+  svg.appendChild(vtxG);
+
+  // ④ Label group — 地番ラベル (Feature 7, layer 4)
+  const labelG = document.createElementNS(NS, 'g'); labelG.id = 'label-group';
+  renderParcelLabels(labelG, paths, State.features, s);
+  svg.appendChild(labelG);
+
+  // Aux group (bounding rect, dimensions, 想定整形地 added in drawBoundingAndDimensions)
+  const auxG = document.createElementNS(NS, 'g'); auxG.id = 'aux-group';
+  svg.appendChild(auxG);
+
+  container.appendChild(svg);
+  // Apply SVG BG color
+  wrapper.style.background = State.svgBgColor;
+  updateInfoBar(paths);
 }
 
-function buildPathDFromPoints(points) {
-  if (!points || !points.length) return '';
-  let s = `M ${fmt(points[0][0])} ${fmt(points[0][1])}`;
-  for (let i = 1; i < points.length; i++) s += ` L ${fmt(points[i][0])} ${fmt(points[i][1])}`;
-  s += ' Z';
-  return s;
+/** Feature 7: render parcel labels at centroid */
+function renderParcelLabels(group, paths, features, s) {
+  for (const feat of features) {
+    const labelText = extractLabelText(feat.properties);
+    if (!labelText) continue;
+    // Find largest outer ring
+    let maxArea = 0, bestPath = null;
+    for (const pi of feat.outerRingPathIndices) {
+      const p = paths.find(pp => pp.pathIndex === pi);
+      if (!p) continue;
+      const uv = uniqueRingVerts(p.vertices);
+      const area = computePolygonArea(uv);
+      if (area > maxArea) { maxArea = area; bestPath = p; }
+    }
+    if (!bestPath) continue;
+    const uv = uniqueRingVerts(bestPath.vertices);
+    const c = computeCentroid(uv);
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', c.x); t.setAttribute('y', c.y);
+    t.setAttribute('text-anchor', 'middle'); t.setAttribute('dominant-baseline', 'central');
+    t.setAttribute('class', 'parcel-label');
+    t.style.fontSize = `${State.labelFontSize * s}px`;
+    t.style.fill = State.labelColor;
+    t.style.fontFamily = 'Inter, sans-serif'; t.style.fontWeight = '500';
+    t.textContent = labelText;
+    group.appendChild(t);
+  }
 }
 
-/* ======= メイン関数 ======= */
-function rotateAnnotateAndReturnHandle(svgContainer, angleRad) {
-  if (!svgContainer || typeof angleRad !== 'number') throw new Error('svgContainer と angleRad を指定してください');
+// =============================================================================
+// Auxiliary graphics
+// =============================================================================
+function getAux() { return document.getElementById('aux-group'); }
+function clearAux() { const g = getAux(); if (g) g.innerHTML = ''; }
 
-  // 保存: 元の viewBox / width / height
-  const rootSvg = svgContainer.tagName.toLowerCase() === 'svg' ? svgContainer : (svgContainer.ownerSVGElement || svgContainer.closest('svg'));
-  const originalViewBox = rootSvg.getAttribute('viewBox');
-  const originalWidth = rootSvg.getAttribute('width');
-  const originalHeight = rootSvg.getAttribute('height');
+function drawGuideLine(p1, p2) {
+  clearAux(); const aux = getAux(); if (!aux) return; const s0 = sf();
+  const line = document.createElementNS(NS, 'line');
+  line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+  line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+  line.setAttribute('class', 'guide-line'); line.style.strokeWidth = `${1.5 * s0}px`;
+  line.style.strokeDasharray = `${7 * s0} ${5 * s0}`; aux.appendChild(line);
+  [p1, p2].forEach(p => {
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 3 * s0);
+    c.setAttribute('fill', '#fb923c'); c.setAttribute('stroke', 'none'); c.style.opacity = '0.8';
+    aux.appendChild(c);
+  });
 
-  // 回転中心: viewBox 中心優先、なければ要素群の結合BBox中心、最終的に 0,0
-  function computeCenter(container) {
-    const vb = container.getAttribute && container.getAttribute('viewBox');
-    if (vb) {
-      const parts = vb.trim().split(/\s+/).map(Number);
-      if (parts.length === 4 && parts.every(p => !isNaN(p))) {
-        return { cx: parts[0] + parts[2] / 2, cy: parts[1] + parts[3] / 2 };
-      }
-    }
-    try {
-      const children = Array.from(container.querySelectorAll('path,polyline,polygon,line'));
-      if (children.length) {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const el of children) {
-          const b = el.getBBox();
-          minX = Math.min(minX, b.x);
-          minY = Math.min(minY, b.y);
-          maxX = Math.max(maxX, b.x + b.width);
-          maxY = Math.max(maxY, b.y + b.height);
-        }
-        if (isFinite(minX)) return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
-      }
-    } catch (e) {}
-    return { cx: 0, cy: 0 };
-  }
-
-  const center = computeCenter(svgContainer);
-  const sinA = Math.sin(angleRad), cosA = Math.cos(angleRad);
-
-  // 元属性を保存
-  const originalMap = new Map();
-  const elements = Array.from(svgContainer.querySelectorAll('path,polyline,polygon,line'));
-  for (const el of elements) {
-    const saved = {};
-    for (let i = 0; i < el.attributes.length; i++) {
-      const a = el.attributes[i];
-      saved[a.name] = a.value;
-    }
-    originalMap.set(el, saved);
-
-    // 回転適用（数値的に）
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'path') {
-      const d = el.getAttribute('d');
-      const pts = parseSimplePathPoints(d);
-      if (pts) {
-        const rotated = pts.map(p => rotatePointAround(p[0], p[1], center.cx, center.cy, sinA, cosA));
-        el.setAttribute('d', buildPathDFromPoints(rotated));
-        if (el.hasAttribute('transform')) el.removeAttribute('transform');
-      } else {
-        console.warn('unsupported path format, skipped rotation for', el);
-      }
-    } else if (tag === 'polyline' || tag === 'polygon') {
-      const ptsAttr = el.getAttribute('points') || '';
-      const coords = ptsAttr.trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-      if (coords.length >= 2) {
-        const pts = [];
-        for (let i = 0; i < coords.length; i += 2) pts.push([coords[i], coords[i + 1]]);
-        const rotated = pts.map(p => rotatePointAround(p[0], p[1], center.cx, center.cy, sinA, cosA));
-        el.setAttribute('points', rotated.map(p => `${fmt(p[0])},${fmt(p[1])}`).join(' '));
-        if (el.hasAttribute('transform')) el.removeAttribute('transform');
-      }
-    } else if (tag === 'line') {
-      const x1 = Number(el.getAttribute('x1')), y1 = Number(el.getAttribute('y1'));
-      const x2 = Number(el.getAttribute('x2')), y2 = Number(el.getAttribute('y2'));
-      if (![x1, y1, x2, y2].some(v => isNaN(v))) {
-        const r1 = rotatePointAround(x1, y1, center.cx, center.cy, sinA, cosA);
-        const r2 = rotatePointAround(x2, y2, center.cx, center.cy, sinA, cosA);
-        el.setAttribute('x1', fmt(r1[0])); el.setAttribute('y1', fmt(r1[1]));
-        el.setAttribute('x2', fmt(r2[0])); el.setAttribute('y2', fmt(r2[1]));
-        if (el.hasAttribute('transform')) el.removeAttribute('transform');
-      }
-    }
-  }
-
-  // 回転後の全頂点から bbox を計算（矩形は回転後座標系で axis-aligned）
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  function considerPoint(x, y) {
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
-  }
-  const rotatedElements = Array.from(svgContainer.querySelectorAll('path,polyline,polygon,line'));
-  for (const el of rotatedElements) {
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'path') {
-      const d = el.getAttribute('d');
-      const pts = parseSimplePathPoints(d);
-      if (pts) for (const p of pts) considerPoint(p[0], p[1]);
-    } else if (tag === 'polyline' || tag === 'polygon') {
-      const ptsAttr = el.getAttribute('points') || '';
-      const coords = ptsAttr.trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-      for (let i = 0; i < coords.length; i += 2) considerPoint(coords[i], coords[i + 1]);
-    } else if (tag === 'line') {
-      const x1 = Number(el.getAttribute('x1')), y1 = Number(el.getAttribute('y1'));
-      const x2 = Number(el.getAttribute('x2')), y2 = Number(el.getAttribute('y2'));
-      if (![x1, y1, x2, y2].some(v => isNaN(v))) { considerPoint(x1, y1); considerPoint(x2, y2); }
-    }
-  }
-
-  if (!isFinite(minX)) {
-    // 対象頂点が見つからない場合は復元だけ可能なハンドルを返す
-    return {
-      restore() {
-        for (const [el, attrs] of originalMap.entries()) {
-          const names = Array.from(el.getAttributeNames());
-          for (const n of names) el.removeAttribute(n);
-          for (const k of Object.keys(attrs)) el.setAttribute(k, attrs[k]);
-        }
-        if (originalViewBox !== null) rootSvg.setAttribute('viewBox', originalViewBox); else rootSvg.removeAttribute('viewBox');
-        if (originalWidth !== null) rootSvg.setAttribute('width', originalWidth); else rootSvg.removeAttribute('width');
-        if (originalHeight !== null) rootSvg.setAttribute('height', originalHeight); else rootSvg.removeAttribute('height');
-      }
-    };
-  }
-
-  const width = maxX - minX;
-  const height = maxY - minY;
-
-  // annotation group を作成（矩形は回転後座標系で axis-aligned）
-  const annotG = document.createElementNS(ns, 'g');
-  annotG.setAttribute('data-rotate-annot', 'true');
-
-  const rect = document.createElementNS(ns, 'rect');
-  rect.setAttribute('x', fmt(minX));
-  rect.setAttribute('y', fmt(minY));
-  rect.setAttribute('width', fmt(width));
-  rect.setAttribute('height', fmt(height));
-  rect.setAttribute('fill', 'none');
-  rect.setAttribute('stroke', '#ff0000');
-  rect.setAttribute('stroke-width', '1');
-  rect.setAttribute('stroke-dasharray', '4 2');
-  annotG.appendChild(rect);
-
-  // 幅ラベル（上中央）
-  const textW = document.createElementNS(ns, 'text');
-  textW.setAttribute('x', fmt(minX + width / 2));
-  textW.setAttribute('y', fmt(minY - Math.max(8, Math.min(20, height * 0.02))));
-  textW.setAttribute('text-anchor', 'middle');
-  textW.setAttribute('font-size', '10');
-  textW.setAttribute('fill', '#000');
-  textW.textContent = `W ${fmt(width)}`;
-  annotG.appendChild(textW);
-
-  // 高さラベル（右中央）を矩形に沿わせるため一旦通常に置き、後でグループ回転で縦表示にする
-  const textH = document.createElementNS(ns, 'text');
-  textH.setAttribute('x', fmt(maxX + Math.max(4, Math.min(20, width * 0.02))));
-  textH.setAttribute('y', fmt(minY + height / 2));
-  textH.setAttribute('text-anchor', 'middle');
-  textH.setAttribute('font-size', '10');
-  textH.setAttribute('fill', '#000');
-  textH.setAttribute('transform', `rotate(90 ${fmt(maxX + 0)} ${fmt(minY + height / 2)})`);
-  textH.textContent = `H ${fmt(height)}`;
-  annotG.appendChild(textH);
-
-  // annotG を元の座標系に戻すために逆回転を適用（表示上は元の角度に戻る）
-  const angleDeg = - (angleRad * 180 / Math.PI); // 逆回転（度）
-  // 回転中心は center.cx, center.cy（回転時に使った中心）
-  annotG.setAttribute('transform', `rotate(${fmt(angleDeg)} ${fmt(center.cx)} ${fmt(center.cy)})`);
-
-  // 追加先: svg の直下に追加（viewBox 座標系に合わせる）
-  const appendTarget = rootSvg;
-  appendTarget.appendChild(annotG);
-
-  // viewBox を調整して注釈が収まるようにする
-  // annotG は表示上元に戻っているので、矩形の四隅を逆回転（元の座標系）に戻して bbox を求める
-  const corners = [
-    [minX, minY],
-    [minX + width, minY],
-    [minX + width, minY + height],
-    [minX, minY + height]
-  ];
-  // annotG has been rotated by angleDeg around center; to compute bounding box in original svg coords,
-  // rotate corners by angleDeg (which is -angleRad) around center to get their positions in original coords.
-  const sinBack = Math.sin(angleDeg * Math.PI / 180), cosBack = Math.cos(angleDeg * Math.PI / 180);
-  let vbMinX = Infinity, vbMinY = Infinity, vbMaxX = -Infinity, vbMaxY = -Infinity;
-  for (const c of corners) {
-    const p = rotatePointAround(c[0], c[1], center.cx, center.cy, sinBack, cosBack);
-    vbMinX = Math.min(vbMinX, p[0]); vbMinY = Math.min(vbMinY, p[1]);
-    vbMaxX = Math.max(vbMaxX, p[0]); vbMaxY = Math.max(vbMaxY, p[1]);
-  }
-
-  // さらに既存の（回転済み）要素の bbox も含める（すでに回転済みなのでそのまま考慮）
-  vbMinX = Math.min(vbMinX, minX); vbMinY = Math.min(vbMinY, minY);
-  vbMaxX = Math.max(vbMaxX, maxX); vbMaxY = Math.max(vbMaxY, maxY);
-
-  const newVBX = fmt(vbMinX), newVBY = fmt(vbMinY), newVBW = fmt(vbMaxX - vbMinX), newVBH = fmt(vbMaxY - vbMinY);
-  rootSvg.setAttribute('viewBox', `${newVBX} ${newVBY} ${newVBW} ${newVBH}`);
-  // width/height を残す（元のアスペクト比で表示される）
-  if (originalWidth) rootSvg.setAttribute('width', originalWidth);
-  if (originalHeight) rootSvg.setAttribute('height', originalHeight);
-
-  // 返却ハンドル
-  function restore() {
-    // remove annotation
-    if (annotG.parentNode) annotG.parentNode.removeChild(annotG);
-    // restore attributes of elements
-    for (const [el, attrs] of originalMap.entries()) {
-      const names = Array.from(el.getAttributeNames());
-      for (const n of names) el.removeAttribute(n);
-      for (const k of Object.keys(attrs)) el.setAttribute(k, attrs[k]);
-    }
-    // restore viewBox/width/height
-    if (originalViewBox !== null) rootSvg.setAttribute('viewBox', originalViewBox); else rootSvg.removeAttribute('viewBox');
-    if (originalWidth !== null) rootSvg.setAttribute('width', originalWidth); else rootSvg.removeAttribute('width');
-    if (originalHeight !== null) rootSvg.setAttribute('height', originalHeight); else rootSvg.removeAttribute('height');
-  }
-
-  return {
-    bbox: { minX, minY, maxX, maxY, width, height },
-    annotationGroup: annotG,
-    restore
-  };
+  // ── Distance label on the selected edge ──
+  drawEdgeDistanceLabel(p1, p2, aux, s0);
 }
 
+/** Draw a distance label along the selected edge, offset in the normal direction */
+function drawEdgeDistanceLabel(p1, p2, aux, s0) {
+  const dx = p2.x - p1.x, dy = p2.y - p1.y;
+  const L = Math.hypot(dx, dy);
+  if (L < 1e-6) return;
+
+  // Normal vector (perpendicular to edge)
+  const nx = -dy / L, ny = dx / L;
+  const offset = 15 * s0; // offset in normal direction
+
+  // Midpoint + offset
+  const midX = (p1.x + p2.x) / 2 + nx * offset;
+  const midY = (p1.y + p2.y) / 2 + ny * offset;
+
+  // Rotation angle aligned to edge
+  let angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+  // Flip if text would be upside-down
+  if (angleDeg > 90 || angleDeg < -90) angleDeg += 180;
+
+  // Distance text using unified conversion logic
+  const { label } = convertDistance(L);
+
+  const tp = getCurrentThemeProfile();
+  const fontSize = 11 * s0;
+
+  // White outline for readability
+  const textOutline = document.createElementNS(NS, 'text');
+  textOutline.setAttribute('x', midX); textOutline.setAttribute('y', midY);
+  textOutline.setAttribute('text-anchor', 'middle');
+  textOutline.setAttribute('dominant-baseline', 'central');
+  textOutline.setAttribute('transform', `rotate(${angleDeg}, ${midX}, ${midY})`);
+  textOutline.setAttribute('class', 'edge-distance-label-outline');
+  textOutline.style.fontSize = `${fontSize}px`;
+  textOutline.style.fontFamily = 'var(--font-mono)';
+  textOutline.style.fontWeight = '600';
+  textOutline.style.fill = 'none';
+  textOutline.style.stroke = document.body.classList.contains('theme-warm') ? '#faf7f2' : '#0f1520';
+  textOutline.style.strokeWidth = `${3.5 * s0}px`;
+  textOutline.style.strokeLinejoin = 'round';
+  textOutline.style.pointerEvents = 'none';
+  textOutline.textContent = label;
+  aux.appendChild(textOutline);
+
+  // Foreground text
+  const text = document.createElementNS(NS, 'text');
+  text.setAttribute('x', midX); text.setAttribute('y', midY);
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('dominant-baseline', 'central');
+  text.setAttribute('transform', `rotate(${angleDeg}, ${midX}, ${midY})`);
+  text.setAttribute('class', 'edge-distance-label');
+  text.style.fontSize = `${fontSize}px`;
+  text.style.fontFamily = 'var(--font-mono)';
+  text.style.fontWeight = '600';
+  text.style.fill = tp.assumedColor;
+  text.style.stroke = 'none';
+  text.style.pointerEvents = 'none';
+  text.textContent = label;
+  aux.appendChild(text);
+}
+
+function drawBoundingAndDimensions(paths) {
+  const aux = getAux(); if (!aux) return;
+  const s0 = sf(), bnd = computeBounds(paths);
+  const { minX, minY, maxX, maxY } = bnd, W = maxX - minX, H = maxY - minY;
+
+  // ② Bounding rect (layer 2)
+  const rect = document.createElementNS(NS, 'rect');
+  rect.setAttribute('x', minX); rect.setAttribute('y', minY);
+  rect.setAttribute('width', W); rect.setAttribute('height', H);
+  rect.setAttribute('class', 'bounding-rect');
+  rect.style.strokeWidth = `${s0}px`; rect.style.strokeDasharray = `${5 * s0} ${4 * s0}`;
+  aux.appendChild(rect);
+
+  const fs = 10 * s0, off = 8 * s0, tick = 5 * s0;
+  const wLabel = fmtDist(W), hLabel = fmtDist(H);
+  const scaleStr = getScaleDenominator() ? `縮尺 1:${getScaleDenominator()}` : null;
+
+  // ③ Width dimension (bottom, layer 3)
+  addDimLine(aux, minX, maxY + off, minX, maxY + off + tick, s0);
+  addDimLine(aux, maxX, maxY + off, maxX, maxY + off + tick, s0);
+  addDimLine(aux, minX, maxY + off + tick / 2, maxX, maxY + off + tick / 2, s0);
+  addDimText(aux, (minX + maxX) / 2, maxY + off + tick + fs * 1.3, `幅: ${wLabel}`, 'middle', fs);
+  if (scaleStr) addDimText(aux, (minX + maxX) / 2, maxY + off + tick + fs * 2.6, scaleStr, 'middle', fs * 0.85);
+
+  // ③ Height dimension (right side, VERTICAL text — Feature 2, layer 3)
+  addDimLine(aux, maxX + off, minY, maxX + off + tick, minY, s0);
+  addDimLine(aux, maxX + off, maxY, maxX + off + tick, maxY, s0);
+  addDimLine(aux, maxX + off + tick / 2, minY, maxX + off + tick / 2, maxY, s0);
+
+  // Vertical text via writing-mode (NOT a transform — text layout property)
+  const hText = document.createElementNS(NS, 'text');
+  hText.setAttribute('x', maxX + off + tick + fs * 1.2);
+  hText.setAttribute('y', (minY + maxY) / 2);
+  hText.setAttribute('text-anchor', 'middle');
+  hText.setAttribute('dominant-baseline', 'central');
+  hText.setAttribute('class', 'dim-text');
+  hText.style.fontSize = `${fs}px`;
+  hText.style.writingMode = 'vertical-rl';
+  hText.style.textOrientation = 'mixed';
+  hText.textContent = `高さ: ${hLabel}`;
+  aux.appendChild(hText);
+
+  if (scaleStr) {
+    const hsText = document.createElementNS(NS, 'text');
+    hsText.setAttribute('x', maxX + off + tick + fs * 2.6);
+    hsText.setAttribute('y', (minY + maxY) / 2);
+    hsText.setAttribute('text-anchor', 'middle');
+    hsText.setAttribute('dominant-baseline', 'central');
+    hsText.setAttribute('class', 'dim-text');
+    hsText.style.fontSize = `${fs * 0.85}px`;
+    hsText.style.writingMode = 'vertical-rl';
+    hsText.style.textOrientation = 'mixed';
+    hsText.textContent = scaleStr;
+    aux.appendChild(hsText);
+  }
+
+  // ⑤「想定整形地」label (Feature 3, layer 5 — topmost)
+  const assumedLabel = document.createElementNS(NS, 'text');
+  assumedLabel.setAttribute('x', minX);
+  assumedLabel.setAttribute('y', minY - off * 1.5);
+  assumedLabel.setAttribute('text-anchor', 'start');
+  assumedLabel.setAttribute('class', 'label-assumed');
+  assumedLabel.style.fontSize = `${fs * 1.2}px`;
+  assumedLabel.textContent = '想定整形地';
+  aux.appendChild(assumedLabel);
+
+  document.getElementById('info-dimensions').textContent = `寸法: 幅 ${fmtDist(W)} × 高さ ${fmtDist(H)}`;
+}
+
+function addDimLine(aux, x1, y1, x2, y2, s0) {
+  const l = document.createElementNS(NS, 'line');
+  l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+  l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+  l.setAttribute('class', 'dim-line'); l.style.strokeWidth = `${s0}px`;
+  aux.appendChild(l);
+}
+
+function addDimText(aux, x, y, text, anchor, size) {
+  const t = document.createElementNS(NS, 'text');
+  t.setAttribute('x', x); t.setAttribute('y', y);
+  t.setAttribute('text-anchor', anchor); t.setAttribute('class', 'dim-text');
+  t.style.fontSize = `${size}px`; t.textContent = text;
+  aux.appendChild(t);
+}
+
+// =============================================================================
+// Info bar
+// =============================================================================
+function updateInfoBar(paths) {
+  document.getElementById('info-bar').style.display = 'flex';
+  document.getElementById('info-bar').classList.add('animate-in');
+  document.getElementById('info-paths').textContent = `パス: ${paths.length}`;
+  document.getElementById('info-vertices').textContent = `頂点: ${State.allVertices.length}`;
+  updateSelectionInfo(); updateScaleInfo();
+}
+
+function updateSelectionInfo() {
+  const el = document.getElementById('info-selection');
+  if (State.mode === 'edge' && State.selectedEdge) {
+    el.textContent = `選択: 辺 ${fmtDist(dist(State.selectedEdge.p1, State.selectedEdge.p2))}`;
+  } else if (State.mode === 'vertex' && State.selectedVertices.length > 0) {
+    if (State.selectedVertices.length === 2) el.textContent = `選択: 2頂点 ${fmtDist(dist(State.selectedVertices[0], State.selectedVertices[1]))}`;
+    else el.textContent = `選択: ${State.selectedVertices.length}頂点`;
+  } else el.textContent = '選択: なし';
+}
+
+function updateScaleInfo() {
+  if (State.scaleMode === 'auto') {
+    document.getElementById('info-scale').textContent = `縮尺: GeoJSON準拠（自動）`;
+  } else {
+    const d = getScaleDenominator();
+    document.getElementById('info-scale').textContent = d ? `縮尺: 1:${d}（手動）` : '縮尺: px';
+  }
+}
+
+function updateAngleInfo(theta) {
+  document.getElementById('info-angle').textContent = theta != null ? `角度: ${(theta * 180 / Math.PI).toFixed(3)}°` : '角度: -';
+}
+
+// =============================================================================
+// Selection handlers
+// =============================================================================
+function onEdgeClick(e) {
+  if (State.mode !== 'edge') return; e.stopPropagation();
+  const hit = e.currentTarget, group = hit.parentElement;
+  document.querySelectorAll('#edge-group .geo-edge-group.selected').forEach(g => g.classList.remove('selected'));
+  group.classList.add('selected');
+  const x1 = +hit.getAttribute('x1'), y1 = +hit.getAttribute('y1');
+  const x2 = +hit.getAttribute('x2'), y2 = +hit.getAttribute('y2');
+  State.selectedEdge = { pathIndex: +group.getAttribute('data-path-index'), edgeIndex: +group.getAttribute('data-edge-index'), p1: { x: x1, y: y1 }, p2: { x: x2, y: y2 } };
+  State.selectedVertices = [];
+  drawGuideLine({ x: x1, y: y1 }, { x: x2, y: y2 });
+  document.getElementById('btn-execute').disabled = false;
+  updateSelectionInfo(); showToast('辺を選択しました', 'info');
+}
+
+function onVertexClick(e) {
+  if (State.mode !== 'vertex') return; e.stopPropagation();
+  const circle = e.currentTarget;
+  const pathIdx = +circle.getAttribute('data-path-index'), vtxIdx = +circle.getAttribute('data-vertex-index');
+  const x = +circle.getAttribute('cx'), y = +circle.getAttribute('cy');
+  const existing = State.selectedVertices.findIndex(v => v.pathIndex === pathIdx && v.vertexIndex === vtxIdx);
+  if (existing >= 0) { State.selectedVertices.splice(existing, 1); circle.classList.remove('selected'); }
+  else {
+    if (State.selectedVertices.length >= 2) {
+      const old = State.selectedVertices.shift();
+      const oldEl = document.querySelector(`#vertex-group .geo-vertex[data-path-index="${old.pathIndex}"][data-vertex-index="${old.vertexIndex}"]`);
+      if (oldEl) oldEl.classList.remove('selected');
+    }
+    State.selectedVertices.push({ pathIndex: pathIdx, vertexIndex: vtxIdx, x, y });
+    circle.classList.add('selected');
+  }
+  State.selectedEdge = null; clearAux();
+  if (State.selectedVertices.length === 2) {
+    drawGuideLine(State.selectedVertices[0], State.selectedVertices[1]);
+    document.getElementById('btn-execute').disabled = false;
+  } else document.getElementById('btn-execute').disabled = true;
+  updateSelectionInfo();
+}
+
+function updateModeUI() {
+  const eG = document.getElementById('edge-group'), vG = document.getElementById('vertex-group');
+  if (!eG || !vG) return;
+  if (State.mode === 'edge') { eG.style.display = ''; vG.classList.remove('active'); }
+  else { eG.style.display = 'none'; vG.classList.add('active'); }
+}
+
+// =============================================================================
+// Rotation
+// =============================================================================
+function executeRotation() {
+  let p1, p2;
+  if (State.mode === 'edge' && State.selectedEdge) { p1 = State.selectedEdge.p1; p2 = State.selectedEdge.p2; }
+  else if (State.mode === 'vertex' && State.selectedVertices.length === 2) { p1 = State.selectedVertices[0]; p2 = State.selectedVertices[1]; }
+  else { showToast('基準となる辺または2頂点を選択してください', 'error'); return; }
+
+  if (!State.isRotated) State.originalPaths = JSON.parse(JSON.stringify(State.paths));
+  const theta = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+  State.rotationAngle = theta;
+  rotatePaths(State.paths, -theta);
+  State.isRotated = true;
+  State.selectedEdge = null; State.selectedVertices = [];
+
+  // Compute rotation center from rotated paths bbox
+  const rBounds = computeBounds(State.paths);
+  State.rotationCenter = { cx: (rBounds.minX + rBounds.maxX) / 2, cy: (rBounds.minY + rBounds.maxY) / 2 };
+
+  renderSVG(State.paths); drawBoundingAndDimensions(State.paths);
+
+  // Apply reverse rotation transform if 回転維持 is OFF
+  applyReverseTransform();
+
+  updateModeUI();
+  document.getElementById('btn-execute').disabled = true;
+  document.getElementById('btn-reset').disabled = false;
+  updateAngleInfo(theta);
+  showToast(`回転完了 (${(theta * 180 / Math.PI).toFixed(3)}°)`, 'success');
+}
 
 /**
- * rotateAndAnnotate
- * - svgContainer: SVGElement (例: <svg> または <g>)
- * - angleRad: 回転角（ラジアン）
- * 
- * 動作:
- * 1. svgContainer 内の対象要素の座標を angleRad だけ回転して上書きする
- * 2. 回転後の全頂点から minX,minY,maxX,maxY を計算する
- * 3. その矩形を描画し、幅と高さを示す text を描画する
- * 4. 描画要素と元属性を保持したオブジェクトを返す
- *    - 呼び出し側は returned.restore() を呼ぶと元に戻る
- *
- * 例:
- * const handle = rotateAndAnnotate(svgEl, Math.PI/6);
- * // 確認や別処理を行う
- * handle.restore(); // 元に戻す
+ * Feature 1: Apply or remove reverse rotation transform.
+ * When 回転維持 is OFF → wrap all SVG content in <g transform="rotate(angle, cx, cy)">
+ * When 回転維持 is ON  → no transform (show axis-aligned)
  */
-function rotateAndAnnotate(svgContainer, angleRad) {
-  if (!svgContainer || typeof angleRad !== 'number') {
-    throw new Error('svgContainer と angleRad を指定してください');
+function applyReverseTransform() {
+  const svg = document.querySelector('#svg-container svg');
+  if (!svg || !State.isRotated) return;
+
+  const keepRotation = document.getElementById('chk-keep-rotation').checked;
+
+  // Remove existing rootGroup wrapper if present
+  const existingRoot = svg.querySelector('#rootGroup');
+  if (existingRoot) {
+    // Unwrap: move children back to svg
+    while (existingRoot.firstChild) svg.appendChild(existingRoot.firstChild);
+    existingRoot.remove();
   }
 
-  const ns = 'http://www.w3.org/2000/svg';
-  const fmt = n => Number(n.toFixed(6));
+  if (!keepRotation) {
+    // Wrap all children in a <g> with reverse rotation
+    const degrees = State.rotationAngle * 180 / Math.PI;
+    const { cx, cy } = State.rotationCenter;
+    const rootGroup = document.createElementNS(NS, 'g');
+    rootGroup.setAttribute('id', 'rootGroup');
+    rootGroup.setAttribute('transform', `rotate(${degrees}, ${cx}, ${cy})`);
 
-  // 回転中心: viewBox 中心を優先、なければ要素群の結合BBox中心、最終的に 0,0
-  function computeCenter(container) {
-    const vb = container.getAttribute && container.getAttribute('viewBox');
-    if (vb) {
-      const parts = vb.trim().split(/\s+/).map(Number);
-      if (parts.length === 4 && parts.every(p => !isNaN(p))) {
-        return { cx: parts[0] + parts[2] / 2, cy: parts[1] + parts[3] / 2 };
-      }
-    }
-    try {
-      const children = Array.from(container.querySelectorAll('path,polyline,polygon,line'));
-      if (children.length) {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const el of children) {
-          const b = el.getBBox();
-          minX = Math.min(minX, b.x);
-          minY = Math.min(minY, b.y);
-          maxX = Math.max(maxX, b.x + b.width);
-          maxY = Math.max(maxY, b.y + b.height);
-        }
-        if (isFinite(minX)) return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
-      }
-    } catch (e) {}
-    return { cx: 0, cy: 0 };
-  }
+    // Move all svg children into rootGroup
+    const children = Array.from(svg.childNodes);
+    for (const child of children) rootGroup.appendChild(child);
+    svg.appendChild(rootGroup);
 
-  const center = computeCenter(svgContainer);
-  const sinA = Math.sin(angleRad), cosA = Math.cos(angleRad);
-  const rotatePoint = (x, y) => {
-    const dx = x - center.cx, dy = y - center.cy;
-    return [dx * cosA - dy * sinA + center.cx, dx * sinA + dy * cosA + center.cy];
-  };
-
-  // 元属性を保存する Map
-  const originalMap = new Map();
-
-  // path の簡易パーサ（M x,y x,y ... Z 形式を想定）
-  function parseSimplePathPoints(d) {
-    if (!d) return null;
-    const re = /[a-zA-Z]|[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?/g;
-    const tokens = [];
-    let m;
-    while ((m = re.exec(d)) !== null) tokens.push(m[0]);
-    if (!tokens.length) return null;
-    let i = 0;
-    const pts = [];
-    while (i < tokens.length) {
-      const t = tokens[i++];
-      if (t.toUpperCase() === 'M' || t.toUpperCase() === 'L') {
-        while (i < tokens.length && !isNaN(Number(tokens[i]))) {
-          const x = Number(tokens[i++]);
-          if (i >= tokens.length) break;
-          const y = Number(tokens[i++]);
-          pts.push([x, y]);
-        }
-      } else if (t.toUpperCase() === 'Z') {
-        break;
-      } else if (!isNaN(Number(t))) {
-        let x = Number(t);
-        if (i < tokens.length && !isNaN(Number(tokens[i]))) {
-          const y = Number(tokens[i++]);
-          pts.push([x, y]);
-        } else break;
-      } else {
-        return null;
-      }
-    }
-    return pts;
-  }
-
-  function buildPathDFromPoints(points) {
-    if (!points || !points.length) return '';
-    let s = `M ${fmt(points[0][0])} ${fmt(points[0][1])}`;
-    for (let i = 1; i < points.length; i++) s += ` L ${fmt(points[i][0])} ${fmt(points[i][1])}`;
-    s += ' Z';
-    return s;
-  }
-
-  // 対象要素を列挙して保存し回転
-  const elements = Array.from(svgContainer.querySelectorAll('path,polyline,polygon,line'));
-  for (const el of elements) {
-    // 保存
-    const saved = {};
-    for (let i = 0; i < el.attributes.length; i++) {
-      const a = el.attributes[i];
-      saved[a.name] = a.value;
-    }
-    originalMap.set(el, saved);
-
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'path') {
-      const d = el.getAttribute('d');
-      const pts = parseSimplePathPoints(d);
-      if (pts) {
-        const rotated = pts.map(p => rotatePoint(p[0], p[1]));
-        el.setAttribute('d', buildPathDFromPoints(rotated));
-        if (el.hasAttribute('transform')) el.removeAttribute('transform');
-      } else {
-        console.warn('rotateAndAnnotate: unsupported path format, skipped', el);
-      }
-    } else if (tag === 'polyline' || tag === 'polygon') {
-      const ptsAttr = el.getAttribute('points') || '';
-      const coords = ptsAttr.trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-      if (coords.length >= 2) {
-        const pts = [];
-        for (let i = 0; i < coords.length; i += 2) pts.push([coords[i], coords[i + 1]]);
-        const rotated = pts.map(p => rotatePoint(p[0], p[1]));
-        el.setAttribute('points', rotated.map(p => `${fmt(p[0])},${fmt(p[1])}`).join(' '));
-        if (el.hasAttribute('transform')) el.removeAttribute('transform');
-      }
-    } else if (tag === 'line') {
-      const x1 = Number(el.getAttribute('x1')), y1 = Number(el.getAttribute('y1'));
-      const x2 = Number(el.getAttribute('x2')), y2 = Number(el.getAttribute('y2'));
-      if (![x1, y1, x2, y2].some(v => isNaN(v))) {
-        const r1 = rotatePoint(x1, y1), r2 = rotatePoint(x2, y2);
-        el.setAttribute('x1', fmt(r1[0])); el.setAttribute('y1', fmt(r1[1]));
-        el.setAttribute('x2', fmt(r2[0])); el.setAttribute('y2', fmt(r2[1]));
-        if (el.hasAttribute('transform')) el.removeAttribute('transform');
-      }
+    // Recalculate viewBox for the visual bounding box after transform
+    recalcViewBoxAfterTransform(svg, State.rotationAngle, cx, cy);
+  } else {
+    // Restore original viewBox (axis-aligned)
+    if (State.svgBounds) {
+      const { vbMinX, vbMinY, vbW, vbH } = State.svgBounds;
+      svg.setAttribute('viewBox', `${vbMinX} ${vbMinY} ${vbW} ${vbH}`);
     }
   }
-
-  // 回転後の全頂点から bbox を計算
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  function considerPoint(x, y) {
-    if (x < minX) minX = x;
-    if (y < minY) minY = y;
-    if (x > maxX) maxX = x;
-    if (y > maxY) maxY = y;
-  }
-
-  // 再走査して頂点を収集
-  const rotatedElements = Array.from(svgContainer.querySelectorAll('path,polyline,polygon,line'));
-  for (const el of rotatedElements) {
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'path') {
-      const d = el.getAttribute('d');
-      const pts = parseSimplePathPoints(d);
-      if (pts) for (const p of pts) considerPoint(p[0], p[1]);
-    } else if (tag === 'polyline' || tag === 'polygon') {
-      const ptsAttr = el.getAttribute('points') || '';
-      const coords = ptsAttr.trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-      for (let i = 0; i < coords.length; i += 2) considerPoint(coords[i], coords[i + 1]);
-    } else if (tag === 'line') {
-      const x1 = Number(el.getAttribute('x1')), y1 = Number(el.getAttribute('y1'));
-      const x2 = Number(el.getAttribute('x2')), y2 = Number(el.getAttribute('y2'));
-      if (![x1, y1, x2, y2].some(v => isNaN(v))) {
-        considerPoint(x1, y1); considerPoint(x2, y2);
-      }
-    }
-  }
-
-  if (!isFinite(minX)) {
-    // 対象頂点が見つからない場合は空のハンドルを返す
-    return {
-      restore() {
-        // restore nothing
-      }
-    };
-  }
-
-  const width = maxX - minX;
-  const height = maxY - minY;
-
-  // 描画用 g を作成して追加
-  const annotG = document.createElementNS(ns, 'g');
-  annotG.setAttribute('data-rotate-annot', 'true');
-
-  // 矩形
-  const rect = document.createElementNS(ns, 'rect');
-  rect.setAttribute('x', fmt(minX));
-  rect.setAttribute('y', fmt(minY));
-  rect.setAttribute('width', fmt(width));
-  rect.setAttribute('height', fmt(height));
-  rect.setAttribute('fill', 'none');
-  rect.setAttribute('stroke', '#ff0000');
-  rect.setAttribute('stroke-width', '1');
-  rect.setAttribute('stroke-dasharray', '4 2');
-  annotG.appendChild(rect);
-
-  // テキストスタイル
-  const textStyle = {
-    'font-size': '10',
-    'fill': '#000',
-    'font-family': 'sans-serif',
-    'text-anchor': 'start'
-  };
-
-  // 幅ラベル（矩形上部中央）
-  const textW = document.createElementNS(ns, 'text');
-  textW.setAttribute('x', fmt(minX + width / 2));
-  textW.setAttribute('y', fmt(minY - (height === 0 ? 10 : Math.max(10, Math.min(20, height * 0.02)))));
-  textW.setAttribute('text-anchor', 'middle');
-  Object.entries(textStyle).forEach(([k, v]) => textW.setAttribute(k, v));
-  textW.textContent = `W ${fmt(width)}`;
-
-
-  // 高さラベル（矩形右側中央、回転しない座標系で縦に表示）
-  const textH = document.createElementNS(ns, 'text');
-  textH.setAttribute('x', fmt(maxX + (width === 0 ? 4 : Math.max(4, Math.min(20, width * 0.02)))));
-  textH.setAttribute('y', fmt(minY + height / 2));
-  // rotate the height label so it reads vertically along the right edge
-  textH.setAttribute('transform', `rotate(90 ${fmt(maxX + 0)} ${fmt(minY + height / 2)})`);
-  Object.entries(textStyle).forEach(([k, v]) => textH.setAttribute(k, v));
-  textH.setAttribute('text-anchor', 'middle');
-  textH.textContent = `H ${fmt(height)}`;
-
-
-  // 追加先: svgContainer が <svg> ならその直下、<g> ならその親 svg に追加して viewBox 座標系に合わせる
-  let appendTarget = svgContainer;
-  if (svgContainer.tagName.toLowerCase() !== 'svg') {
-    // 親の SVG を探す
-    const rootSvg = svgContainer.ownerSVGElement || svgContainer.closest('svg');
-    if (rootSvg) appendTarget = rootSvg;
-  }
-
-
-  // 返却ハンドル: restore で元に戻す
-  function restore() {
-    // remove annotation
-    if (annotG.parentNode) annotG.parentNode.removeChild(annotG);
-    // restore attributes
-    for (const [el, attrs] of originalMap.entries()) {
-      // remove all current attributes
-      const names = Array.from(el.getAttributeNames());
-      for (const n of names) el.removeAttribute(n);
-      // restore saved
-      for (const k of Object.keys(attrs)) el.setAttribute(k, attrs[k]);
-    }
-  }
-
-  return {
-    bbox: { minX, minY, maxX, maxY, width, height },
-    annotationGroup: annotG,
-    restore
-  };
 }
-  </script>
+
+/**
+ * Recalculate SVG viewBox after a rotation transform is applied.
+ * We compute the visual bounding box by rotating all relevant points.
+ */
+function recalcViewBoxAfterTransform(svg, theta, cx, cy) {
+  const cosT = Math.cos(theta), sinT = Math.sin(theta);
+  function rotPt(x, y) {
+    const dx = x - cx, dy = y - cy;
+    return { x: cx + dx * cosT - dy * sinT, y: cy + dx * sinT + dy * cosT };
+  }
+
+  const allPts = [];
+  // Path vertices (visual = rotated forward from axis-aligned)
+  for (const p of State.paths) for (const v of p.vertices) allPts.push(rotPt(v.x, v.y));
+
+  // Bounding rect corners
+  const bnd = computeBounds(State.paths);
+  const s0 = sf(), fs = 10 * s0, off = 8 * s0, tick = 5 * s0;
+  // Extend to include dimension labels area
+  const extR = bnd.maxX + off + tick + fs * 3;
+  const extB = bnd.maxY + off + tick + fs * 3;
+  const extT = bnd.minY - off * 2;
+  [[bnd.minX, extT], [extR, extT], [extR, extB], [bnd.minX, extB]].forEach(([x, y]) => allPts.push(rotPt(x, y)));
+
+  let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+  for (const p of allPts) {
+    if (p.x < mnX) mnX = p.x; if (p.y < mnY) mnY = p.y;
+    if (p.x > mxX) mxX = p.x; if (p.y > mxY) mxY = p.y;
+  }
+  const dw = mxX - mnX, dh = mxY - mnY;
+  const pad = Math.max(dw, dh) * 0.08;
+  svg.setAttribute('viewBox', `${mnX - pad} ${mnY - pad} ${dw + pad * 2} ${dh + pad * 2}`);
+}
+
+// =============================================================================
+// Reset
+// =============================================================================
+function resetAll() {
+  const keep = document.getElementById('chk-keep-rotation').checked;
+  if (keep && State.isRotated) {
+    State.selectedEdge = null; State.selectedVertices = []; clearAux();
+    renderSVG(State.paths); updateModeUI();
+    document.getElementById('btn-execute').disabled = true;
+    showToast('選択をリセットしました（回転維持）', 'info'); return;
+  }
+  if (State.originalPaths.length > 0) State.paths = JSON.parse(JSON.stringify(State.originalPaths));
+  State.selectedEdge = null; State.selectedVertices = [];
+  State.isRotated = false; State.rotationAngle = 0;
+  // Restore auto scale mode if GeoJSON had 縮尺分母
+  if (State.autoScaleValue) {
+    State.scaleMode = 'auto';
+    const sel = document.getElementById('scale-select');
+    const existing = Array.from(sel.options).find(o => Number(o.value) === State.autoScaleValue);
+    if (existing) sel.value = existing.value;
+  }
+  renderSVG(State.paths); updateModeUI(); updateAngleInfo(null); updateScaleInfo();
+  document.getElementById('btn-execute').disabled = true;
+  document.getElementById('info-dimensions').textContent = '寸法: -';
+  showToast('リセットしました', 'info');
+}
+
+// =============================================================================
+// SVG Download (transform-based reverse rotation + A4 optimization)
+// =============================================================================
+function downloadSVG() {
+  const svgEl = document.querySelector('#svg-container svg');
+  if (!svgEl) { showToast('SVGがありません', 'error'); return; }
+
+  const clone = svgEl.cloneNode(true);
+
+  // Remove interactive groups (edge/vertex selection)
+  ['edge-group', 'vertex-group'].forEach(id => {
+    const g = clone.querySelector(`#${id}`);
+    if (g) g.remove();
+  });
+
+  // ── A4 Output Optimization + Aspect Ratio Constraint ──
+  const vb = clone.getAttribute('viewBox');
+  if (vb) {
+    const parts = vb.split(/\s+/).map(Number);
+    let vbX = parts[0], vbY = parts[1], vbW = parts[2], vbH = parts[3];
+
+    // Aspect ratio constraint: height/width ≤ 1.4
+    // If too tall, widen the viewBox (centered) without distorting geometry
+    if (vbH / vbW > 1.4) {
+      const newVbW = vbH / 1.4;
+      const delta = (newVbW - vbW) / 2;
+      vbX -= delta;
+      vbW = newVbW;
+      clone.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
+    }
+
+    // Scale so max(width, height) = 1200
+    const maxDim = Math.max(vbW, vbH);
+    const scale = 1200 / maxDim;
+    clone.setAttribute('width', Math.round(vbW * scale));
+    clone.setAttribute('height', Math.round(vbH * scale));
+  }
+  clone.removeAttribute('style');
+
+  // ── Style cleanup ──
+  // Read style values before removing inline styles
+  const dimTextData = [];
+  clone.querySelectorAll('.dim-text').forEach(el => {
+    dimTextData.push({
+      fs: el.style.fontSize || '10px',
+      wm: el.style.writingMode || '',
+      to: el.style.textOrientation || ''
+    });
+  });
+
+  function clean(el) {
+    el.removeAttribute('class');
+    [...el.attributes].filter(a => a.name.startsWith('data-')).forEach(a => el.removeAttribute(a.name));
+  }
+
+  // Paths
+  clone.querySelectorAll('.geo-path,[class~="geo-path"]').forEach(el => {
+    const fill = el.style.fill || 'none', fillOp = el.style.fillOpacity || '0';
+    const stroke = el.style.stroke || '#333', strokeOp = el.style.strokeOpacity || '1';
+    el.removeAttribute('style'); clean(el);
+    el.setAttribute('fill', fill === 'none' ? 'none' : fill);
+    el.setAttribute('fill-opacity', fillOp);
+    el.setAttribute('stroke', stroke); el.setAttribute('stroke-opacity', strokeOp);
+    el.setAttribute('stroke-width', '0.5'); el.setAttribute('stroke-linejoin', 'round');
+  });
+
+  // Bounding rect
+  clone.querySelectorAll('.bounding-rect').forEach(el => {
+    el.removeAttribute('style'); clean(el);
+    el.setAttribute('fill', 'none'); el.setAttribute('stroke', '#008844');
+    el.setAttribute('stroke-width', '0.4'); el.setAttribute('stroke-dasharray', '3 2');
+  });
+
+  // Dimension text
+  let dIdx = 0;
+  clone.querySelectorAll('.dim-text').forEach(el => {
+    const d = dimTextData[dIdx++] || { fs: '10px', wm: '', to: '' };
+    el.removeAttribute('style'); clean(el);
+    el.setAttribute('fill', '#006633');
+    el.setAttribute('font-family', "'Consolas','Courier New',monospace");
+    el.setAttribute('font-size', d.fs);
+    if (d.wm) {
+      el.setAttribute('writing-mode', 'tb');
+      el.setAttribute('style', `writing-mode:vertical-rl;text-orientation:${d.to || 'mixed'}`);
+    }
+  });
+
+  // Dimension lines
+  clone.querySelectorAll('.dim-line').forEach(el => { el.removeAttribute('style'); clean(el); el.setAttribute('stroke', '#008844'); el.setAttribute('stroke-width', '0.4'); });
+  // Guide lines
+  clone.querySelectorAll('.guide-line').forEach(el => { el.removeAttribute('style'); clean(el); el.setAttribute('stroke', '#cc6600'); el.setAttribute('stroke-width', '0.4'); el.setAttribute('stroke-dasharray', '5 4'); });
+  // 想定整形地 label
+  clone.querySelectorAll('.label-assumed').forEach(el => {
+    const fs = el.style.fontSize || '12px';
+    el.removeAttribute('style'); clean(el);
+    el.setAttribute('fill', '#cc6600'); el.setAttribute('font-family', 'sans-serif');
+    el.setAttribute('font-weight', '700'); el.setAttribute('font-size', fs);
+  });
+  // Parcel labels
+  clone.querySelectorAll('.parcel-label').forEach(el => {
+    const fs = el.style.fontSize || '12px', fill = el.style.fill || '#333';
+    el.removeAttribute('style'); clean(el);
+    el.setAttribute('fill', fill); el.setAttribute('font-family', 'sans-serif');
+    el.setAttribute('font-size', fs); el.setAttribute('text-anchor', 'middle');
+  });
+  // Guide circles
+  clone.querySelectorAll('circle').forEach(el => {
+    const fill = el.getAttribute('fill') || '';
+    if (fill.includes('var(')) el.setAttribute('fill', '#cc6600');
+    el.removeAttribute('style'); el.removeAttribute('class');
+  });
+  // Clean group IDs except rootGroup (which carries the transform)
+  clone.querySelectorAll('g').forEach(g => {
+    if (g.id !== 'rootGroup') g.removeAttribute('id');
+    else g.removeAttribute('id'); // remove id but keep transform attribute
+  });
+
+  const serializer = new XMLSerializer();
+  let svgStr = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(clone);
+
+  const inputName = document.getElementById('file-name').textContent || '';
+  const baseName = inputName.replace(/\.[^.]+$/, '').replace(/[^\w\u3000-\u9FFF-]/g, '_') || 'geojson';
+  const downloadName = `${baseName}_output.svg`;
+
+  const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = downloadName;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`SVGをダウンロードしました: ${downloadName}`, 'success');
+}
+
+// =============================================================================
+// File loading (Feature 6: multiple files)
+// =============================================================================
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsText(file);
+  });
+}
+
+/** Accept files from either <input> or drag & drop */
+async function processFiles(files) {
+  if (!files.length) return;
+
+  document.getElementById('file-name').textContent = Array.from(files).map(f => f.name).join(', ');
+
+  try {
+    const texts = await Promise.all(files.map(f => readFileAsText(f)));
+    const merged = { type: 'FeatureCollection', features: [] };
+
+    for (let i = 0; i < texts.length; i++) {
+      let geojson;
+      try { geojson = JSON.parse(texts[i]); }
+      catch { showToast(`JSONパースエラー: ${files[i].name}`, 'error'); continue; }
+
+      if (!geojson || !geojson.type) { showToast(`非GeoJSON: ${files[i].name}`, 'error'); continue; }
+
+      if (geojson.type === 'FeatureCollection') {
+        merged.features.push(...(geojson.features || []));
+      } else if (geojson.type === 'Feature') {
+        merged.features.push(geojson);
+      } else if (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon') {
+        merged.features.push({ type: 'Feature', geometry: geojson, properties: {} });
+      } else {
+        showToast(`未対応形式: ${files[i].name}`, 'error');
+      }
+    }
+
+    const hasValidGeom = g => g && (g.type === 'Polygon' || g.type === 'MultiPolygon');
+    if (!merged.features.some(f => hasValidGeom(f.geometry))) {
+      showToast('エラー: Polygon / MultiPolygon が含まれていません', 'error'); return;
+    }
+
+    State.geojson = merged;
+    const { paths, features } = extractPaths(merged);
+    State.paths = paths; State.features = features;
+    State.originalPaths = JSON.parse(JSON.stringify(paths));
+    State.selectedEdge = null; State.selectedVertices = [];
+    State.isRotated = false; State.rotationAngle = 0;
+
+    // Auto-detect 縮尺分母 from GeoJSON properties
+    autoDetectScale(merged);
+
+    renderSVG(State.paths); updateModeUI(); updateAngleInfo(null);
+    document.getElementById('btn-reset').disabled = false;
+    document.getElementById('btn-download').disabled = false;
+    document.getElementById('btn-print').disabled = false;
+    document.getElementById('info-dimensions').textContent = '寸法: -';
+
+    showToast(`読み込み完了: ${files.length}ファイル / ${State.paths.length}パス / ${State.allVertices.length}頂点`, 'success');
+  } catch (err) {
+    showToast('ファイル読み込みエラー', 'error'); console.error(err);
+  }
+}
+
+// =============================================================================
+// Style re-application (Feature 4+5)
+// =============================================================================
+function applyStyleChanges() {
+  // Re-render paths with new colors
+  document.querySelectorAll('#path-group .geo-path').forEach(el => {
+    el.style.stroke = State.strokeColor;
+    el.style.strokeOpacity = State.strokeOpacity;
+    el.style.fill = State.fillEnabled ? State.fillColor : 'none';
+    el.style.fillOpacity = State.fillEnabled ? State.fillOpacity : 0;
+  });
+  // Vertices
+  document.querySelectorAll('#vertex-group .geo-vertex').forEach(el => {
+    if (!el.classList.contains('selected')) el.style.fill = State.strokeColor;
+  });
+  // Edge hover lines
+  const tp = getCurrentThemeProfile();
+  document.querySelectorAll('#edge-group .geo-edge').forEach(el => {
+    el.style.stroke = tp.edgeHover;
+  });
+  // SVG background
+  document.getElementById('svg-canvas-wrapper').style.background = State.svgBgColor;
+  // Labels
+  document.querySelectorAll('#label-group .parcel-label').forEach(el => {
+    el.style.fill = State.labelColor;
+    el.style.fontSize = `${State.labelFontSize * sf()}px`;
+  });
+  // Dimension elements
+  document.querySelectorAll('.dim-text').forEach(el => el.style.fill = tp.dimColor);
+  document.querySelectorAll('.dim-line').forEach(el => el.style.stroke = tp.dimColor);
+  document.querySelectorAll('.bounding-rect').forEach(el => el.style.stroke = tp.boundingColor);
+  document.querySelectorAll('.label-assumed').forEach(el => el.style.fill = tp.assumedColor);
+}
+
+/** Get current theme profile */
+function getCurrentThemeProfile() {
+  return document.body.classList.contains('theme-warm') ? ThemeProfiles.warm : ThemeProfiles.cool;
+}
+
+/** Apply theme colors to State + SVG + style controls */
+function applyThemeToSVG() {
+  const tp = getCurrentThemeProfile();
+  // Update State
+  State.strokeColor = tp.strokeColor;
+  State.fillColor = tp.fillColor;
+  State.svgBgColor = tp.svgBgColor;
+  State.labelColor = tp.labelColor;
+  // Update style control inputs to match
+  document.getElementById('ctrl-stroke-color').value = tp.strokeColor;
+  document.getElementById('ctrl-fill-color').value = tp.fillColor;
+  document.getElementById('ctrl-svg-bg').value = tp.svgBgColor;
+  document.getElementById('ctrl-label-color').value = tp.labelColor;
+  // Apply to rendered elements
+  applyStyleChanges();
+}
+
+// =============================================================================
+// Event bindings
+// =============================================================================
+document.getElementById('file-input').addEventListener('change', e => processFiles(Array.from(e.target.files)));
+
+/**
+ * Auto-detect 縮尺分母 from GeoJSON properties and update scale selector.
+ */
+function autoDetectScale(geojson) {
+  // Reset scale mode
+  State.scaleMode = 'manual';
+  State.autoScaleValue = null;
+  const sel = document.getElementById('scale-select');
+  sel.disabled = false;
+
+  const feats = geojson.features || (geojson.type === 'Feature' ? [geojson] : []);
+  for (const f of feats) {
+    if (!f.properties) continue;
+    // Prioritize 縮尺分母 (exact property name)
+    const raw = f.properties.縮尺分母;
+    if (raw != null && !isNaN(Number(raw)) && Number(raw) > 0) {
+      const val = Number(raw);
+      State.scaleMode = 'auto';
+      State.autoScaleValue = val;
+      // Update UI: show detected value but disable selector
+      const existing = Array.from(sel.options).find(o => Number(o.value) === val);
+      if (existing) {
+        sel.value = existing.value;
+      } else {
+        const opt = document.createElement('option');
+        opt.value = val; opt.textContent = `1 : ${val}  (GeoJSON)`;
+        sel.appendChild(opt);
+        sel.value = val;
+      }
+      updateScaleInfo();
+      showToast(`縮尺分母検出: 座標は実距離(m)として処理（手動変更可）`, 'info');
+      return;
+    }
+  }
+  // No 縮尺分母 found — check other scale properties for UI hint only
+  for (const f of feats) {
+    if (!f.properties) continue;
+    const raw = f.properties.scale || f.properties.Scale || f.properties.縮尺
+      || f.properties.scaleDenominator || f.properties.scale_denominator;
+    if (raw != null && !isNaN(Number(raw)) && Number(raw) > 0) {
+      const val = Number(raw);
+      const existing = Array.from(sel.options).find(o => Number(o.value) === val);
+      if (existing) sel.value = existing.value;
+      else {
+        const opt = document.createElement('option');
+        opt.value = val; opt.textContent = `1 : ${val}  (自動)`;
+        sel.appendChild(opt);
+        sel.value = val;
+      }
+      updateScaleInfo();
+      showToast(`縮尺を検出: 1:${val}（手動モード）`, 'info');
+      return;
+    }
+  }
+  updateScaleInfo();
+}
+
+document.querySelectorAll('input[name="select-mode"]').forEach(radio => {
+  radio.addEventListener('change', e => {
+    State.mode = e.target.value;
+    State.selectedEdge = null; State.selectedVertices = [];
+    document.querySelectorAll('#edge-group .geo-edge-group.selected').forEach(g => g.classList.remove('selected'));
+    document.querySelectorAll('#vertex-group .geo-vertex.selected').forEach(c => c.classList.remove('selected'));
+    clearAux(); updateModeUI(); updateSelectionInfo();
+    document.getElementById('btn-execute').disabled = true;
+    showToast(State.mode === 'edge' ? '辺選択モード' : '頂点選択モード', 'info');
+  });
+});
+
+document.getElementById('scale-select').addEventListener('change', () => {
+  // If user manually changes scale, switch to manual mode
+  if (State.scaleMode === 'auto') {
+    State.scaleMode = 'manual';
+    showToast('縮尺を手動切替しました', 'info');
+  }
+  updateScaleInfo(); updateSelectionInfo();
+  if (State.isRotated) {
+    clearAux(); drawBoundingAndDimensions(State.paths);
+    applyReverseTransform();
+  }
+});
+
+document.getElementById('btn-execute').addEventListener('click', executeRotation);
+document.getElementById('btn-reset').addEventListener('click', resetAll);
+document.getElementById('btn-download').addEventListener('click', downloadSVG);
+document.getElementById('btn-print').addEventListener('click', () => {
+  const svgEl = document.querySelector('#svg-container svg');
+  if (!svgEl) { showToast('SVGがありません', 'error'); return; }
+
+  // Clone SVG, removing interactive elements
+  const clone = svgEl.cloneNode(true);
+  ['edge-group', 'vertex-group'].forEach(id => {
+    const g = clone.querySelector(`#${id}`); if (g) g.remove();
+  });
+
+  // Parse viewBox
+  const vb = clone.getAttribute('viewBox');
+  if (!vb) { showToast('viewBoxがありません', 'error'); return; }
+  const parts = vb.split(/\s+/).map(Number);
+  const vbW = parts[2], vbH = parts[3];
+
+  // A4 at 96dpi = 794 x 1123 px
+  // Horizontal: 25px each side (50px total)
+  // Vertical:   40px each side (80px total) — extra margin to prevent page overflow
+  const safeW = 794 - 50;
+  const safeH = 1123 - 80;
+  const scale = Math.min(safeW / vbW, safeH / vbH) * 0.98; // ×0.98 safety factor
+  const outW = Math.floor(vbW * scale);
+  const outH = Math.floor(vbH * scale);
+
+  clone.setAttribute('width', outW + 'px');
+  clone.setAttribute('height', outH + 'px');
+  clone.removeAttribute('style');
+  clone.style.display = 'block';
+  clone.style.maxWidth = safeW + 'px';
+  clone.style.maxHeight = safeH + 'px';
+  clone.style.overflow = 'hidden';
+
+  // Place into print target
+  const target = document.getElementById('print-target');
+  target.innerHTML = '';
+  target.appendChild(clone);
+
+  window.print();
+
+  // Cleanup after print
+  setTimeout(() => { target.innerHTML = ''; }, 1000);
+});
+
+// Fill toggle
+document.getElementById('chk-fill').addEventListener('change', e => {
+  State.fillEnabled = e.target.checked;
+  applyStyleChanges();
+});
+
+// 回転維持 checkbox
+document.getElementById('chk-keep-rotation').addEventListener('change', () => {
+  if (State.isRotated) applyReverseTransform();
+});
+
+// Theme toggle — switches between warm and cool
+document.getElementById('btn-theme').addEventListener('click', () => {
+  const btn = document.getElementById('btn-theme');
+  const isWarm = document.body.classList.toggle('theme-warm');
+  btn.textContent = isWarm ? '❄ 寒色' : '☀ 暖色';
+  btn.title = isWarm ? '寒色テーマに切替' : '暖色テーマに切替';
+  applyThemeToSVG();
+});
+
+// Style panel toggle
+document.getElementById('style-panel-toggle').addEventListener('click', () => {
+  const panel = document.getElementById('style-panel');
+  const arrow = document.getElementById('style-arrow');
+  panel.classList.toggle('open');
+  arrow.textContent = panel.classList.contains('open') ? '▼' : '▶';
+});
+
+// Color/opacity controls
+document.getElementById('ctrl-stroke-color').addEventListener('input', e => { State.strokeColor = e.target.value; applyStyleChanges(); });
+document.getElementById('ctrl-fill-color').addEventListener('input', e => { State.fillColor = e.target.value; applyStyleChanges(); });
+document.getElementById('ctrl-fill-opacity').addEventListener('input', e => { State.fillOpacity = parseFloat(e.target.value); applyStyleChanges(); });
+document.getElementById('ctrl-stroke-opacity').addEventListener('input', e => { State.strokeOpacity = parseFloat(e.target.value); applyStyleChanges(); });
+document.getElementById('ctrl-page-bg').addEventListener('input', e => { document.body.style.background = e.target.value; });
+document.getElementById('ctrl-svg-bg').addEventListener('input', e => { State.svgBgColor = e.target.value; applyStyleChanges(); });
+document.getElementById('ctrl-label-size').addEventListener('input', e => { State.labelFontSize = parseInt(e.target.value) || 12; applyStyleChanges(); });
+document.getElementById('ctrl-label-color').addEventListener('input', e => { State.labelColor = e.target.value; applyStyleChanges(); });
+
+// =============================================================================
+// Drag & Drop — SVG canvas + File input card
+// =============================================================================
+function setupDropZone(el) {
+  ['dragenter', 'dragover'].forEach(evt => {
+    el.addEventListener(evt, e => {
+      e.preventDefault(); e.stopPropagation();
+      el.classList.add('drag-over');
+    });
+  });
+  ['dragleave', 'drop'].forEach(evt => {
+    el.addEventListener(evt, e => {
+      e.preventDefault(); e.stopPropagation();
+      el.classList.remove('drag-over');
+    });
+  });
+  el.addEventListener('drop', e => {
+    const files = e.dataTransfer.files;
+    if (files && files.length) {
+      const valid = Array.from(files).filter(f =>
+        f.name.endsWith('.geojson') || f.name.endsWith('.json')
+      );
+      if (valid.length === 0) {
+        showToast('GeoJSON (.geojson / .json) ファイルをドロップしてください', 'error');
+        return;
+      }
+      processFiles(valid);
+    }
+  });
+}
+
+// Register both drop zones
+setupDropZone(document.getElementById('svg-canvas-wrapper'));
+setupDropZone(document.getElementById('file-drop-card'));
+</script>
 </body>
 </html>
