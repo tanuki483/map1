@@ -867,8 +867,8 @@ function convertDistance(svgDist) {
   // Manual mode: base 1:500
   const sel = document.getElementById('scale-select').value;
   if (sel === 'auto') {
-    // No scale info available
-    return { meters: null, label: `${svgDist.toFixed(3)} px`, unit: 'px' };
+    // No scale info available — still show as meters with unknown scale
+    return { meters: svgDist, label: `${svgDist.toFixed(3)} m（縮尺不明）`, unit: 'm' };
   }
   const selectedScale = Number(sel);
   const realDist = svgDist * (selectedScale / 500);
