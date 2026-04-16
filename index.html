@@ -452,6 +452,8 @@
     <div class="info-chip"><span class="dot" style="background:var(--accent-cyan)"></span><span id="info-dimensions">寸法: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-yellow)"></span><span id="info-angle">角度: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-green)"></span><span id="info-area">想定整形地面積: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-yellow)"></span><span id="info-path-area">PATH面積合計: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-orange)"></span><span id="info-kagechi">かげ地割合: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-cyan)"></span><span id="info-map-type">地図種類: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-purple)"></span><span id="info-map-class">地図分類: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-orange)"></span><span id="info-precision">精度区分: -</span></div>
@@ -975,6 +977,7 @@ function drawBoundingAndDimensions(paths) {
 
   document.getElementById('info-dimensions').textContent = `寸法: 間口 ${fmtDist(W)} × 奥行 ${fmtDist(H)}`;
   document.getElementById('info-area').textContent = `想定整形地面積: ${areaM2.toFixed(2)} ㎡`;
+  updateKagechiRatio();
 }
 
 function addDimLine(aux, x1, y1, x2, y2, s0) {
@@ -1002,6 +1005,51 @@ function updateInfoBar(paths) {
   document.getElementById('info-paths').textContent = `パス: ${paths.length}`;
   document.getElementById('info-vertices').textContent = `頂点: ${State.allVertices.length}`;
   updateSelectionInfo(); updateScaleInfo();
+  // Calculate total path area (Shoelace formula)
+  computeTotalPathArea(paths);
+}
+
+/** Compute total area from all paths using Shoelace formula, with scale conversion */
+function computeTotalPathArea(paths) {
+  let totalSvgArea = 0;
+  for (const p of paths) {
+    const verts = uniqueRingVerts(p.vertices);
+    if (verts.length < 3) continue;
+    totalSvgArea += computePolygonArea(verts);
+  }
+
+  // Convert area: for linear scale factor k, area factor is k²
+  let areaM2;
+  if (State.scaleMode === 'auto') {
+    // Coordinates are already meters → area is m²
+    areaM2 = totalSvgArea;
+  } else {
+    const sel = document.getElementById('scale-select').value;
+    if (sel === 'auto') {
+      // Unknown scale — treat as m² directly
+      areaM2 = totalSvgArea;
+    } else {
+      const k = Number(sel) / 500;
+      areaM2 = totalSvgArea * k * k;
+    }
+  }
+
+  State.lastPathArea = areaM2;
+  document.getElementById('info-path-area').textContent = `PATH面積合計: ${areaM2.toFixed(2)} ㎡（参考、自動計算）`;
+  updateKagechiRatio();
+}
+
+/** Calculate かげ地割合 = PATH面積合計 / 想定整形地面積 × 100 */
+function updateKagechiRatio() {
+  State.lastKagechiRatio = null;
+  const el = document.getElementById('info-kagechi');
+  if (State.lastPathArea != null && State.lastRectArea != null && State.lastRectArea > 0) {
+    const ratio = ((State.lastRectArea - State.lastPathArea) / State.lastRectArea) * 100;
+    State.lastKagechiRatio = ratio;
+    el.textContent = `かげ地割合: ${ratio.toFixed(2)} %（参考、自動計算）`;
+  } else {
+    el.textContent = 'かげ地割合: -';
+  }
 }
 
 function updateSelectionInfo() {
@@ -1209,7 +1257,11 @@ function resetAll() {
   document.getElementById('btn-execute').disabled = true;
   document.getElementById('info-dimensions').textContent = '寸法: -';
   document.getElementById('info-area').textContent = '想定整形地面積: -';
+  document.getElementById('info-path-area').textContent = 'PATH面積合計: -';
+  document.getElementById('info-kagechi').textContent = 'かげ地割合: -';
   State.lastRectArea = null;
+  State.lastPathArea = null;
+  State.lastKagechiRatio = null;
   showToast('リセットしました', 'info');
 }
 
@@ -1406,7 +1458,9 @@ async function processFiles(files) {
     document.getElementById('btn-print').disabled = false;
     document.getElementById('info-dimensions').textContent = '寸法: -';
     document.getElementById('info-area').textContent = '想定整形地面積: -';
+    document.getElementById('info-path-area').textContent = 'PATH面積合計: -';
     State.lastRectArea = null;
+    State.lastPathArea = null;
 
     // Extract GeoJSON metadata from first feature
     extractGeoMeta(merged);
@@ -1632,6 +1686,8 @@ document.getElementById('btn-print').addEventListener('click', () => {
   // Add info label at bottom-right if available
   const printLines = [];
   if (State.lastRectArea != null) printLines.push(`想定整形地面積: ${State.lastRectArea.toFixed(2)} ㎡`);
+  if (State.lastPathArea != null) printLines.push(`PATH面積合計: ${State.lastPathArea.toFixed(2)} ㎡（参考、自動計算）`);
+  if (State.lastKagechiRatio != null) printLines.push(`かげ地割合: ${State.lastKagechiRatio.toFixed(2)} %（参考、自動計算）`);
   if (State.geoMeta) {
     if (State.geoMeta.地図種類) printLines.push(`地図種類: ${State.geoMeta.地図種類}`);
     if (State.geoMeta.地図分類) printLines.push(`地図分類: ${State.geoMeta.地図分類}`);
