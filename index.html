@@ -593,6 +593,70 @@
     .info-chip{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:100px;font-size:11px;color:var(--text-secondary);font-family:var(--font-mono);white-space:nowrap}
     .info-chip .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 
+	  /* ========= Operation Manual list styling ========= */
+/* 余白（左側インデント）基本：階層ごとに増える */
+.manual-content ol,
+.manual-content ul {
+  margin: 0.4rem 0 0.9rem;
+  padding-inline-start: 3.6em; /* 1階層目 */
+}
+.manual-content ol ol,
+.manual-content ul ul,
+.manual-content ol ul,
+.manual-content ul ol {
+  margin-top: 0.35rem;
+  padding-inline-start: 0.0em; /* 2階層目はさらに深く */
+}
+.manual-content ol ol ol,
+.manual-content ul ul ul,
+.manual-content ol ul ol,
+.manual-content ul ol ol {
+  padding-inline-start: 1.0em; /* 3階層目 */
+}
+/* リスト項目間の行間を少し */
+.manual-content li {
+  line-height: 1.65;
+  margin: 0.15rem 0;
+}
+/* ネスト内の注釈（・）の見た目（必要なら） */
+.manual-content ul.note {
+  list-style: "・ ";
+}
+/* ============ カウンタスタイル定義（厳密表記） ============ */
+/* 「１．」：全角数字 + 全角ドット */
+@counter-style zenkaku-decimal-dot {
+  system: numeric;
+  symbols: "０" "１" "２" "３" "４" "５" "６" "７" "８" "９";
+  suffix: "． ";
+}
+/* 「⑴」：丸括弧数字（固定）※必要数だけ並べる */
+@counter-style maru-kakko {
+  system: fixed;
+  symbols:
+    "⑴" "⑵" "⑶" "⑷" "⑸" "⑹" "⑺" "⑻" "⑼" "⑽"
+    "⑾" "⑿" "⒀" "⒁" "⒂" "⒃" "⒄" "⒅" "⒆" "⒇";
+  suffix: " ";
+}
+/* 「①」：丸数字（固定）※必要数だけ並べる */
+@counter-style maru {
+  system: fixed;
+  symbols:
+    "①" "②" "③" "④" "⑤" "⑥" "⑦" "⑧" "⑨" "⑩"
+    "⑪" "⑫" "⑬" "⑭" "⑮" "⑯" "⑰" "⑱" "⑲" "⑳";
+  suffix: " ";
+}
+/* クラスで使い分け */
+.manual-content ol.list-lv1 { list-style: zenkaku-decimal-dot; }
+.manual-content ol.list-lv2 { list-style: maru-kakko; }
+.manual-content ol.list-lv3 { list-style: maru; }
+/* もし li の中で marker の位置がズレる場合の微調整 */
+.manual-content ol.list-lv1 > li::marker,
+.manual-content ol.list-lv2 > li::marker,
+.manual-content ol.list-lv3 > li::marker {
+  font-weight: 600; /* 任意 */
+}
+
+	  
     /* Toast */
     .toast{position:fixed;bottom:28px;right:28px;padding:11px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;z-index:9999;transform:translateY(120px);opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);box-shadow:var(--shadow-lg);max-width:360px}
     .toast.show{transform:translateY(0);opacity:1}
@@ -651,6 +715,145 @@
     </div>
   </header>
 
+	<!-- Operation Manual -->
+<details class="op-manual">
+  <summary>操作説明</summary>
+  <div class="manual-content">
+    <!-- Intro -->
+    <section class="manual-intro" aria-label="ツール概要">
+      <p>
+        このツールは
+        <a href="https://kouzuviewer.com/chiban/" target="_blank" rel="noopener">
+          公図ビューア for 登記所備付地図データ
+        </a>
+        からダウンロードした公図や測量図のGeoJSONファイルを、路線価評価用の参考資料に加工するためのツールです。
+      </p>
+      <p>
+        本ツールは外部との通信を必要とせず、<strong>完全にローカルで動作</strong>します。
+        動作に必要なコードはHTMLファイル内に組み込んであるため、<strong>当該HTMLファイル単体</strong>で動作します。
+      </p>
+      <p>
+        なお、公図や測量図のGeoJSONファイルは外部サイトからダウンロードして別途用意する必要があります。
+      </p>
+    </section>
+    <!-- 1 -->
+    <section class="manual-section" aria-label="事前準備">
+      <h4>1. 事前準備</h4>
+      <ol class="list-lv1">
+        <li>
+          <a href="https://kouzuviewer.com/chiban/" target="_blank" rel="noopener">
+            公図ビューア for 登記所備付地図データ
+          </a>
+          にアクセスする。
+        </li>
+        <li>
+          調べたい地域の県、市区町村、地番区域（大字や丁目）を指定し、表示された地番から調べたいものにアクセスする。
+        </li>
+        <li>表示された地図からGeoJSONファイルをダウンロードしたい地番をクリックして選択する。</li>
+        <li>左側のアイコンから「GeoJSON形式保存」をクリックする。</li>
+        <li>表示されたポップアップから、対象データ＞「選択中の筆のみ」を選んで「保存」を押す。</li>
+        <li>選択した地番のGeoJSONデータがダウンロードされる。</li>
+        <li>
+          複数の筆から成る評価単位を評価したい場合は、上記の手順（3〜6）を繰り返し、評価対象の筆を1筆ずつすべてダウンロードする。
+        </li>
+      </ol>
+    </section>
+    <!-- 2 -->
+    <section class="manual-section" aria-label="ツールに読み込む">
+      <h4>2. ツールに読み込む</h4>
+      <ol class="list-lv1">
+        <li>このツール（想定整形地分析ツール（GeoJSON → SVG 加工ツール））を開く。</li>
+        <li>
+          <kbd>GeoJSONファイルを選択</kbd>ボタン、またはGeoJSONファイルを読込領域に
+          <kbd>ドラッグ＆ドロップ</kbd>してアップロードする。
+          <ul class="note">
+            <li>複数筆から成る土地はまとめてアップロードしてください。</li>
+          </ul>
+        </li>
+        <li>
+          読み込んだGeoJSONファイルが表示領域にSVG画像として表示される。
+          縮尺はGeoJSONファイル内に記述がある場合、自動的に読み取る。
+        </li>
+      </ol>
+    </section>
+    <!-- 3 -->
+    <section class="manual-section" aria-label="想定整形地を生成する">
+      <h4>3. 想定整形地を生成する</h4>
+      <ol class="list-lv1">
+        <li>
+          選択モードから①辺選択②頂点選択のいずれかを選択し、次の通り正面路線に接する部分を選択する。
+          ここで選択した部分を基に、次のステップで想定整形地を自動的に生成する。
+          <ol class="list-lv3">
+            <li>
+              辺選択モードを選択した場合、読み込んだGeoJSONファイル上で頂点同士をつなぐ辺になっている部分を選択する。
+            </li>
+            <li>
+              頂点選択モードを選択した場合、読み込んだGeoJSONファイル上から頂点を選択する。
+              隣り合っていない頂点も選択することができるので、道路に接している辺が複数の頂点から成っていて細切れになっている場合や、
+              正面路線に面している辺が凹形になっているため辺を選択しても適切な角度が取れない場合に使用する。
+              <ul class="note">
+                <li>この時点で選択された辺の想定される実寸距離が m（メートル）として表示される。</li>
+              </ul>
+            </li>
+          </ol>
+        </li>
+        <li>
+          <kbd>分析実行</kbd>ボタンを押すと、想定整形地が表示される。
+          想定整形地の間口距離と奥行の長さ、現在選択されている縮尺も表示される。
+          <ul class="note">
+            <li>角度維持オプションを選択していると、想定整形地を基準として垂直な角度が維持される。</li>
+          </ul>
+        </li>
+        <li>
+          <kbd>A4印刷</kbd>ボタンを押すと、基本的にはA4で印刷される。
+          A4用紙縦1枚で印刷することを想定しての機能だが、利用者の印刷設定が異なる場合はそれに従う。
+          <ul class="note">
+            <li>
+              当該A4印刷機能は基本的にいつでも有効なため、手順2の時点で印刷することで、
+              選択した辺の長さを表示した状態を印刷することもできる。間口距離や「ここからここまで何m」などを示すために使うこともできる。
+            </li>
+            <li>
+              当該A4印刷機能は正確な縮尺で印刷するものでは全くない。ツールが読み取り、表記しているｍ㍍は座標距離であるため、基本的に記載されている距離がそのまま地図上の距離である。
+            </li>
+          </ul>
+        </li>
+        <li>
+          表示画像はSVG（ベクトル画像）であり、<kbd>SVGダウンロード</kbd>ボタンを押すと現在表示している画像をダウンロードできる。
+          画像はA4縦印刷可能な縦横比で出力するように調整している。
+        </li>
+        <li>
+          不具合が生じた場合などは <kbd>リセット</kbd>ボタンを押すと現在の画像の状態がリセットされる。
+          角度維持オプションを選択したままリセットすると現在の角度を保ったまま辺の選択などがリセットされる。
+        </li>
+        <li>
+          表記上の距離ｍ㍍はGeoJsonファイルをそのまま返還したSVGファイル上の座標距離を採用している。
+          表記上の距離に違和感がある場合や実測距離と差がある場合は縮尺を手動で変更することができる。
+        </li>
+      </ol>
+    </section>
+    <!-- 4 -->
+    <section class="manual-section" aria-label="色などを調整する">
+      <h4>4. 色などを調整する</h4>
+      <ol class="list-lv1">
+        <li>
+          <kbd>スタイル設定</kbd>を開くとSVG画像やページの色、SVG背景の透過具合などを調整できる。
+        </li>
+        <li>
+          ページ右上の <kbd>寒色</kbd> <kbd>暖色</kbd> オプションを選択すると背景色のテーマが切り替わる。もう一度押すと元に戻る。
+        </li>
+      </ol>
+    </section>
+    <!-- Contact -->
+    <section class="manual-contact" aria-label="連絡先">
+      <h4>問い合わせ</h4>
+      <p>
+        <a href="mailto:sogo.nakamura.cv7@nta.go.jp?subject=GeoJson読込ツールについて">連絡先</a>
+      </p>
+    </section>
+  </div>
+</details>
+
+	
   <!-- Controls -->
   <div class="controls-grid">
     <!-- File -->
@@ -686,42 +889,7 @@
     </div>
   </div>
 
-  <!-- Operation Manual -->
-  <details class="op-manual">
-    <summary>操作説明</summary>
-    <div class="manual-content">
-      <h4>1. ファイル読み込み</h4>
-      <ul>
-        <li>「GeoJSONファイルを選択」ボタンまたは<kbd>ドラッグ＆ドロップ</kbd>でファイルをアップロード</li>
-        <li>複数ファイルの同時読み込みに対応（自動マージ）</li>
-        <li>対応形式：Polygon / MultiPolygon</li>
-      </ul>
-      <h4>2. 辺・頂点選択と回転</h4>
-      <ul>
-        <li><kbd>辺選択</kbd>モード：辺をクリックして基準辺を選択</li>
-        <li><kbd>頂点選択</kbd>モード：2頂点をクリックして基準線を選択</li>
-        <li>「回転実行」で基準辺/線が水平になるよう回転</li>
-      </ul>
-      <h4>3. 回転維持オプション</h4>
-      <ul>
-        <li>OFF（初期値）：元の向きに戻してSVG出力（外接矩形は斜め表示）</li>
-        <li>ON：回転後の向きのまま出力（外接矩形は水平/垂直）</li>
-      </ul>
-      <h4>4. SVGダウンロード</h4>
-      <ul>
-        <li>加工済SVGをファイル保存</li>
-        <li>出力サイズ: max(幅,高さ)=1200px（A4印刷対応）</li>
-        <li>縦横比制限: height/width ≤ 1.4</li>
-      </ul>
-      <h4>5. スタイル設定</h4>
-      <ul>
-        <li>線色・塗り色・透明度・背景色・ラベルサイズなどをカスタマイズ可能</li>
-        <li>「半透明塗り」チェックで塗り表示を切替</li>
-      </ul>
-    </div>
-  </details>
-
-  <!-- Style Panel -->
+	<!-- Style Panel -->
   <button class="style-panel-toggle" id="style-panel-toggle" type="button"><span id="style-arrow">▶</span> スタイル設定</button>
   <div class="style-panel" id="style-panel">
     <div class="style-ctrl"><label>線色</label><input type="color" id="ctrl-stroke-color" value="#8b5e34"></div>
