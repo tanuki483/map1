@@ -413,6 +413,8 @@
 	}, {}, [1])(1)
 });
 </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.min.js"></script>
+  <script src="https://cdn.geolonia.com/community-geocoder.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
     :root {
@@ -662,6 +664,59 @@
     .toast.success{background:linear-gradient(135deg,#059669,#10b981);color:#fff}
     .toast.error{background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff}
     .toast.info{background:linear-gradient(135deg,#0284c7,#38bdf8);color:#fff}
+    
+    .map-alert-warning {
+      background: rgba(249, 115, 22, 0.12);
+      border: 1px solid rgba(249, 115, 22, 0.3);
+      border-left: 4px solid #f97316;
+      color: var(--accent-green);
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      margin-bottom: 16px;
+      line-height: 1.5;
+      animation: fadeSlideIn 0.4s ease;
+    }
+    .map-alert-warning strong {
+      color: #fb923c;
+      font-size: 14px;
+    }
+
+    .map-banner {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: rgba(15, 21, 32, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--accent-cyan);
+      border-radius: var(--radius-md);
+      padding: 12px 20px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 10000;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 4px 20px rgba(34,211,238,0.2);
+    }
+    .map-banner.show { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
+    .map-banner button {
+      background: var(--accent-cyan);
+      color: #000;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 100px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.2s;
+    }
+    .map-banner button:hover { background: #67e8f9; }
 
     @keyframes fadeSlideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     .animate-in{animation:fadeSlideIn .35s ease forwards}
@@ -676,12 +731,14 @@
     .btn-print{background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;box-shadow:0 2px 14px rgba(168,85,247,.3)}
     .btn-print:hover:not(:disabled){box-shadow:0 4px 22px rgba(168,85,247,.45)}
 
-    /* ── @media print (A4 1-page guaranteed) ── */
+    /* ── @media print ── */
     @media print {
       .app-container,#toast{display:none!important}
-      body{margin:0!important;padding:0!important;background:#fff!important;overflow:hidden!important;height:297mm!important}
-      body::before{display:none!important}
-      #print-target{
+      
+      /* A4 Fit Print (Default) */
+      body:not(.print-mode-real){margin:0!important;padding:0!important;background:#fff!important;overflow:hidden!important;height:297mm!important}
+      body:not(.print-mode-real)::before{display:none!important}
+      body:not(.print-mode-real) #print-target{
         display:flex!important;align-items:center!important;justify-content:center!important;
         width:210mm!important;height:297mm!important;
         background:#fff!important;
@@ -690,10 +747,27 @@
         page-break-inside:avoid!important;break-inside:avoid!important;
         box-sizing:border-box!important;
       }
-      #print-target svg{
+      body:not(.print-mode-real) #print-target svg{
         page-break-inside:avoid!important;break-inside:avoid!important;
         display:block!important;
       }
+
+      /* Real Scale Print */
+      body.print-mode-real { margin:0!important; padding:0!important; background:#fff!important; overflow:visible!important; height:auto!important; }
+      body.print-mode-real::before{display:none!important}
+      body.print-mode-real #print-target {
+        display:block!important;
+        width:auto!important; height:auto!important;
+        background:#fff!important;
+        margin:0!important; padding:0!important;
+        overflow:visible!important;
+      }
+      body.print-mode-real #print-target svg {
+        display:block!important;
+        max-width:none!important; max-height:none!important;
+        page-break-inside:auto!important; break-inside:auto!important;
+      }
+
       @page{size:A4 portrait;margin:0}
     }
     #print-target{display:none}
@@ -705,7 +779,7 @@
   <!-- Header -->
   <header class="app-header">
     <div class="header-title-group">
-      <div class="header-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="3 11 12 2 21 11 21 21 3 21"/><polyline points="9 21 9 12 15 12 15 21"/></svg></div>
+      <div class="header-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><path fill="currentColor" d="M124.3,102.6L101.9,3.3c-0.3-1.5-1.7-2.5-3.3-2.3c-0.7,0.1-1.3,0.4-1.7,0.9c-0.8,0.8-2.6,2.6-4,4 c-2.9,2.9-6.7,4.8-10.8,5c-4.7,0.3-9.2-1.4-12.5-4.7l-4.3-4.3c-0.5-0.5-1.1-0.8-1.7-0.9c-1.6-0.2-3,0.9-3.3,2.3L38,102.6 c-0.6,2.7-0.8,5.6-0.3,8.2l-2.9,1.3l-3.3-2.7l-15.1-3.5c-3.2-0.7-6.5,0-9.1,2.1c-2.7,2.2-4.2,5.5-4,9c0.3,5.7,5.3,10.1,11.1,10.1 h75.7c0.8,0,1.5-0.2,2.2-0.5l3-1.5l3.4,2h5.8c6,0,11.7-2.4,15.6-6.9C124.1,115.2,125.7,108.8,124.3,102.6z"/><path fill="#fff" d="M34.1 118.8c.5 1 1.6 1.6 2.7 1.6.5 0 .9-.1 1.4-.3 1.5-.8 2.1-2.6 1.3-4-.9-1.7-1.5-3.5-1.8-5.3l-6.2-1.4C31.7 112.7 32.6 115.8 34.1 118.8zM90 127h8.5c.3-.9.5-1.9.5-3 0-3.9-2.5-7.2-6-8.5L92.9 99c0-1.7-1.4-3-3-3-1.7 0-3 1.4-3 3l.1 18.6c0 .1 0 .2 0 .4 0 1.7 1.3 3 3 3s3 1.3 3 3S91.7 127 90 127zM72 120.4c-1.7 0-3-1.3-3-3L68.9 99c0-1.7 1.3-3 3-3l0 0c1.7 0 3 1.3 3 3l.1 18.4C75 119.1 73.7 120.4 72 120.4L72 120.4zM71 31A3 3 0 1 0 71 37 3 3 0 1 0 71 31zM91 31A3 3 0 1 0 91 37 3 3 0 1 0 91 31z"/></svg></div>
       <div><h1>想定整形地分析ツール（GeoJSON → SVG 加工ツール）</h1><p>測量データの変換・回転・寸法表示をローカルで実行</p></div>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
@@ -714,40 +788,144 @@
     </div>
   </header>
 
-  <!-- Operation Manual -->
-  <details class="op-manual">
-    <summary>操作説明</summary>
-    <div class="manual-content">
-      <h4>1. ファイル読み込み</h4>
-      <ul>
-        <li>「GeoJSONファイルを選択」ボタンまたは<kbd>ドラッグ＆ドロップ</kbd>でファイルをアップロード</li>
-        <li>複数ファイルの同時読み込みに対応（自動マージ）</li>
-        <li>対応形式：Polygon / MultiPolygon</li>
-      </ul>
-      <h4>2. 辺・頂点選択と回転</h4>
-      <ul>
-        <li><kbd>辺選択</kbd>モード：辺をクリックして基準辺を選択</li>
-        <li><kbd>頂点選択</kbd>モード：2頂点をクリックして基準線を選択</li>
-        <li>「分析実行」で基準辺/線が水平になるよう回転</li>
-      </ul>
-      <h4>3. 角度維持オプション</h4>
-      <ul>
-        <li>OFF（初期値）：元の向きに戻してSVG出力（外接矩形は斜め表示）</li>
-        <li>ON：回転後の向きのまま出力（外接矩形は水平/垂直）</li>
-      </ul>
-      <h4>4. SVGダウンロード</h4>
-      <ul>
-        <li>加工済SVGをファイル保存</li>
-        <li>出力サイズ: max(想定整形地間口,想定整形地奥行)=1200px（A4印刷対応）</li>
-        <li>縦横比制限: height/width ≤ 1.4</li>
-      </ul>
-      <h4>5. スタイル設定</h4>
-      <ul>
-        <li>線色・塗り色・透明度・背景色・ラベルサイズなどをカスタマイズ可能</li>
-        <li>「半透明塗り」チェックで塗り表示を切替</li>
-      </ul>
-    </div>
-  </details>
+<!-- Operation Manual -->
+<details class="op-manual">
+  <summary>操作説明</summary>
+  <div class="manual-content">
+    <!-- Intro -->
+    <section class="manual-intro" aria-label="ツール概要">
+      <p>
+        このツールは
+        <a href="https://kouzuviewer.com/chiban/" target="_blank" rel="noopener">
+          公図ビューア for 登記所備付地図データ
+        </a>
+        からダウンロードした公図や測量図のGeoJSONファイルを、路線価評価用の参考資料に加工するためのツールです。
+      </p>
+      <p>
+        本ツールは外部との通信を必要とせず、<strong>完全にローカルで動作</strong>します。
+        動作に必要なコードはHTMLファイル内に組み込んであるため、<strong>当該HTMLファイル単体</strong>で動作します。
+      </p>
+      <p>
+        なお、公図や測量図のGeoJSONファイルは外部サイトからダウンロードして別途用意する必要があります。
+      </p>
+    </section>
+    <!-- 1 -->
+    <section class="manual-section" aria-label="事前準備">
+      <h4>1. 事前準備</h4>
+      <ol class="list-lv1">
+        <li>
+          <a href="https://kouzuviewer.com/chiban/" target="_blank" rel="noopener">
+            公図ビューア for 登記所備付地図データ
+          </a>
+          にアクセスする。
+        </li>
+        <li>
+          調べたい地域の県、市区町村、地番区域（大字や丁目）を指定し、表示された地番から調べたいものにアクセスする。
+        </li>
+        <li>表示された地図からGeoJSONファイルをダウンロードしたい地番をクリックして選択する。</li>
+        <li>左側のアイコンから「GeoJSON形式保存」をクリックする。</li>
+        <li>表示されたポップアップから、対象データ＞「選択中の筆のみ」を選んで「保存」を押す。</li>
+        <li>選択した地番のGeoJSONデータがダウンロードされる。</li>
+        <li>
+          複数の筆から成る評価単位を評価したい場合は、上記の手順（3〜6）を繰り返し、評価対象の筆を1筆ずつすべてダウンロードする。
+        </li>
+      </ol>
+    </section>
+    <!-- 2 -->
+    <section class="manual-section" aria-label="ツールに読み込む">
+      <h4>2. ツールに読み込む</h4>
+      <ol class="list-lv1">
+        <li>このツール（想定整形地分析ツール（GeoJSON → SVG 加工ツール））を開く。</li>
+        <li>
+          <kbd>GeoJSONファイルを選択</kbd>ボタン、またはGeoJSONファイルを読込領域に
+          <kbd>ドラッグ＆ドロップ</kbd>してアップロードする。
+          <ul class="note">
+            <li>複数筆から成る土地はまとめてアップロードしてください。</li>
+          </ul>
+        </li>
+        <li>
+          読み込んだGeoJSONファイルが表示領域にSVG画像として表示される。
+          縮尺はGeoJSONファイル内に記述がある場合、自動的に読み取る。
+        </li>
+      </ol>
+    </section>
+    <!-- 3 -->
+    <section class="manual-section" aria-label="想定整形地を生成する">
+      <h4>3. 想定整形地を生成する</h4>
+      <ol class="list-lv1">
+        <li>
+          選択モードから①辺選択②頂点選択のいずれかを選択し、次の通り正面路線に接する部分を選択する。
+          ここで選択した部分を基に、次のステップで想定整形地を自動的に生成する。
+          <ol class="list-lv3">
+            <li>
+              辺選択モードを選択した場合、読み込んだGeoJSONファイル上で頂点同士をつなぐ辺になっている部分を選択する。
+            </li>
+            <li>
+              頂点選択モードを選択した場合、読み込んだGeoJSONファイル上から頂点を選択する。
+              隣り合っていない頂点も選択することができるので、道路に接している辺が複数の頂点から成っていて細切れになっている場合や、
+              正面路線に面している辺が凹形になっているため辺を選択しても適切な角度が取れない場合に使用する。
+              <ul class="note">
+                <li>この時点で選択された辺の想定される実寸距離が m（メートル）として表示される。</li>
+              </ul>
+            </li>
+          </ol>
+        </li>
+        <li>
+          <kbd>分析実行</kbd>ボタンを押すと、想定整形地が表示される。
+          想定整形地の間口距離と奥行の長さ、現在選択されている縮尺も表示される。
+          <ul class="note">
+            <li>角度維持オプションを選択していると、想定整形地を基準として垂直な角度が維持される。</li>
+          </ul>
+        </li>
+        <li>
+          <kbd>A4印刷</kbd>ボタンを押すと、基本的にはA4で印刷される。
+          A4用紙縦1枚で印刷することを想定しての機能だが、利用者の印刷設定が異なる場合はそれに従う。
+          <ul class="note">
+            <li>
+              当該A4印刷機能は基本的にいつでも有効なため、手順2の時点で印刷することで、
+              選択した辺の長さを表示した状態を印刷することもできる。間口距離や「ここからここまで何m」などを示すために使うこともできる。
+            </li>
+            <li>
+              当該A4印刷機能は正確な縮尺で印刷するものでは全くない。ツールが読み取り、表記しているｍ㍍は座標距離であるため、基本的に記載されている距離がそのまま地図上の距離である。
+            </li>
+          </ul>
+        </li>
+        <li>
+          表示画像はSVG（ベクトル画像）であり、<kbd>SVGダウンロード</kbd>ボタンを押すと現在表示している画像をダウンロードできる。
+          画像はA4縦印刷可能な縦横比で出力するように調整している。
+        </li>
+        <li>
+          不具合が生じた場合などは <kbd>リセット</kbd>ボタンを押すと現在の画像の状態がリセットされる。
+          角度維持オプションを選択したままリセットすると現在の角度を保ったまま辺の選択などがリセットされる。
+        </li>
+        <li>
+          表記上の距離ｍ㍍はGeoJsonファイルをそのまま返還したSVGファイル上の座標距離を採用している。
+          表記上の距離に違和感がある場合や実測距離と差がある場合は縮尺を手動で変更することができる。
+        </li>
+      </ol>
+    </section>
+    <!-- 4 -->
+    <section class="manual-section" aria-label="色などを調整する">
+      <h4>4. 色などを調整する</h4>
+      <ol class="list-lv1">
+        <li>
+          <kbd>スタイル設定</kbd>を開くとSVG画像やページの色、SVG背景の透過具合などを調整できる。
+        </li>
+        <li>
+          ページ右上の <kbd>寒色</kbd> <kbd>暖色</kbd> オプションを選択すると背景色のテーマが切り替わる。もう一度押すと元に戻る。
+        </li>
+      </ol>
+    </section>
+    <!-- Contact -->
+    <section class="manual-contact" aria-label="連絡先">
+      <h4>問い合わせ</h4>
+      <p>
+        <a href="mailto:sogo.nakamura.cv7@nta.go.jp?subject=GeoJson読込ツールについて">連絡先</a>
+      </p>
+    </section>
+  </div>
+</details>
+
 
   <!-- Controls -->
   <div class="controls-grid">
@@ -771,9 +949,9 @@
     </div>
     <!-- Scale -->
     <div class="control-card">
-      <div class="card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M3 21l7-7M14 10l7-7"/></svg>縮尺</div>
-      <select class="scale-select" id="scale-select" title="縮尺を選択">
-        <option value="auto">自動（GeoJSONプロパティ）</option>
+      <div class="card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M3 21l7-7M14 10l7-7"/></svg>印刷用縮尺</div>
+      <select class="scale-select" id="scale-select" title="等倍印刷時の縮尺を選択">
+        <option value="auto">なし（GeoJSON内縮尺分母）</option>
         <option value="100">1 : 100</option><option value="150">1 : 150</option><option value="200">1 : 200</option>
         <option value="300">1 : 300</option><option value="400">1 : 400</option><option value="450">1 : 450</option>
         <option value="500">1 : 500</option><option value="600">1 : 600</option><option value="750">1 : 750</option>
@@ -809,13 +987,25 @@
     <button class="btn btn-success" id="btn-download" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>SVGダウンロード
     </button>
-    <button class="btn btn-print" id="btn-print" disabled>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>A4印刷
-    </button>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <select id="print-mode" class="scale-select" style="width: auto; padding-right: 28px; padding-left: 10px;">
+        <option value="a4">A4フィット印刷</option>
+        <option value="real">等倍印刷</option>
+      </select>
+      <div class="checkbox-wrapper" id="wrap-lbp441" style="display: none; margin-left: -4px;">
+        <input type="checkbox" id="chk-lbp441" checked>
+        <label for="chk-lbp441" style="color:var(--accent-cyan); font-weight:600;">LBP441補正</label>
+      </div>
+      <button class="btn btn-print" id="btn-print" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>印刷
+      </button>
+    </div>
     <div class="action-divider"></div>
     <div class="checkbox-wrapper"><input type="checkbox" id="chk-fill" checked><label for="chk-fill">半透明塗り</label></div>
     <div class="checkbox-wrapper"><input type="checkbox" id="chk-keep-rotation"><label for="chk-keep-rotation">角度維持</label></div>
+    <div class="checkbox-wrapper"><input type="checkbox" id="chk-bent-frontage"><label for="chk-bent-frontage" style="color:var(--accent-magenta); font-weight:600;">屈折間口</label></div>
   </div>
+
 
   <!-- SVG Canvas -->
   <div class="svg-canvas-wrapper" id="svg-canvas-wrapper">
@@ -836,20 +1026,48 @@
     <div class="info-chip"><span class="dot" style="background:var(--accent-cyan)"></span><span id="info-dimensions">寸法: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-yellow)"></span><span id="info-angle">角度: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-green)"></span><span id="info-area">想定整形地面積: -</span></div>
-    <div class="info-chip"><span class="dot" style="background:var(--accent-yellow)"></span><span id="info-path-area">PATH面積合計: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-yellow)"></span><span id="info-path-area">不整形地面積合計: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-orange)"></span><span id="info-kagechi">かげ地割合: -</span></div>
+    <div class="info-chip" id="chip-depth" style="display:none;"><span class="dot" style="background:#d946ef"></span><span id="info-depth">平均奥行距離: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-cyan)"></span><span id="info-map-type">地図種類: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-purple)"></span><span id="info-map-class">地図分類: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-orange)"></span><span id="info-precision">精度区分: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-blue)"></span><span id="info-coord-type">座標値種別: -</span></div>
   </div>
+
+  <!-- External Map Integration Container -->
+  <div id="map-integration-container" style="display:none; padding:16px 20px; background:var(--surface-glass); border:1px solid var(--border-primary); border-radius:var(--radius-md); margin-top: 16px;">
+    <div style="font-weight:600; margin-bottom:12px; font-size:14px; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
+       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+       <span>外部マップ連携 <small style="color:var(--text-secondary); font-weight:normal;" id="map-status-text"></small></span>
+    </div>
+    <div id="map-links" style="display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;"></div>
+    <div id="map-iframes" style="display:flex; gap:16px; flex-wrap:wrap;"></div>
+  </div>
 </div>
 <div id="print-target"></div>
 <div id="toast" class="toast"></div>
 
+<!-- Map notification banner -->
+<div id="map-banner" class="map-banner">
+  <span id="map-banner-text">外部マップの埋め込み準備が完了しました</span>
+  <button onclick="window.loadMapIframes(); document.getElementById('map-integration-container').scrollIntoView({behavior:'smooth'}); document.getElementById('map-banner').classList.remove('show');">地図を見る</button>
+</div>
+
 <script>
 'use strict';
 const NS = 'http://www.w3.org/2000/svg';
+
+window.loadMapIframes = function() {
+  document.querySelectorAll('#map-iframes iframe').forEach(i => {
+    if (i.getAttribute('data-src')) {
+      i.src = i.getAttribute('data-src');
+      i.style.display = '';
+    }
+  });
+  const ph = document.getElementById('map-load-placeholder');
+  if (ph) ph.style.display = 'none';
+};
 
 // =============================================================================
 // State
@@ -867,9 +1085,6 @@ const State = {
   rotationAngle: 0,
   rotationCenter: null,  // {cx, cy} for reverse transform
   svgBounds: null,
-  // Scale mode: 'auto' = 縮尺分母 detected (coords are meters), 'manual' = user picks scale
-  scaleMode: 'manual',     // 'auto' | 'manual'
-  autoScaleValue: null,    // the 縮尺分母 value from GeoJSON (when auto)
   // Style settings — warm theme defaults
   strokeColor: '#8b5e34',
   fillColor: '#c4872e',
@@ -899,10 +1114,10 @@ const ThemeProfiles = {
 // =============================================================================
 // Utilities
 // =============================================================================
-function showToast(m, t = 'info') {
+function showToast(m, t = 'info', duration = 3400) {
   const el = document.getElementById('toast');
   el.textContent = m; el.className = `toast ${t} show`;
-  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 3400);
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), duration);
 }
 function dist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
 
@@ -924,29 +1139,88 @@ function getScaleDenominator() {
 
 /**
  * Convert SVG coordinate distance to real-world distance.
- *
- * Case 1 (scaleMode='auto'): 縮尺分母 exists → coords are already meters → return as-is
- * Case 2 (scaleMode='manual'): no 縮尺分母 → base is 1:500, apply ratio
- *   realDist = svgDist × (selectedScale / 500)
+ * 座標値は常にメートル(m)としてそのまま扱います。
  */
 function convertDistance(svgDist) {
-  if (State.scaleMode === 'auto') {
-    // Coordinates are already real meters
-    return { meters: svgDist, label: `${svgDist.toFixed(3)} m`, unit: 'm' };
-  }
-  // Manual mode: base 1:500
-  const sel = document.getElementById('scale-select').value;
-  if (sel === 'auto') {
-    // No scale info available — still show as meters with unknown scale
-    return { meters: svgDist, label: `${svgDist.toFixed(3)} m（縮尺不明）`, unit: 'm' };
-  }
-  const selectedScale = Number(sel);
-  const realDist = svgDist * (selectedScale / 500);
-  return { meters: realDist, label: `${realDist.toFixed(3)} m (手動 1:${selectedScale})`, unit: 'm' };
+  return { meters: svgDist, label: `${svgDist.toFixed(3)} m`, unit: 'm' };
 }
 
 function fmtDist(v) {
   return convertDistance(Math.abs(v)).label;
+}
+
+// =============================================================================
+// Dijkstra Shortest Path across Polygons
+// =============================================================================
+function computeShortestPath(paths, vA, vB) {
+  const nodes = [];
+  const EPSILON = 1e-6;
+  
+  function findOrCreateNode(x, y) {
+    for (const n of nodes) {
+      if (Math.abs(n.x - x) < EPSILON && Math.abs(n.y - y) < EPSILON) return n;
+    }
+    const newNode = { id: nodes.length, x, y, edges: [] };
+    nodes.push(newNode);
+    return newNode;
+  }
+
+  for (const p of paths) {
+    const verts = p.vertices;
+    if (verts.length < 2) continue;
+    const ringNodes = verts.map(v => findOrCreateNode(v.x, v.y));
+    for (let i = 0; i < ringNodes.length; i++) {
+      const u = ringNodes[i];
+      const v = ringNodes[(i + 1) % ringNodes.length]; // Z closing
+      if (u.id !== v.id) {
+        const d = dist(u, v);
+        if (!u.edges.find(e => e.to.id === v.id)) u.edges.push({ to: v, weight: d });
+        if (!v.edges.find(e => e.to.id === u.id)) v.edges.push({ to: u, weight: d });
+      }
+    }
+  }
+
+  const startNode = findOrCreateNode(vA.x, vA.y);
+  const endNode = findOrCreateNode(vB.x, vB.y);
+  if (startNode.id === endNode.id) return { path: [startNode], totalDist: 0 };
+
+  const distances = new Map();
+  const prev = new Map();
+  for (const n of nodes) distances.set(n.id, Infinity);
+  distances.set(startNode.id, 0);
+
+  const pq = [{ node: startNode, d: 0 }];
+  let found = false;
+
+  while (pq.length > 0) {
+    pq.sort((a, b) => a.d - b.d);
+    const curr = pq.shift();
+    const u = curr.node;
+
+    if (u.id === endNode.id) { found = true; break; }
+    if (curr.d > distances.get(u.id)) continue;
+
+    for (const edge of u.edges) {
+      const v = edge.to;
+      const alt = distances.get(u.id) + edge.weight;
+      if (alt < distances.get(v.id)) {
+        distances.set(v.id, alt);
+        prev.set(v.id, u);
+        pq.push({ node: v, d: alt });
+      }
+    }
+  }
+
+  if (!found) return null;
+
+  const path = [];
+  let curr = endNode;
+  while (curr) {
+    path.unshift(curr);
+    curr = prev.get(curr.id);
+  }
+  
+  return { path, totalDist: distances.get(endNode.id) };
 }
 
 // =============================================================================
@@ -1157,7 +1431,6 @@ function renderSVG(paths) {
   const labelG = document.createElementNS(NS, 'g'); labelG.id = 'label-group';
   renderParcelLabels(labelG, paths, State.features, s);
   svg.appendChild(labelG);
-
   // Aux group (bounding rect, dimensions, 想定整形地 added in drawBoundingAndDimensions)
   const auxG = document.createElementNS(NS, 'g'); auxG.id = 'aux-group';
   svg.appendChild(auxG);
@@ -1166,6 +1439,74 @@ function renderSVG(paths) {
   // Apply SVG BG color
   wrapper.style.background = State.svgBgColor;
   updateInfoBar(paths);
+}
+
+function drawGuideLine(p1, p2) {
+  clearGuide(); const aux = getAux(); if (!aux) return; const s0 = sf();
+  const useBentFrontage = document.getElementById('chk-bent-frontage') ? document.getElementById('chk-bent-frontage').checked : false;
+
+  function addSegLabel(x, y, text, size, color) {
+    const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'edge-distance-label');
+    const r = document.createElementNS(NS, 'rect');
+    const lh = size * 1.3, pw = size * 0.6;
+    const estW = text.length * size * 0.55 + pw * 1.5;
+    r.setAttribute('x', x - estW/2); r.setAttribute('y', y - lh/2);
+    r.setAttribute('width', estW); r.setAttribute('height', lh);
+    r.setAttribute('fill', 'rgba(255,255,255,0.85)'); r.setAttribute('rx', size * 0.2);
+    g.appendChild(r);
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', x); t.setAttribute('y', y);
+    t.setAttribute('text-anchor', 'middle'); t.setAttribute('dominant-baseline', 'central');
+    t.style.fontSize = `${size}px`; t.style.fill = color; t.style.fontWeight = 'bold';
+    t.textContent = text; g.appendChild(t); aux.appendChild(g);
+  }
+
+  if (useBentFrontage && State.mode === 'vertex') {
+    const res = computeShortestPath(State.paths, p1, p2);
+    if (!res) {
+      showToast('エラー: ポリゴンが分断されており経路が存在しません', 'error');
+      State.shortestPathResult = null;
+      return; 
+    }
+    State.shortestPathResult = res;
+
+    const poly = document.createElementNS(NS, 'polyline');
+    const pts = res.path.map(n => `${n.x},${n.y}`).join(' ');
+    poly.setAttribute('points', pts);
+    poly.setAttribute('fill', 'none');
+    poly.setAttribute('stroke', '#d946ef');
+    poly.style.strokeWidth = `${3 * s0}px`;
+    poly.style.strokeLinejoin = 'round';
+    poly.setAttribute('class', 'guide-line');
+    aux.appendChild(poly);
+
+    for (let i = 0; i < res.path.length - 1; i++) {
+        const u = res.path[i], v = res.path[i+1], d = dist(u, v);
+        if (d > 0.001) addSegLabel((u.x + v.x)/2, (u.y + v.y)/2, fmtDist(d), 11 * s0, '#d946ef');
+    }
+    addSegLabel((p1.x + p2.x)/2, ((p1.y + p2.y)/2) - (15 * s0), `合計: ${fmtDist(res.totalDist)}`, 13 * s0, '#d946ef');
+
+  } else {
+    State.shortestPathResult = null;
+    const line = document.createElementNS(NS, 'line');
+    line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+    line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+    line.setAttribute('class', 'guide-line'); line.style.strokeWidth = `${1.5 * s0}px`;
+    line.style.strokeDasharray = `${7 * s0} ${5 * s0}`; aux.appendChild(line);
+    
+    // Original label
+    const len = dist(p1, p2);
+    addSegLabel((p1.x + p2.x)/2, (p1.y + p2.y)/2, fmtDist(len), 12 * s0, '#f97316');
+  }
+
+  // Endpoints
+  [p1, p2].forEach(p => {
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 3 * s0);
+    c.setAttribute('fill', '#fb923c'); c.setAttribute('stroke', 'none'); c.style.opacity = '0.8';
+    c.setAttribute('class', 'guide-endpoint');
+    aux.appendChild(c);
+  });
 }
 
 /** Feature 7: render parcel labels at centroid */
@@ -1198,6 +1539,52 @@ function renderParcelLabels(group, paths, features, s) {
 }
 
 // =============================================================================
+// Dijkstra Shortest Path
+// =============================================================================
+function computeShortestPath(paths, start, end) {
+  const nodes = [];
+  const adj = new Map();
+  function addNode(p) {
+    const key = `${p.x.toFixed(6)},${p.y.toFixed(6)}`;
+    if (!adj.has(key)) { nodes.push(p); adj.set(key, []); }
+    return key;
+  }
+  for (const p of paths) {
+    const uv = uniqueRingVerts(p.vertices);
+    for (let i = 0; i < uv.length; i++) {
+      const u = uv[i], v = uv[(i + 1) % uv.length];
+      const k1 = addNode(u), k2 = addNode(v);
+      const d = dist(u, v);
+      adj.get(k1).push({ to: k2, d }); adj.get(k2).push({ to: k1, d });
+    }
+  }
+  const startKey = `${start.x.toFixed(6)},${start.y.toFixed(6)}`, endKey = `${end.x.toFixed(6)},${end.y.toFixed(6)}`;
+  if (!adj.has(startKey) || !adj.has(endKey)) return null;
+  const dists = new Map(), prev = new Map(), pq = [{ k: startKey, d: 0 }];
+  dists.set(startKey, 0);
+  while (pq.length > 0) {
+    pq.sort((a, b) => a.d - b.d);
+    const { k, d } = pq.shift();
+    if (d > (dists.get(k) ?? Infinity)) continue;
+    if (k === endKey) break;
+    for (const edge of adj.get(k)) {
+      const newD = d + edge.d;
+      if (newD < (dists.get(edge.to) ?? Infinity)) {
+        dists.set(edge.to, newD); prev.set(edge.to, k);
+        pq.push({ k: edge.to, d: newD });
+      }
+    }
+  }
+  if (!dists.has(endKey)) return null;
+  const path = [], totalDist = dists.get(endKey);
+  for (let at = endKey; at; at = prev.get(at)) {
+    const [x, y] = at.split(',').map(Number);
+    path.unshift({ x, y });
+  }
+  return { path, totalDist };
+}
+
+// =============================================================================
 // Auxiliary graphics
 // =============================================================================
 function getAux() { return document.getElementById('aux-group'); }
@@ -1206,85 +1593,6 @@ function clearAux() { const g = getAux(); if (g) g.innerHTML = ''; }
 function clearGuide() {
   const g = getAux(); if (!g) return;
   g.querySelectorAll('.guide-line, .guide-endpoint, .edge-distance-label, .edge-distance-label-outline').forEach(el => el.remove());
-}
-
-function drawGuideLine(p1, p2) {
-  clearGuide(); const aux = getAux(); if (!aux) return; const s0 = sf();
-  const line = document.createElementNS(NS, 'line');
-  line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
-  line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
-  line.setAttribute('class', 'guide-line'); line.style.strokeWidth = `${1.5 * s0}px`;
-  line.style.strokeDasharray = `${7 * s0} ${5 * s0}`; aux.appendChild(line);
-  [p1, p2].forEach(p => {
-    const c = document.createElementNS(NS, 'circle');
-    c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 3 * s0);
-    c.setAttribute('fill', '#fb923c'); c.setAttribute('stroke', 'none'); c.style.opacity = '0.8';
-    c.setAttribute('class', 'guide-endpoint');
-    aux.appendChild(c);
-  });
-
-  // ── Distance label on the selected edge ──
-  drawEdgeDistanceLabel(p1, p2, aux, s0);
-}
-
-/** Draw a distance label along the selected edge, offset in the normal direction */
-function drawEdgeDistanceLabel(p1, p2, aux, s0) {
-  const dx = p2.x - p1.x, dy = p2.y - p1.y;
-  const L = Math.hypot(dx, dy);
-  if (L < 1e-6) return;
-
-  // Normal vector (perpendicular to edge)
-  const nx = -dy / L, ny = dx / L;
-  const offset = 15 * s0; // offset in normal direction
-
-  // Midpoint + offset
-  const midX = (p1.x + p2.x) / 2 + nx * offset;
-  const midY = (p1.y + p2.y) / 2 + ny * offset;
-
-  // Rotation angle aligned to edge
-  let angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
-  // Flip if text would be upside-down
-  if (angleDeg > 90 || angleDeg < -90) angleDeg += 180;
-
-  // Distance text using unified conversion logic
-  const { label } = convertDistance(L);
-
-  const tp = getCurrentThemeProfile();
-  const fontSize = 11 * s0;
-
-  // White outline for readability
-  const textOutline = document.createElementNS(NS, 'text');
-  textOutline.setAttribute('x', midX); textOutline.setAttribute('y', midY);
-  textOutline.setAttribute('text-anchor', 'middle');
-  textOutline.setAttribute('dominant-baseline', 'central');
-  textOutline.setAttribute('transform', `rotate(${angleDeg}, ${midX}, ${midY})`);
-  textOutline.setAttribute('class', 'edge-distance-label-outline');
-  textOutline.style.fontSize = `${fontSize}px`;
-  textOutline.style.fontFamily = 'var(--font-mono)';
-  textOutline.style.fontWeight = '600';
-  textOutline.style.fill = 'none';
-  textOutline.style.stroke = document.body.classList.contains('theme-warm') ? '#faf7f2' : '#0f1520';
-  textOutline.style.strokeWidth = `${3.5 * s0}px`;
-  textOutline.style.strokeLinejoin = 'round';
-  textOutline.style.pointerEvents = 'none';
-  textOutline.textContent = label;
-  aux.appendChild(textOutline);
-
-  // Foreground text
-  const text = document.createElementNS(NS, 'text');
-  text.setAttribute('x', midX); text.setAttribute('y', midY);
-  text.setAttribute('text-anchor', 'middle');
-  text.setAttribute('dominant-baseline', 'central');
-  text.setAttribute('transform', `rotate(${angleDeg}, ${midX}, ${midY})`);
-  text.setAttribute('class', 'edge-distance-label');
-  text.style.fontSize = `${fontSize}px`;
-  text.style.fontFamily = 'var(--font-mono)';
-  text.style.fontWeight = '600';
-  text.style.fill = tp.assumedColor;
-  text.style.stroke = 'none';
-  text.style.pointerEvents = 'none';
-  text.textContent = label;
-  aux.appendChild(text);
 }
 
 function drawBoundingAndDimensions(paths) {
@@ -1393,7 +1701,7 @@ function updateInfoBar(paths) {
   computeTotalPathArea(paths);
 }
 
-/** Compute total area from all paths using Shoelace formula, with scale conversion */
+/** Compute total area from all paths using Shoelace formula */
 function computeTotalPathArea(paths) {
   let totalSvgArea = 0;
   for (const p of paths) {
@@ -1402,28 +1710,16 @@ function computeTotalPathArea(paths) {
     totalSvgArea += computePolygonArea(verts);
   }
 
-  // Convert area: for linear scale factor k, area factor is k²
-  let areaM2;
-  if (State.scaleMode === 'auto') {
-    // Coordinates are already meters → area is m²
-    areaM2 = totalSvgArea;
-  } else {
-    const sel = document.getElementById('scale-select').value;
-    if (sel === 'auto') {
-      // Unknown scale — treat as m² directly
-      areaM2 = totalSvgArea;
-    } else {
-      const k = Number(sel) / 500;
-      areaM2 = totalSvgArea * k * k;
-    }
-  }
+  // Coordinates are always meters → area is m²
+  let areaM2 = totalSvgArea;
 
   State.lastPathArea = areaM2;
-  document.getElementById('info-path-area').textContent = `PATH面積合計: ${areaM2.toFixed(2)} ㎡（参考、自動計算）`;
+  document.getElementById('info-path-area').textContent = `不整形地面積合計: ${areaM2.toFixed(2)} ㎡（参考、自動計算）`;
   updateKagechiRatio();
+  updateDepthInfo();
 }
 
-/** Calculate かげ地割合 = PATH面積合計 / 想定整形地面積 × 100 */
+/** Calculate かげ地割合 = 不整形地面積合計 / 想定整形地面積 × 100 */
 function updateKagechiRatio() {
   State.lastKagechiRatio = null;
   const el = document.getElementById('info-kagechi');
@@ -1441,18 +1737,48 @@ function updateSelectionInfo() {
   if (State.mode === 'edge' && State.selectedEdge) {
     el.textContent = `選択: 辺 ${fmtDist(dist(State.selectedEdge.p1, State.selectedEdge.p2))}`;
   } else if (State.mode === 'vertex' && State.selectedVertices.length > 0) {
-    if (State.selectedVertices.length === 2) el.textContent = `選択: 2頂点 ${fmtDist(dist(State.selectedVertices[0], State.selectedVertices[1]))}`;
+    if (State.selectedVertices.length === 2) {
+      if (State.shortestPathResult) {
+        el.textContent = `選択: 屈折経路 ${State.shortestPathResult.totalDist.toFixed(3)} m`;
+      } else {
+        el.textContent = `選択: 2頂点 ${fmtDist(dist(State.selectedVertices[0], State.selectedVertices[1]))}`;
+      }
+    }
     else el.textContent = `選択: ${State.selectedVertices.length}頂点`;
   } else el.textContent = '選択: なし';
+  updateDepthInfo();
+}
+
+function updateDepthInfo() {
+  const el = document.getElementById('info-depth');
+  const chip = document.getElementById('chip-depth');
+  if (!el || !chip) return;
+  State.lastDepth = null;
+
+  if (State.isRotated && State.lastPathArea != null) {
+    let selDist = null;
+    if (State.mode === 'edge' && State.selectedEdge) {
+      selDist = dist(State.selectedEdge.p1, State.selectedEdge.p2);
+    } else if (State.mode === 'vertex' && State.selectedVertices.length === 2) {
+      selDist = State.shortestPathResult ? State.shortestPathResult.totalDist : dist(State.selectedVertices[0], State.selectedVertices[1]);
+    }
+    
+    if (selDist != null && selDist > 0) {
+      const depth = State.lastPathArea / selDist;
+      State.lastDepth = depth;
+      // ユーザーの指定要件に基づき、単位は「㎡」として表記する
+      el.textContent = `平均奥行距離: ${depth.toFixed(3)} ㎡（参考、自動計算）`;
+      chip.style.display = 'inline-flex';
+      return;
+    }
+  }
+  chip.style.display = 'none';
+  el.textContent = '平均奥行距離: -';
 }
 
 function updateScaleInfo() {
-  if (State.scaleMode === 'auto') {
-    document.getElementById('info-scale').textContent = `縮尺: GeoJSON準拠（自動）`;
-  } else {
-    const d = getScaleDenominator();
-    document.getElementById('info-scale').textContent = d ? `縮尺: 1:${d}（手動）` : '縮尺: px';
-  }
+  const d = getScaleDenominator();
+  document.getElementById('info-scale').textContent = d ? `印刷縮尺: 1:${d}` : '印刷縮尺: 未設定';
 }
 
 function updateAngleInfo(theta) {
@@ -1518,10 +1844,25 @@ function executeRotation() {
 
   if (!State.isRotated) State.originalPaths = JSON.parse(JSON.stringify(State.paths));
   const theta = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-  State.rotationAngle = theta;
+  // Accumulate rotation angle across multiple executions so reverse transform works correctly
+  State.rotationAngle = (State.isRotated ? State.rotationAngle : 0) + theta;
   rotatePaths(State.paths, -theta);
   State.isRotated = true;
-  State.selectedEdge = null; State.selectedVertices = [];
+
+  // Rotate selected edge/vertex coordinates by the same -theta to keep them in sync
+  const cosN = Math.cos(-theta), sinN = Math.sin(-theta);
+  function rotatePoint(pt) {
+    const nx = pt.x * cosN - pt.y * sinN;
+    const ny = pt.x * sinN + pt.y * cosN;
+    return { ...pt, x: nx, y: ny };
+  }
+  if (State.selectedEdge) {
+    State.selectedEdge.p1 = rotatePoint(State.selectedEdge.p1);
+    State.selectedEdge.p2 = rotatePoint(State.selectedEdge.p2);
+  }
+  if (State.selectedVertices.length > 0) {
+    State.selectedVertices = State.selectedVertices.map(v => rotatePoint(v));
+  }
 
   // Compute rotation center from rotated paths bbox
   const rBounds = computeBounds(State.paths);
@@ -1529,14 +1870,73 @@ function executeRotation() {
 
   renderSVG(State.paths); drawBoundingAndDimensions(State.paths);
 
+  // Re-apply visual selection state after re-render
+  restoreSelectionVisuals();
+
   // Apply reverse rotation transform if 角度維持 is OFF
   applyReverseTransform();
 
   updateModeUI();
-  document.getElementById('btn-execute').disabled = true;
+  // Keep execute button enabled so user can rotate again with the preserved selection
+  document.getElementById('btn-execute').disabled = !(State.selectedEdge || State.selectedVertices.length === 2);
   document.getElementById('btn-reset').disabled = false;
-  updateAngleInfo(theta);
+  updateAngleInfo(State.rotationAngle);
+  updateSelectionInfo();
   showToast(`回転完了 (${(theta * 180 / Math.PI).toFixed(3)}°)`, 'success');
+}
+
+/** Re-apply visual selection CSS classes and guide lines after SVG re-render */
+function restoreSelectionVisuals() {
+  if (State.mode === 'edge' && State.selectedEdge) {
+    // Find the closest edge group by matching coordinates
+    const edgeGroups = document.querySelectorAll('#edge-group .geo-edge-group');
+    const ep1 = State.selectedEdge.p1, ep2 = State.selectedEdge.p2;
+    let bestGroup = null, bestDist = Infinity;
+    for (const g of edgeGroups) {
+      const hit = g.querySelector('.geo-edge-hit');
+      if (!hit) continue;
+      const x1 = +hit.getAttribute('x1'), y1 = +hit.getAttribute('y1');
+      const x2 = +hit.getAttribute('x2'), y2 = +hit.getAttribute('y2');
+      const d = Math.hypot(x1 - ep1.x, y1 - ep1.y) + Math.hypot(x2 - ep2.x, y2 - ep2.y);
+      if (d < bestDist) { bestDist = d; bestGroup = g; }
+    }
+    if (bestGroup && bestDist < 0.01) {
+      bestGroup.classList.add('selected');
+      // Update stored coordinates to exact rendered values
+      const hit = bestGroup.querySelector('.geo-edge-hit');
+      State.selectedEdge.p1 = { x: +hit.getAttribute('x1'), y: +hit.getAttribute('y1') };
+      State.selectedEdge.p2 = { x: +hit.getAttribute('x2'), y: +hit.getAttribute('y2') };
+      State.selectedEdge.pathIndex = +bestGroup.getAttribute('data-path-index');
+      State.selectedEdge.edgeIndex = +bestGroup.getAttribute('data-edge-index');
+      drawGuideLine(State.selectedEdge.p1, State.selectedEdge.p2);
+    }
+  } else if (State.mode === 'vertex' && State.selectedVertices.length > 0) {
+    // Match each selected vertex to the closest rendered vertex
+    const circles = document.querySelectorAll('#vertex-group .geo-vertex');
+    for (let si = 0; si < State.selectedVertices.length; si++) {
+      const sv = State.selectedVertices[si];
+      let bestCircle = null, bestDist = Infinity;
+      for (const c of circles) {
+        const cx = +c.getAttribute('cx'), cy = +c.getAttribute('cy');
+        const d = Math.hypot(cx - sv.x, cy - sv.y);
+        if (d < bestDist) { bestDist = d; bestCircle = c; }
+      }
+      if (bestCircle && bestDist < 0.01) {
+        bestCircle.classList.add('selected');
+        // Update stored coordinates to exact rendered values
+        State.selectedVertices[si] = {
+          ...sv,
+          x: +bestCircle.getAttribute('cx'),
+          y: +bestCircle.getAttribute('cy'),
+          pathIndex: +bestCircle.getAttribute('data-path-index'),
+          vertexIndex: +bestCircle.getAttribute('data-vertex-index')
+        };
+      }
+    }
+    if (State.selectedVertices.length === 2) {
+      drawGuideLine(State.selectedVertices[0], State.selectedVertices[1]);
+    }
+  }
 }
 
 /**
@@ -1630,18 +2030,12 @@ function resetAll() {
   if (State.originalPaths.length > 0) State.paths = JSON.parse(JSON.stringify(State.originalPaths));
   State.selectedEdge = null; State.selectedVertices = [];
   State.isRotated = false; State.rotationAngle = 0;
-  // Restore auto scale mode if GeoJSON had 縮尺分母
-  if (State.autoScaleValue) {
-    State.scaleMode = 'auto';
-    const sel = document.getElementById('scale-select');
-    const existing = Array.from(sel.options).find(o => Number(o.value) === State.autoScaleValue);
-    if (existing) sel.value = existing.value;
-  }
+  
   renderSVG(State.paths); updateModeUI(); updateAngleInfo(null); updateScaleInfo();
   document.getElementById('btn-execute').disabled = true;
   document.getElementById('info-dimensions').textContent = '寸法: -';
   document.getElementById('info-area').textContent = '想定整形地面積: -';
-  document.getElementById('info-path-area').textContent = 'PATH面積合計: -';
+  document.getElementById('info-path-area').textContent = '不整形地面積合計: -';
   document.getElementById('info-kagechi').textContent = 'かげ地割合: -';
   State.lastRectArea = null;
   State.lastPathArea = null;
@@ -1819,6 +2213,11 @@ async function processFiles(files) {
       } else {
         showToast(`未対応形式: ${files[i].name}`, 'error');
       }
+      
+      // Preserve Coordinate Reference System (CRS) if present
+      if (geojson.crs && !merged.crs) {
+        merged.crs = geojson.crs;
+      }
     }
 
     const hasValidGeom = g => g && (g.type === 'Polygon' || g.type === 'MultiPolygon');
@@ -1842,12 +2241,13 @@ async function processFiles(files) {
     document.getElementById('btn-print').disabled = false;
     document.getElementById('info-dimensions').textContent = '寸法: -';
     document.getElementById('info-area').textContent = '想定整形地面積: -';
-    document.getElementById('info-path-area').textContent = 'PATH面積合計: -';
+    document.getElementById('info-path-area').textContent = '不整形地面積合計: -';
     State.lastRectArea = null;
     State.lastPathArea = null;
 
     // Extract GeoJSON metadata from first feature
     extractGeoMeta(merged);
+    processMapIntegration(merged);
 
     showToast(`読み込み完了: ${files.length}ファイル / ${State.paths.length}パス / ${State.allVertices.length}頂点`, 'success');
   } catch (err) {
@@ -1884,6 +2284,163 @@ function extractGeoMeta(geojson) {
 }
 
 // =============================================================================
+// Map Integration (EPSG Projection & Geocoding)
+// =============================================================================
+function processMapIntegration(geojson) {
+  const container = document.getElementById('map-integration-container');
+  const linksBox = document.getElementById('map-links');
+  const framesBox = document.getElementById('map-iframes');
+  const statusTxt = document.getElementById('map-status-text');
+  
+  if (!geojson) { container.style.display = 'none'; return; }
+  
+  container.querySelectorAll('.map-alert-warning').forEach(e => e.remove());
+  linksBox.innerHTML = ''; framesBox.innerHTML = '';
+  statusTxt.textContent = '座標探索中...';
+  container.style.display = 'block';
+
+  let lat = null, lng = null;
+
+  // 1. EPSG Check -> Proj4 translation
+  const crsName = geojson.crs?.properties?.name || '';
+  const match = crsName.match(/EPSG::(\d+)/) || crsName.match(/EPSG:(\d+)/);
+  if (match) {
+    const epsg = parseInt(match[1], 10);
+    // Japan Plane Rectangular CS (JGD2000: 2443-2461, JGD2011: 6669-6687)
+    let sysNum = null;
+    if (epsg >= 2443 && epsg <= 2461) sysNum = epsg - 2442;
+    else if (epsg >= 6669 && epsg <= 6687) sysNum = epsg - 6668;
+    
+    if (sysNum) {
+      statusTxt.textContent = `[計算完了] 平面直角座標系 第${sysNum}系 (${epsg}) より変換`;
+      const Origins = [ null, 
+        {lat: 33, lon:129.5}, {lat: 33, lon:131}, {lat: 36, lon:132.16666666666666},
+        {lat: 33, lon:133.5}, {lat: 36, lon:134.33333333333334}, {lat: 36, lon:136},
+        {lat: 36, lon:137.16666666666666}, {lat: 36, lon:138.5}, {lat: 36, lon:139.83333333333334},
+        {lat: 40, lon:140.83333333333334}, {lat: 44, lon:140.25}, {lat: 44, lon:142.25}, 
+        {lat: 44, lon:144.25}, {lat: 26, lon:142}, {lat: 26, lon:127.5}, {lat: 26, lon:124},
+        {lat: 26, lon:131}, {lat: 20, lon:136}, {lat: 26, lon:154}
+      ];
+      const origin = Origins[sysNum];
+      const proj4Str = `+proj=tmerc +lat_0=${origin.lat} +lon_0=${origin.lon} +k=0.9999 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs`;
+      
+      if (State.paths.length > 0 && State.paths[0].vertices.length > 0) {
+        const c = State.paths[0].vertices[0];
+        const rawX = c.x, rawY = -c.y; 
+        
+        if (typeof proj4 !== 'undefined') {
+          const tryProj = (e, n) => {
+            const p = proj4(proj4Str, 'WGS84', [e, n]);
+            return { lng: p[0], lat: p[1] };
+          };
+          
+          let res = tryProj(rawX, rawY);
+          
+          // MOJ Map XML (法務省公図) sometimes stores `[Northing, Easting]` array instead of `[Easting, Northing]`.
+          // We can auto-detect this by checking if the point jumps outside of the Japanese archipelago bounds (Lat: 20-46, Lng: 122-154).
+          if (res.lat < 20 || res.lat > 46 || res.lng < 122 || res.lng > 154) {
+             const flipped = tryProj(rawY, rawX);
+             if (flipped.lat >= 20 && flipped.lat <= 46 && flipped.lng >= 122 && flipped.lng <= 154) {
+                 res = flipped;
+             }
+          }
+
+          lng = res.lng; lat = res.lat;
+          renderMapViews(lat, lng);
+        } else statusTxt.textContent += ' (エラー: 投影変換ライブラリが読み込めません)';
+      }
+      return;
+    }
+  }
+
+  // 2. Geocoding
+  // IF execution reaches here, it is considered an arbitrary coordinate system.
+  const alertBox = document.createElement('div');
+  alertBox.className = 'map-alert-warning';
+  alertBox.innerHTML = `<strong>⚠️ 任意座標系（正確な位置は特定できません）</strong><br>登録された住所情報などを元に概算位置を表示しています。`;
+  container.insertBefore(alertBox, linksBox);
+
+  const feats = geojson.features || (geojson.type === 'Feature' ? [geojson] : []);
+  if (feats.length > 0 && feats[0].properties) {
+    const p = feats[0].properties;
+    const parts = [p['市区町村名'], p['大字名'], p['丁目名'], p['小字名']].filter(Boolean);
+    const address = parts.join('');
+    
+    if (address) {
+      statusTxt.textContent = `[API推測中...] 任意座標系（住所: ${address}）`;
+      if (typeof getLatLng === 'function') {
+        getLatLng(address, (res) => {
+          statusTxt.textContent = `[推測完了] 任意座標系（住所: ${address}）による概算位置`;
+          renderMapViews(res.lat, res.lng);
+        }, (err) => {
+          statusTxt.textContent = `[失敗] 住所からの位置推測ができませんでした`;
+        });
+      } else statusTxt.textContent = `[失敗] ジオコーダーAPIがありません`;
+      return;
+    }
+  }
+  
+  statusTxt.textContent = '座標系または住所情報が存在しません';
+}
+
+function renderMapViews(lat, lng) {
+  const linksBox = document.getElementById('map-links');
+  const framesBox = document.getElementById('map-iframes');
+  const z = 18; 
+  const gMapsUrl = `https://www.google.co.jp/maps/@${lat},${lng},${z}z`;
+  const gMapsEmbed = `https://www.google.com/maps?q=${lat},${lng}&z=${z}&output=embed`;
+  const maplUrl = `https://labs.mapple.com/mapplexml.html#${z}/${lat}/${lng}`;
+  
+  const createLink = (text, url, bg, svgIcon) => {
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.className = 'btn';
+    a.style.backgroundColor = bg; a.style.color = '#fff';
+    a.style.textDecoration = 'none'; a.style.display = 'inline-flex';
+    a.style.alignItems = 'center'; a.style.padding = '6px 12px'; a.style.fontSize = '12px';
+    a.innerHTML = `${svgIcon}<span style="margin-left:6px;">${text}で開く</span>`;
+    return a;
+  };
+
+  const gIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
+  linksBox.appendChild(createLink('Googleマップ', gMapsUrl, '#10b981', gIcon));
+  linksBox.appendChild(createLink('マップル法務局ビューア', maplUrl, '#f59e0b', gIcon));
+  
+  const createIframe = (url) => {
+    const ifm = document.createElement('iframe');
+    ifm.setAttribute('data-src', url);
+    ifm.sandbox = "allow-scripts allow-popups allow-forms allow-same-origin";
+    ifm.style.border = '1px solid var(--border-primary)';
+    ifm.style.borderRadius = 'var(--radius-sm)';
+    ifm.style.height = '350px';
+    ifm.style.flex = '1 1 calc(50% - 8px)';
+    ifm.style.minWidth = '300px';
+    ifm.style.display = 'none';
+    return ifm;
+  };
+  
+  framesBox.appendChild(createIframe(gMapsEmbed));
+  framesBox.appendChild(createIframe(maplUrl));
+  
+  const ph = document.createElement('div');
+  ph.id = 'map-load-placeholder';
+  ph.style.width = '100%';
+  ph.style.padding = '50px 20px';
+  ph.style.textAlign = 'center';
+  ph.style.background = 'var(--surface-glass)';
+  ph.style.border = '2px dashed var(--accent-cyan)';
+  ph.style.borderRadius = 'var(--radius-md)';
+  ph.innerHTML = `<p style="margin-bottom:20px; font-size:14px; color:var(--text-primary); font-weight:600;">地図プレビューはパフォーマンスおよび強制スクロール防止のため遅延ロードされています</p>
+                  <button style="background:var(--accent-cyan); color:#000; font-weight:800; font-size:15px; padding:12px 32px; border:none; border-radius:100px; cursor:pointer; box-shadow:0 4px 16px rgba(34,211,238,0.4); outline:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" onclick="window.loadMapIframes()">埋め込み地図を読み込む（プレビュー）</button>`;
+  framesBox.appendChild(ph);
+  
+  // Show banner
+  const banner = document.getElementById('map-banner');
+  banner.classList.add('show');
+  clearTimeout(banner._t);
+  banner._t = setTimeout(() => banner.classList.remove('show'), 3000);
+}
+
+// =============================================================================
 // Style re-application (Feature 4+5)
 // =============================================================================
 function applyStyleChanges() {
@@ -1902,6 +2459,12 @@ function applyStyleChanges() {
   const tp = getCurrentThemeProfile();
   document.querySelectorAll('#edge-group .geo-edge').forEach(el => {
     el.style.stroke = tp.edgeHover;
+  });
+  document.getElementById('chk-bent-frontage').addEventListener('change', () => {
+    if (State.mode === 'vertex' && State.selectedVertices.length === 2) {
+      drawGuideLine(State.selectedVertices[0], State.selectedVertices[1]);
+      updateSelectionInfo();
+    }
   });
   // SVG background
   document.getElementById('svg-canvas-wrapper').style.background = State.svgBgColor;
@@ -1948,9 +2511,7 @@ document.getElementById('file-input').addEventListener('change', e => processFil
  * Auto-detect 縮尺分母 from GeoJSON properties and update scale selector.
  */
 function autoDetectScale(geojson) {
-  // Reset scale mode
-  State.scaleMode = 'manual';
-  State.autoScaleValue = null;
+  // Reset scale UI state
   const sel = document.getElementById('scale-select');
   sel.disabled = false;
 
@@ -1961,9 +2522,7 @@ function autoDetectScale(geojson) {
     const raw = f.properties.縮尺分母;
     if (raw != null && !isNaN(Number(raw)) && Number(raw) > 0) {
       const val = Number(raw);
-      State.scaleMode = 'auto';
-      State.autoScaleValue = val;
-      // Update UI: show detected value but disable selector
+      // Update UI
       const existing = Array.from(sel.options).find(o => Number(o.value) === val);
       if (existing) {
         sel.value = existing.value;
@@ -1974,7 +2533,7 @@ function autoDetectScale(geojson) {
         sel.value = val;
       }
       updateScaleInfo();
-      showToast(`縮尺分母検出: 座標は実距離(m)として処理（手動変更可）`, 'info');
+      showToast(`印刷スケールを検出: 1:${val}（手動変更可）`, 'info');
       return;
     }
   }
@@ -1994,7 +2553,7 @@ function autoDetectScale(geojson) {
         sel.value = val;
       }
       updateScaleInfo();
-      showToast(`縮尺を検出: 1:${val}（手動モード）`, 'info');
+      showToast(`印刷スケールを検出: 1:${val}`, 'info');
       return;
     }
   }
@@ -2014,12 +2573,7 @@ document.querySelectorAll('input[name="select-mode"]').forEach(radio => {
 });
 
 document.getElementById('scale-select').addEventListener('change', () => {
-  // If user manually changes scale, switch to manual mode
-  if (State.scaleMode === 'auto') {
-    State.scaleMode = 'manual';
-    showToast('縮尺を手動切替しました', 'info');
-  }
-  updateScaleInfo(); updateSelectionInfo();
+  updateScaleInfo();
   if (State.isRotated) {
     clearAux(); drawBoundingAndDimensions(State.paths);
     applyReverseTransform();
@@ -2033,45 +2587,178 @@ document.getElementById('btn-print').addEventListener('click', () => {
   const svgEl = document.querySelector('#svg-container svg');
   if (!svgEl) { showToast('SVGがありません', 'error'); return; }
 
+  const printMode = document.getElementById('print-mode').value;
+
   // Clone SVG, removing interactive elements
   const clone = svgEl.cloneNode(true);
   ['edge-group', 'vertex-group'].forEach(id => {
     const g = clone.querySelector(`#${id}`); if (g) g.remove();
   });
 
-  // Parse viewBox
-  const vb = clone.getAttribute('viewBox');
-  if (!vb) { showToast('viewBoxがありません', 'error'); return; }
-  const parts = vb.split(/\s+/).map(Number);
-  const vbW = parts[2], vbH = parts[3];
+  // 印刷用にコンテンツの境界（Bounding Box）を厳密に計算し、不要な余白を削減する
+  let printMinX = Infinity, printMinY = Infinity, printMaxX = -Infinity, printMaxY = -Infinity;
+  const bnd = computeBounds(State.paths);
+  const s0 = sf(), fs = 10 * s0, off = 8 * s0, tick = 5 * s0;
+  
+  const keepRotation = document.getElementById('chk-keep-rotation').checked;
+  if (!keepRotation && State.isRotated) {
+    const theta = State.rotationAngle;
+    const { cx, cy } = State.rotationCenter;
+    const cosT = Math.cos(theta), sinT = Math.sin(theta);
+    function rotPt(x, y) {
+      const dx = x - cx, dy = y - cy;
+      return { x: cx + dx * cosT - dy * sinT, y: cy + dx * sinT + dy * cosT };
+    }
+    const allPts = [];
+    for (const p of State.paths) for (const v of p.vertices) allPts.push(rotPt(v.x, v.y));
+    const extR = bnd.maxX + off + tick + fs * 3;
+    const extB = bnd.maxY + off + tick + fs * 3;
+    const extT = bnd.minY - off * 2;
+    [[bnd.minX, extT], [extR, extT], [extR, extB], [bnd.minX, extB]].forEach(([x, y]) => allPts.push(rotPt(x, y)));
+    
+    for (const p of allPts) {
+      if (p.x < printMinX) printMinX = p.x; if (p.y < printMinY) printMinY = p.y;
+      if (p.x > printMaxX) printMaxX = p.x; if (p.y > printMaxY) printMaxY = p.y;
+    }
+  } else {
+    printMinX = bnd.minX;
+    printMinY = bnd.minY - off * 2;
+    printMaxX = bnd.maxX + off + tick + fs * 3;
+    printMaxY = bnd.maxY + off + tick + fs * 3;
+  }
+  
+  const cW = printMaxX - printMinX;
+  const cH = printMaxY - printMinY;
+  // 余白をわずか2%（画面上の15%〜42%に対して大幅減）にして白紙の発生を防ぐ
+  const tightPad = Math.max(cW, cH) * 0.02;
+  
+  const vbMinX = printMinX - tightPad;
+  const vbMinY = printMinY - tightPad;
+  const vbW = cW + tightPad * 2;
+  const vbH = cH + tightPad * 2;
 
-  // A4 at 96dpi = 794 x 1123 px
-  // Horizontal: 25px each side (50px total)
-  // Vertical:   40px each side (80px total) — extra margin to prevent page overflow
-  const safeW = 794 - 50;
-  const safeH = 1123 - 80;
-  const scale = Math.min(safeW / vbW, safeH / vbH) * 0.98; // ×0.98 safety factor
-  const outW = Math.floor(vbW * scale);
-  const outH = Math.floor(vbH * scale);
-
-  clone.setAttribute('width', outW + 'px');
-  clone.setAttribute('height', outH + 'px');
-  clone.removeAttribute('style');
-  clone.style.display = 'block';
-  clone.style.maxWidth = safeW + 'px';
-  clone.style.maxHeight = safeH + 'px';
-  clone.style.overflow = 'hidden';
-
-  // Place into print target
   const target = document.getElementById('print-target');
   target.innerHTML = '';
-  target.appendChild(clone);
+
+  if (printMode === 'real') {
+    // ---------------------------------------------------------
+    // 等倍印刷モード
+    // ---------------------------------------------------------
+    const demon = getScaleDenominator();
+    if (!demon) {
+      showToast('印刷エラー: 縮尺が未指定です。縮尺を選択してください。', 'error');
+      return;
+    }
+
+    // 1m = 3779.527px (since 1 inch = 96px, 1m = 1000/25.4 * 96)
+    // Scale on paper: real scale / denominator
+    const scale = 3779.527 / demon;
+
+    // LBP441 correction (shrinkage in X direction by ~99%)
+    const useLBP = document.getElementById('chk-lbp441').checked;
+    const scaleX = useLBP ? scale / 0.99 : scale;
+    const scaleY = scale;
+
+    const fullW_px = vbW * scaleX;
+    const fullH_px = vbH * scaleY;
+
+    // ブラウザの強制縮小を回避しつつ、プリンターのハードウェア余白を考慮し
+    // 上下左右に各10mmの余白を設けた 190mm x 277mm のタイルで分割出力します。
+    const TILE_W_MM = 190;
+    const TILE_H_MM = 277;
+    const MARGIN_MM = 10;
+    
+    // 1mm = 3.779527px
+    const TILE_W_PX = TILE_W_MM * 3.779527; // ~718px
+    const TILE_H_PX = TILE_H_MM * 3.779527; // ~1046.9px
+
+    const cols = Math.ceil(fullW_px / TILE_W_PX);
+    const rows = Math.ceil(fullH_px / TILE_H_PX);
+
+    // SVGタグ本体のサイズとviewBoxを調整
+    clone.setAttribute('viewBox', `${vbMinX * scaleX} ${vbMinY * scaleY} ${vbW * scaleX} ${vbH * scaleY}`);
+    clone.setAttribute('width', fullW_px + 'px');
+    clone.setAttribute('height', fullH_px + 'px');
+
+    // 中身を <g transform="..."> でラッピングしてスケール適用
+    const wrapperG = document.createElementNS(NS, 'g');
+    wrapperG.setAttribute('transform', `scale(${scaleX} ${scaleY})`);
+    while (clone.firstChild) wrapperG.appendChild(clone.firstChild);
+    clone.appendChild(wrapperG);
+    clone.removeAttribute('style');
+
+    // A4サイズごとにスライスして出力
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        // 大枠のA4用紙コンテナ
+        const pageDiv = document.createElement('div');
+        pageDiv.style.width = '210mm';
+        pageDiv.style.height = '297mm';
+        pageDiv.style.position = 'relative';
+        pageDiv.style.overflow = 'hidden';
+        pageDiv.style.pageBreakInside = 'avoid';
+        pageDiv.style.breakInside = 'avoid';
+        // 最後のページ以外は改ページ
+        if (!(r === rows - 1 && c === cols - 1)) {
+          pageDiv.style.pageBreakAfter = 'always';
+          pageDiv.style.breakAfter = 'page';
+        }
+        
+        // 10mm余白を適用するための内側クリップウィンドウ
+        const clipWindow = document.createElement('div');
+        clipWindow.style.width = `${TILE_W_MM}mm`;
+        clipWindow.style.height = `${TILE_H_MM}mm`;
+        clipWindow.style.position = 'absolute';
+        clipWindow.style.left = `${MARGIN_MM}mm`;
+        clipWindow.style.top = `${MARGIN_MM}mm`;
+        clipWindow.style.overflow = 'hidden';
+        
+        // SVGの該当タイル部分を絶対配置で切り抜き表示
+        const sliceSvg = clone.cloneNode(true);
+        sliceSvg.style.position = 'absolute';
+        sliceSvg.style.left = `-${c * TILE_W_PX}px`;
+        sliceSvg.style.top = `-${r * TILE_H_PX}px`;
+        sliceSvg.style.display = 'block';
+        
+        clipWindow.appendChild(sliceSvg);
+        pageDiv.appendChild(clipWindow);
+        target.appendChild(pageDiv);
+      }
+    }
+
+    document.body.classList.add('print-mode-real');
+
+  } else {
+    // ---------------------------------------------------------
+    // A4フィット印刷モード（既存）
+    // ---------------------------------------------------------
+    // A4 at 96dpi = 794 x 1123 px
+    // Horizontal: 25px each side (50px total)
+    // Vertical:   40px each side (80px total) — extra margin to prevent page overflow
+    const safeW = 794 - 50;
+    const safeH = 1123 - 80;
+    const fitScale = Math.min(safeW / vbW, safeH / vbH) * 0.98; // ×0.98 safety factor
+    const outW = Math.floor(vbW * fitScale);
+    const outH = Math.floor(vbH * fitScale);
+
+    clone.setAttribute('width', outW + 'px');
+    clone.setAttribute('height', outH + 'px');
+    clone.removeAttribute('style');
+    clone.style.display = 'block';
+    clone.style.maxWidth = safeW + 'px';
+    clone.style.maxHeight = safeH + 'px';
+    clone.style.overflow = 'hidden';
+
+    target.appendChild(clone);
+    document.body.classList.remove('print-mode-real');
+  }
 
   // Add info label at bottom-right if available
   const printLines = [];
   if (State.lastRectArea != null) printLines.push(`想定整形地面積: ${State.lastRectArea.toFixed(2)} ㎡`);
-  if (State.lastPathArea != null) printLines.push(`PATH面積合計: ${State.lastPathArea.toFixed(2)} ㎡（参考、自動計算）`);
+  if (State.lastPathArea != null) printLines.push(`不整形地面積合計: ${State.lastPathArea.toFixed(2)} ㎡（参考、自動計算）`);
   if (State.lastKagechiRatio != null) printLines.push(`かげ地割合: ${State.lastKagechiRatio.toFixed(2)} %（参考、自動計算）`);
+  if (State.lastDepth != null) printLines.push(`平均奥行距離: ${State.lastDepth.toFixed(3)} ㎡（参考、自動計算）`);
   if (State.geoMeta) {
     if (State.geoMeta.地図種類) printLines.push(`地図種類: ${State.geoMeta.地図種類}`);
     if (State.geoMeta.地図分類) printLines.push(`地図分類: ${State.geoMeta.地図分類}`);
@@ -2088,7 +2775,15 @@ document.getElementById('btn-print').addEventListener('click', () => {
   window.print();
 
   // Cleanup after print
-  setTimeout(() => { target.innerHTML = ''; }, 1000);
+  setTimeout(() => { 
+    target.innerHTML = ''; 
+    document.body.classList.remove('print-mode-real'); 
+  }, 1000);
+});
+
+// Print mode toggle UI
+document.getElementById('print-mode').addEventListener('change', e => {
+  document.getElementById('wrap-lbp441').style.display = e.target.value === 'real' ? 'flex' : 'none';
 });
 
 // Fill toggle
