@@ -1058,6 +1058,11 @@
 'use strict';
 const NS = 'http://www.w3.org/2000/svg';
 
+// Map offsets for Chikamap integration
+const CHIKAMAP_OFFSET_X = 0.003725;
+const CHIKAMAP_OFFSET_Y = -0.00275;
+
+
 window.loadMapIframes = function() {
   document.querySelectorAll('#map-iframes iframe').forEach(i => {
     if (i.getAttribute('data-src')) {
@@ -2404,6 +2409,12 @@ function renderMapViews(lat, lng) {
   const gIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
   linksBox.appendChild(createLink('Googleマップ', gMapsUrl, '#10b981', gIcon));
   linksBox.appendChild(createLink('マップル法務局ビューア', maplUrl, '#f59e0b', gIcon));
+
+  const chikaUrl = `https://www.chikamap.jp/chikamap/Map?mid=225&mpx=${(lng + CHIKAMAP_OFFSET_X).toFixed(6)}&mpy=${(lat + CHIKAMAP_OFFSET_Y).toFixed(6)}`;
+  linksBox.appendChild(createLink('全国地価マップ', chikaUrl, '#3b82f6', gIcon));
+
+  const gsiUrl = `https://maps.gsi.go.jp/#${z}/${lat}/${lng}/`;
+  linksBox.appendChild(createLink('国土地理院地図', gsiUrl, '#6366f1', gIcon));
   
   const createIframe = (url) => {
     const ifm = document.createElement('iframe');
@@ -2411,15 +2422,19 @@ function renderMapViews(lat, lng) {
     ifm.sandbox = "allow-scripts allow-popups allow-forms allow-same-origin";
     ifm.style.border = '1px solid var(--border-primary)';
     ifm.style.borderRadius = 'var(--radius-sm)';
-    ifm.style.height = '350px';
+    ifm.style.height = '480px';
     ifm.style.flex = '1 1 calc(50% - 8px)';
-    ifm.style.minWidth = '300px';
+    ifm.style.minWidth = '380px';
     ifm.style.display = 'none';
     return ifm;
   };
   
   framesBox.appendChild(createIframe(gMapsEmbed));
   framesBox.appendChild(createIframe(maplUrl));
+  
+  const gsiIframe = createIframe(gsiUrl);
+  gsiIframe.style.flex = '1 1 100%'; // Make GSI map full width to occupy the bottom row
+  framesBox.appendChild(gsiIframe);
   
   const ph = document.createElement('div');
   ph.id = 'map-load-placeholder';
