@@ -2413,7 +2413,7 @@ function renderMapViews(lat, lng) {
   const chikaUrl = `https://www.chikamap.jp/chikamap/Map?mid=225&mpx=${(lng + CHIKAMAP_OFFSET_X).toFixed(6)}&mpy=${(lat + CHIKAMAP_OFFSET_Y).toFixed(6)}`;
   linksBox.appendChild(createLink('全国地価マップ', chikaUrl, '#3b82f6', gIcon));
 
-  const gsiUrl = `https://maps.gsi.go.jp/#${z}/${lat}/${lng}/`;
+  const gsiUrl = `https://maps.gsi.go.jp/#${z}/${lat}/${lng}/&base=std&ls=std%7Crelief_free%2C0.8&blend=0&disp=11&lcd=relief_free&vs=c1g1j0h0k0l0u0t0z0r0s0m0f1&d=m&reliefdata=21G0000FFG5G0095FFGAG00EEFFG14G91FF00G1EGFFFF00G28GFF8C00GGFF4400`;
   linksBox.appendChild(createLink('国土地理院地図', gsiUrl, '#6366f1', gIcon));
   
   const createIframe = (url) => {
