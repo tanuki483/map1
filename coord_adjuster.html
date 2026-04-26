@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>座標調整ツール（GeoJSON位置合わせ・JGD2000変換）</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.min.js"></script>
+  <script src="https://cdn.geolonia.com/community-geocoder.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    :root {
+      --bg-primary: #080c14; --bg-secondary: #0f1520; --bg-tertiary: #161d2e;
+      --surface-glass: rgba(15, 21, 32, 0.82);
+      --border-primary: rgba(56, 189, 248, 0.15);
+      --border-active: rgba(56, 189, 248, 0.45);
+      --border-hover: rgba(56, 189, 248, 0.3);
+      --text-primary: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #475569;
+      --accent-blue: #38bdf8; --accent-cyan: #22d3ee; --accent-green: #4ade80;
+      --accent-orange: #fb923c; --accent-red: #f87171;
+      --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px;
+      --font-mono: 'JetBrains Mono','Fira Code','Consolas',monospace;
+      --font-body: 'Inter','Segoe UI',-apple-system,sans-serif;
+    }
+    body.theme-warm {
+      --bg-primary: #faf7f2; --bg-secondary: #f5f0e8; --bg-tertiary: #ede6d8;
+      --surface-glass: rgba(245, 240, 232, 0.92);
+      --border-primary: rgba(180, 140, 80, 0.2);
+      --border-active: rgba(180, 140, 80, 0.5);
+      --border-hover: rgba(180, 140, 80, 0.35);
+      --text-primary: #3d2e1c; --text-secondary: #7a6b57; --text-muted: #a89880;
+      --accent-blue: #b4721a; --accent-cyan: #c4872e; --accent-green: #2d8a56;
+      --accent-orange: #d97706;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font-body);background:var(--bg-primary);color:var(--text-primary);min-height:100vh;overflow:hidden}
+    .app-container{display:flex;flex-direction:column;height:100vh;padding:16px 20px}
+    
+    .app-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:12px 20px;background:var(--surface-glass);backdrop-filter:blur(16px);border:1px solid var(--border-primary);border-radius:var(--radius-md);box-shadow:0 0 30px rgba(56,189,248,.05)}
+    .header-title-group{display:flex;align-items:center;gap:12px}
+    .header-icon{width:36px;height:36px;background:linear-gradient(135deg,rgba(56,189,248,.2),rgba(34,211,238,.1));border:1px solid rgba(56,189,248,.3);border-radius:8px;display:flex;align-items:center;justify-content:center}
+    .header-icon svg{width:20px;height:20px;color:var(--accent-blue)}
+    .app-header h1{font-size:18px;font-weight:700;background:linear-gradient(120deg,var(--accent-blue),var(--accent-cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    
+    .main-layout{display:grid;grid-template-columns:320px 1fr;gap:16px;flex:1;min-height:0}
+    .sidebar{display:flex;flex-direction:column;gap:12px;overflow-y:auto}
+    .card{background:var(--surface-glass);backdrop-filter:blur(12px);border:1px solid var(--border-primary);border-radius:var(--radius-md);padding:14px}
+    .card-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:8px;font-weight:600}
+    
+    .map-wrapper{position:relative;background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:var(--radius-lg);overflow:hidden}
+    #map{height:100%;width:100%}
+    
+    .file-input-area{padding:20px;border:2px dashed var(--border-primary);border-radius:var(--radius-sm);text-align:center;cursor:pointer;transition:all 0.2s}
+    .file-input-area:hover{background:rgba(56,189,248,.05);border-color:var(--accent-blue)}
+    .file-input-area p{font-size:12px;color:var(--text-secondary)}
+    
+    .control-group{display:flex;flex-direction:column;gap:10px}
+    .control-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .control-row label{font-size:12px;color:var(--text-secondary)}
+    input[type="range"]{flex:1;accent-color:var(--accent-blue)}
+    select, input[type="text"], input[type="number"]{width:100%;padding:8px;background:var(--bg-tertiary);border:1px solid var(--border-primary);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;outline:none}
+    
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 16px;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;width:100%}
+    .btn-primary{background:linear-gradient(135deg,#0284c7,#0ea5e9);color:#fff}
+    .btn-primary:disabled{opacity:0.4;cursor:not-allowed}
+    .btn-secondary{background:var(--bg-tertiary);color:var(--text-secondary);border:1px solid rgba(255,255,255,.05)}
+    
+    .toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:var(--radius-sm);background:var(--bg-tertiary);border-left:4px solid var(--accent-blue);color:var(--text-primary);font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,0.5);transform:translateY(100px);opacity:0;transition:all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);z-index:9999}
+    .toast.show{transform:translateY(0);opacity:1}
+    .toast.error{border-left-color:var(--accent-red)}
+
+    .leaflet-container { background: #0b0f1a !important; }
+    .draggable-polygon { cursor: move; outline: none; }
+    .poly-label {
+      background: none !important;
+      border: none !important;
+      box-shadow: none !important;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 0;
+      pointer-events: none;
+      white-space: nowrap;
+      transition: opacity 0.2s;
+      text-shadow: 
+        -1px -1px 0 #000,  
+         1px -1px 0 #000,
+        -1px  1px 0 #000,
+         1px  1px 0 #000,
+         0px  0px 4px rgba(0,0,0,0.8);
+    }
+    .poly-label { opacity: var(--label-opacity, 1) !important; }
+    body.labels-hidden .poly-label { visibility: hidden; }
+    
+    .theme-warm .poly-label {
+      color: #2d1b0a;
+      text-shadow: 
+        -1px -1px 0 #fff,  
+         1px -1px 0 #fff,
+        -1px  1px 0 #fff,
+         1px  1px 0 #fff,
+         0px  0px 4px rgba(255,255,255,0.8);
+    }
+    
+    @keyframes glow-pulse {
+      0% { box-shadow: 0 0 5px rgba(56, 189, 248, 0.4); border-color: rgba(56, 189, 248, 0.4); }
+      50% { box-shadow: 0 0 20px rgba(56, 189, 248, 0.8); border-color: rgba(56, 189, 248, 1); }
+      100% { box-shadow: 0 0 5px rgba(56, 189, 248, 0.4); border-color: rgba(56, 189, 248, 0.4); }
+    }
+    .shiny-link {
+      background: linear-gradient(135deg, #0ea5e9, #22d3ee) !important;
+      color: #fff !important;
+      border: 1px solid #38bdf8 !important;
+      animation: glow-pulse 2s infinite !important;
+      font-weight: 700 !important;
+      position: relative;
+      overflow: hidden;
+    }
+    .shiny-link::after {
+      content: '';
+      position: absolute;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: linear-gradient(45deg, transparent, rgba(255,255,255,0.3), transparent);
+      transform: rotate(30deg);
+      animation: shine-move 3s infinite;
+    }
+    @keyframes shine-move {
+      0% { transform: translateX(-150%) rotate(30deg); }
+      100% { transform: translateX(150%) rotate(30deg); }
+    }
+  </style>
+</head>
+<body class="theme-warm">
+  <div class="app-container">
+    <header class="app-header">
+      <div class="header-title-group">
+        <div class="header-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>
+        <h1>座標調整ツール（GeoJSON → JGD2000）</h1>
+      </div>
+      <button class="btn-secondary" style="width:auto; padding:6px 12px; font-size:11px;" onclick="document.body.classList.toggle('theme-warm')">❄ 寒色/暖色</button>
+    </header>
+
+    <div class="main-layout">
+      <div class="sidebar">
+        <div class="card">
+          <div class="card-label">1. ファイル入力</div>
+          <div id="status-banner" style="background:rgba(239, 68, 68, 0.1); border:1px solid #ef4444; border-radius:var(--radius-sm); padding:10px; margin-bottom:12px; border-left: 4px solid #ef4444;">
+            <p id="status-title" style="color:#ef4444; font-size:13px; font-weight:900; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="3"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span id="status-text">任意座標系モード</span>
+            </p>
+            <p id="status-desc" style="font-size:11px; color:var(--text-primary); line-height:1.5; font-weight:700;">
+              座標値から位置を特定できません。住所情報から概算位置を推定します。
+            </p>
+          </div>
+          <div class="file-input-area" onclick="document.getElementById('file-input').click()">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:8px; opacity:0.5;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <p id="file-status">任意座標GeoJSONを選択</p>
+            <input type="file" id="file-input" accept=".geojson,.json" multiple style="display:none">
+          </div>
+          <div id="external-links" style="margin-top:12px; display:none;">
+            <div class="card-label" style="margin-bottom:4px;">外部ツール連携</div>
+            <div id="kouzu-viewer-links"></div>
+            <p style="font-size:10px; color:var(--text-muted); line-height:1.3; margin-top:6px;">
+              <span style="color:#f87171;">⚠️注意:</span> 公図ビューア連携は、ファイル名が地図IDの形式（例: 02208-4211-40）である場合のみ有効です。形式が異なる場合は正しく表示されません。
+            </p>
+          </div>
+        </div>
+
+        <div id="location-card" class="card" style="display:none">
+          <div class="card-label">2. 所在地情報</div>
+          <p id="info-address" style="font-size:12px; margin-bottom:8px; line-height:1.4; color:var(--text-primary); white-space:pre-wrap;">代表住所から系番号を推定します</p>
+          <div class="control-row">
+            <label>系番号:</label>
+            <select id="epsg-zone">
+              <optgroup label="JGD2000 平面直角座標系">
+                <option value="2443">第1系</option><option value="2444">第2系</option><option value="2445">第3系</option>
+                <option value="2446">第4系</option><option value="2447">第5系</option><option value="2448">第6系</option>
+                <option value="2449">第7系</option><option value="2450">第8系</option><option value="2451" selected>第9系</option>
+                <option value="2452">第10系</option><option value="2453">第11系</option><option value="2454">第12系</option>
+                <option value="2455">第13系</option><option value="2456">第14系</option><option value="2457">第15系</option>
+                <option value="2458">第16系</option><option value="2459">第17系</option><option value="2460">第18系</option>
+                <option value="2461">第19系</option>
+              </optgroup>
+            </select>
+          </div>
+        </div>
+
+        <div id="adjust-card" class="card" style="display:none">
+          <div class="card-label">3. 座標調整</div>
+          <div class="control-group">
+            <div class="control-row">
+              <label>ラベル不透明度:</label>
+              <span id="label-opacity-val" style="font-size:10px; color:var(--text-muted);">100%</span>
+            </div>
+            <input type="range" id="label-opacity-slider" min="0" max="1" step="0.01" value="1" style="margin-bottom:8px;">
+
+            <div class="control-row">
+              <label>スケーリング:</label>
+              <button class="btn-secondary" style="width:auto; padding:2px 8px; font-size:10px;" id="btn-scale-reset">リセット (1.0)</button>
+            </div>
+            <input type="range" id="scale-slider" min="0.1" max="10" step="0.001" value="1">
+            <div style="display:flex; gap:4px; margin-top:-5px; flex-wrap: wrap;">
+              <input type="number" id="scale-input" value="1" step="0.001" style="flex:1; min-width: 60px;">
+              <button class="btn-secondary" style="width:auto; padding:0 6px;" onclick="adjustScale(-0.1)">-0.1</button>
+              <button class="btn-secondary" style="width:auto; padding:0 6px;" onclick="adjustScale(-0.01)">-0.01</button>
+              <button class="btn-secondary" style="width:auto; padding:0 6px;" onclick="adjustScale(0.01)">+0.01</button>
+              <button class="btn-secondary" style="width:auto; padding:0 6px;" onclick="adjustScale(0.1)">+0.1</button>
+            </div>
+            <div class="control-row">
+              <label>回転 (度):</label>
+              <button class="btn-secondary" style="width:auto; padding:2px 8px; font-size:10px;" id="btn-rotate-reset">リセット (0°)</button>
+            </div>
+            <input type="range" id="rotate-slider" min="-180" max="180" step="0.01" value="0">
+            <div style="display:flex; gap:4px; margin-top:-5px;">
+              <input type="number" id="rotate-input" value="0" step="0.01" style="flex:1">
+              <button class="btn-secondary" style="width:auto; padding:0 8px; font-size:10px;" onclick="adjustRotate(-0.1)">↺ 反時計回り</button>
+              <button class="btn-secondary" style="width:auto; padding:0 8px; font-size:10px;" onclick="adjustRotate(0.1)">↻ 時計回り</button>
+            </div>
+            
+
+            <p style="font-size:11px; color:var(--text-secondary); line-height:1.4; margin-top:8px;">
+              ※選択中の図形のみドラッグやサイズ変更が適用されます。<br>
+              ※土地をダブルクリックで選択／非選択を切り替えられます。<br>
+              <span style="color:#0ea5e9; font-weight:700;">※【Ctrl+ドラッグ】で範囲を囲んで一括選択/非選択が可能です。</span><br>
+              ※右上のボタンで航空写真に切替可能です。
+            </p>
+          </div>
+        </div>
+
+        <div id="export-card" class="card" style="display:none; flex:1; min-height:400px; display:flex; flex-direction:column;">
+          <div class="card-label">4. エクスポート</div>
+          
+          <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <button class="btn-secondary" style="font-size:10px; padding:6px; flex:1;" id="btn-select-all">すべて選択</button>
+            <button class="btn-secondary" style="font-size:10px; padding:6px; flex:1;" id="btn-deselect-all">すべて解除</button>
+          </div>
+
+          <div id="feature-list" style="flex:1; overflow-y:auto; border:1px solid var(--border-primary); padding:8px; border-radius:var(--radius-sm); font-size:11px; background:rgba(0,0,0,0.1); margin-bottom:12px; min-height:300px;"></div>
+          <button class="btn btn-primary" id="btn-download">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            WGS84（経緯度）で保存
+          </button>
+        </div>
+      </div>
+
+      <div class="map-wrapper"><div id="map"></div></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    'use strict';
+    const JGD_ORIGINS = [
+      null, 
+      {lat:33, lon:129.5}, {lat:33, lon:131}, {lat:36, lon:132.166666666667}, {lat:33, lon:133.5},
+      {lat:36, lon:134.333333333333}, {lat:36, lon:136}, {lat:36, lon:137.166666666667}, {lat:36, lon:138.5},
+      {lat:36, lon:139.833333333333}, {lat:40, lon:140.833333333333}, {lat:44, lon:140.25}, {lat:44, lon:142.25},
+      {lat:44, lon:144.25}, {lat:26, lon:142}, {lat:26, lon:127.5}, {lat:26, lon:124},
+      {lat:26, lon:131}, {lat:20, lon:136}, {lat:26, lon:154}
+    ];
+
+    const State = { 
+      map:null, geojson:null, sourceFeatures:[], activeLayer:null, 
+      lat:35.6812, lng:139.7671, dragging:false, lastPoint:null, 
+      epsg:2451, isPublic:false, center:null, visualCenter:null 
+    };
+
+    function getProj4String(epsg) {
+      let zone = 0;
+      if (epsg >= 2443 && epsg <= 2461) zone = epsg - 2442;
+      else if (epsg >= 6669 && epsg <= 6687) zone = epsg - 6668;
+      if (zone === 0) return null;
+      const origin = JGD_ORIGINS[zone];
+      return `+proj=tmerc +lat_0=${origin.lat} +lon_0=${origin.lon} +k=0.9999 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs`;
+    }
+
+    function isInJapan(lat, lon) {
+      return lat >= 20 && lat <= 46 && lon >= 122 && lon <= 154;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      State.map = L.map('map').setView([State.lat, State.lng], 15);
+      State.canvasRenderer = L.canvas(); // 描画軽量化のためのCanvasレンダラー
+      
+      const std = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { attribution:'&copy; 国土地理院', maxNativeZoom: 18, maxZoom: 22 });
+      const photo = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', { attribution:'&copy; 国土地理院', maxNativeZoom: 18, maxZoom: 22 });
+      std.addTo(State.map);
+      L.control.layers({"標準地図":std, "航空写真":photo}).addTo(State.map);
+
+      let boxSelectStart = null;
+      let boxElement = null;
+
+      State.map.getContainer().addEventListener('mousedown', (e) => {
+        if (e.ctrlKey) {
+          State.map.dragging.disable();
+          const rect = State.map.getContainer().getBoundingClientRect();
+          boxSelectStart = { x: e.clientX, y: e.clientY, left: rect.left, top: rect.top };
+          
+          boxElement = document.createElement('div');
+          boxElement.style.position = 'fixed';
+          boxElement.style.border = '2px dashed #0ea5e9';
+          boxElement.style.backgroundColor = 'rgba(14, 165, 233, 0.2)';
+          boxElement.style.zIndex = 9999;
+          boxElement.style.left = e.clientX + 'px';
+          boxElement.style.top = e.clientY + 'px';
+          boxElement.style.width = '0px';
+          boxElement.style.height = '0px';
+          boxElement.style.pointerEvents = 'none';
+          document.body.appendChild(boxElement);
+        }
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (boxElement && boxSelectStart) {
+          const minX = Math.min(boxSelectStart.x, e.clientX);
+          const minY = Math.min(boxSelectStart.y, e.clientY);
+          const width = Math.abs(e.clientX - boxSelectStart.x);
+          const height = Math.abs(e.clientY - boxSelectStart.y);
+          boxElement.style.left = minX + 'px';
+          boxElement.style.top = minY + 'px';
+          boxElement.style.width = width + 'px';
+          boxElement.style.height = height + 'px';
+        }
+      });
+
+      window.addEventListener('mouseup', (e) => {
+        if (boxElement && boxSelectStart) {
+          const minX = Math.min(boxSelectStart.x, e.clientX);
+          const minY = Math.min(boxSelectStart.y, e.clientY);
+          const maxX = Math.max(boxSelectStart.x, e.clientX);
+          const maxY = Math.max(boxSelectStart.y, e.clientY);
+
+          boxElement.remove();
+          boxElement = null;
+
+          if (maxX - minX > 2 && maxY - minY > 2) {
+            const p1 = State.map.containerPointToLatLng([minX - boxSelectStart.left, minY - boxSelectStart.top]);
+            const p2 = State.map.containerPointToLatLng([maxX - boxSelectStart.left, maxY - boxSelectStart.top]);
+            const bounds = L.latLngBounds(p1, p2);
+
+            let targetState = null;
+            State.activeLayer.eachLayer(layer => {
+              if (bounds.intersects(layer.getBounds())) {
+                const chk = document.getElementById(`feat-${layer._idx}`);
+                if (targetState === null) targetState = !chk.checked; // 最初の状態の反転を適用
+                if (chk.checked !== targetState) {
+                  chk.checked = targetState;
+                  updateStyle(layer._idx);
+                }
+              }
+            });
+          }
+          boxSelectStart = null;
+          State.map.dragging.enable();
+        }
+      });
+
+      document.getElementById('file-input').addEventListener('change', e => handleFiles(e.target.files));
+      document.getElementById('epsg-zone').addEventListener('change', e => State.epsg=parseInt(e.target.value));
+      document.getElementById('btn-download').addEventListener('click', exportGeoJSON);
+      
+      document.getElementById('btn-select-all').addEventListener('click', () => toggleAll(true));
+      document.getElementById('btn-deselect-all').addEventListener('click', () => toggleAll(false));
+
+      const update = () => updateAdjustment();
+      document.getElementById('scale-slider').addEventListener('input', e => { document.getElementById('scale-input').value = e.target.value; update(); });
+      document.getElementById('scale-input').addEventListener('input', e => { document.getElementById('scale-slider').value = e.target.value; update(); });
+
+      document.getElementById('btn-scale-reset').addEventListener('click', () => {
+        document.getElementById('scale-slider').value = 1;
+        document.getElementById('scale-input').value = 1;
+        update();
+      });
+
+      window.adjustScale = (delta) => {
+        const inp = document.getElementById('scale-input');
+        const val = (parseFloat(inp.value) || 1) + delta;
+        inp.value = val.toFixed(3);
+        document.getElementById('scale-slider').value = val;
+        update();
+      };
+
+      document.getElementById('rotate-slider').addEventListener('input', e => { document.getElementById('rotate-input').value = e.target.value; update(); });
+      document.getElementById('rotate-input').addEventListener('input', e => { document.getElementById('rotate-slider').value = e.target.value; update(); });
+
+      document.getElementById('btn-rotate-reset').addEventListener('click', () => {
+        document.getElementById('rotate-slider').value = 0;
+        document.getElementById('rotate-input').value = 0;
+        update();
+      });
+
+      window.adjustRotate = (delta) => {
+        const inp = document.getElementById('rotate-input');
+        const val = (parseFloat(inp.value) || 0) + delta;
+        inp.value = val.toFixed(2);
+        document.getElementById('rotate-slider').value = val;
+        update();
+      };
+
+      document.getElementById('label-opacity-slider').addEventListener('input', e => {
+        const val = e.target.value;
+        document.documentElement.style.setProperty('--label-opacity', val);
+        document.getElementById('label-opacity-val').textContent = Math.round(val * 100) + '%';
+        if (val == 0) document.body.classList.add('labels-hidden');
+        else document.body.classList.remove('labels-hidden');
+      });
+    });
+
+    async function handleFiles(files) {
+      if (!files.length) return;
+      document.getElementById('file-status').textContent = `${files.length} ファイル読み込み中...`;
+      
+      const linkContainer = document.getElementById('kouzu-viewer-links');
+      const externalArea = document.getElementById('external-links');
+      linkContainer.innerHTML = '';
+      externalArea.style.display = 'none';
+
+      try {
+        const feats = [];
+        let detectedEpsg = null;
+        for(let f of files) {
+          const json = JSON.parse(await f.text());
+          
+          // CRS検出
+          if (json.crs && json.crs.properties && json.crs.properties.name) {
+            const name = json.crs.properties.name;
+            const match = name.match(/EPSG::?(\d+)/);
+            if (match) {
+              const code = parseInt(match[1]);
+              if ((code >= 2443 && code <= 2461) || (code >= 6669 && code <= 6687)) {
+                detectedEpsg = code;
+              }
+            }
+          }
+
+          const arr = json.features || (json.type==='Feature' ? [json] : []);
+          feats.push(...arr);
+
+          // Filename to KouzuViewer link
+          const base = f.name.replace(/\.[^/.]+$/, ""); // remove extension
+          if (/^\d{5}-\d{4}-\d{1,2}$/.test(base) || /^\d+-\d+-\d+$/.test(base)) {
+            const a = document.createElement('a');
+            a.href = `https://kouzuviewer.com/viewer/?file=${base}`;
+            a.target = '_blank';
+            a.className = 'btn shiny-link';
+            a.style = 'font-size:11px; margin-bottom:4px; text-decoration:none; display:flex; justify-content:flex-start; height:auto; padding:8px 12px;';
+            a.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>公図ビューアで確認: ${base}`;
+            linkContainer.appendChild(a);
+            externalArea.style.display = 'block';
+          }
+        }
+        processInput(feats, detectedEpsg);
+      } catch(e) { console.error(e); showToast('読み込み失敗','error'); }
+    }
+
+    function processInput(features, detectedEpsg) {
+      if (typeof proj4 !== 'undefined') {
+        proj4.defs('EPSG:3857', "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs");
+      }
+      
+      let isGeo = false, isWebMerc = false;
+      if (detectedEpsg === 4326 || detectedEpsg === 4612 || detectedEpsg === 6668 || detectedEpsg === 4301) isGeo = true;
+      else if (detectedEpsg === 3857) isWebMerc = true;
+      else if (!detectedEpsg && features.length > 0) {
+        let first = null;
+        const walk = c => { if(!first){ if(Array.isArray(c[0])) c.forEach(walk); else { if(typeof c[0]==='number') first = c; } } };
+        walk(features[0].geometry?.coordinates);
+        // 日本付近の経緯度データか推測
+        if (first && first[0]>120 && first[0]<150 && first[1]>20 && first[1]<50) isGeo = true;
+      }
+
+      let detectedLat = null, detectedLng = null;
+      if (isGeo || isWebMerc) {
+         let minLng=Infinity, minLat=Infinity, maxLng=-Infinity, maxLat=-Infinity;
+         const w1 = c => {
+            if (Array.isArray(c[0])) c.forEach(w1);
+            else if(typeof c[0]==='number') {
+               let lng = c[0], lat = c[1];
+               if (isWebMerc) { const r = proj4('EPSG:3857', 'WGS84', [lng, lat]); lng=r[0]; lat=r[1]; }
+               if(Math.abs(lng) > 0) { minLng=Math.min(minLng,lng); maxLng=Math.max(maxLng,lng); minLat=Math.min(minLat,lat); maxLat=Math.max(maxLat,lat); }
+            }
+         };
+         features.forEach(f => { if (f.geometry?.coordinates) w1(f.geometry.coordinates); });
+
+         if (minLng !== Infinity) {
+           detectedLng = (minLng+maxLng)/2;
+           detectedLat = (minLat+maxLat)/2;
+           const tmStr = `+proj=tmerc +lat_0=${detectedLat} +lon_0=${detectedLng} +k=1.0 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs`;
+           const w2 = c => {
+              if (Array.isArray(c[0])) c.forEach(w2);
+              else if(typeof c[0]==='number') {
+                 let lng = c[0], lat = c[1];
+                 if (isWebMerc) { const r = proj4('EPSG:3857', 'WGS84', [lng, lat]); lng=r[0]; lat=r[1]; }
+                 const res = proj4('WGS84', tmStr, [lng, lat]);
+                 c[0] = res[0]; c[1] = res[1]; 
+              }
+           };
+           features.forEach(f => { if (f.geometry?.coordinates) w2(f.geometry.coordinates); });
+           detectedEpsg = null; // 座標系を平面メーター化し、その後のフローでは「任意座標」として処理する
+         }
+      }
+
+      State.sourceFeatures = features;
+      State.isPublic = !!detectedEpsg;
+      
+      const banner = document.getElementById('status-banner');
+      const title = document.getElementById('status-title');
+      const text = document.getElementById('status-text');
+      const desc = document.getElementById('status-desc');
+
+      if (State.isPublic) {
+        State.epsg = detectedEpsg;
+        document.getElementById('epsg-zone').value = (State.epsg > 6000) ? State.epsg - 4226 : State.epsg; // JGD2011の場合はJGD2000の対応する系にマッピング（表示のみ）
+        
+        banner.style.background = "rgba(74, 222, 128, 0.1)";
+        banner.style.borderColor = "#4ade80";
+        banner.style.borderLeftColor = "#4ade80";
+        title.style.color = "#4ade80";
+        text.textContent = `公共座標系を検知 (EPSG:${State.epsg})`;
+        desc.innerHTML = `正しい座標系が指定されています。地図上の正確な位置に配置します。<br>※ズレがある場合は、座標系の設定（系番号）を確認してください。`;
+        
+        // 公共座標の場合は最初の地物の代表点から位置を算出
+        const projStr = getProj4String(State.epsg);
+        if (projStr) {
+          const coords = getFirstCoords(features[0]);
+          let res = proj4(projStr, 'WGS84', [coords[0], coords[1]]);
+          if (!isInJapan(res[1], res[0])) {
+            res = proj4(projStr, 'WGS84', [coords[1], coords[0]]);
+          }
+          State.lat = res[1]; State.lng = res[0];
+          document.getElementById('location-card').style.display = 'block';
+          document.getElementById('info-address').textContent = `座標系: EPSG:${State.epsg}\n中心座標: ${State.lat.toFixed(6)}, ${State.lng.toFixed(6)}`;
+          fitGeoToMap(State.lat, State.lng, features, true);
+          return;
+        }
+      }
+
+      // 任意座標系または公共座標変換失敗時
+      if (detectedLat != null && detectedLng != null) {
+        // WGS84など広域データから推定完了済み
+        banner.style.background = "rgba(56, 189, 248, 0.08)";
+        banner.style.borderColor = "#38bdf8";
+        banner.style.borderLeftColor = "#38bdf8";
+        title.style.color = "#38bdf8";
+        title.textContent = "世界標準座標 / Webメルカトル";
+        text.textContent = "経緯度データなどを検知しました";
+        desc.innerHTML = `正常に読み込まれ、内部で距離計算用の平面変換を行いました。`;
+        State.lat = detectedLat; State.lng = detectedLng;
+        document.getElementById('location-card').style.display = 'block';
+        document.getElementById('info-address').textContent = `座標系: 推定平面直角座標\n中心座標: ${State.lat.toFixed(6)}, ${State.lng.toFixed(6)}`;
+        fitGeoToMap(State.lat, State.lng, features, false);
+      } else {
+        banner.style.background = "rgba(239, 68, 68, 0.1)";
+        banner.style.borderColor = "#ef4444";
+        banner.style.borderLeftColor = "#ef4444";
+        title.style.color = "#ef4444";
+        title.textContent = "任意座標系モード";
+        desc.textContent = "座標値から位置を特定できません。住所情報から概算位置を推定します。";
+  
+        const props = features[0].properties || {};
+        const addr = [props['市区町村名'], props['大字名'], props['丁目名'], props['小字名']].filter(Boolean).join('');
+        document.getElementById('location-card').style.display = 'block';
+        if(addr && typeof getLatLng === 'function') {
+          getLatLng(addr, res => {
+            State.lat = res.lat; State.lng = res.lng;
+            autoSelectEPSG(res.lat, res.lng);
+            fitGeoToMap(res.lat, res.lng, features, false);
+            document.getElementById('info-address').textContent = `代表住所: ${addr}\n推定位置: ${res.lat.toFixed(5)}, ${res.lng.toFixed(5)}`;
+          });
+        } else {
+          fitGeoToMap(State.lat, State.lng, features, false);
+        }
+      }
+    }
+
+    function getFirstCoords(f) {
+      let c = f.geometry.coordinates;
+      while (Array.isArray(c[0])) c = c[0];
+      return c;
+    }
+
+    function autoSelectEPSG(lat, lng) {
+      let zone = 9;
+      if(lng < 130) zone=1; else if(lng<131.5) zone=2; else if(lng<133) zone=3; else if(lng<134) zone=4;
+      else if(lng<135) zone=5; else if(lng<136.5) zone=6; else if(lng<138) zone=7; else if(lng<139) zone=8;
+      else if(lng<141) zone = (lat>37) ? 10 : 9;
+      else zone = (lng<142) ? 11 : (lng<144 ? 12 : 13);
+      if(lat<28) zone = (lng>140 ? 14 : (lng>126 ? 15 : 16));
+      State.epsg = 2442 + zone;
+      document.getElementById('epsg-zone').value = State.epsg;
+    }
+
+    function fitGeoToMap(lat, lng, features, isHighPrecision) {
+      if(State.activeLayer) State.map.removeLayer(State.activeLayer);
+      State.map.setView([lat, lng], 18);
+      State.activeLayer = L.featureGroup().addTo(State.map);
+
+      let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+      const walk = c => {
+        if(Array.isArray(c[0])) c.forEach(walk);
+        else { if(c[0]<minX)minX=c[0]; if(c[1]<minY)minY=c[1]; if(c[0]>maxX)maxX=c[0]; if(c[1]>maxY)maxY=c[1]; }
+      };
+      features.forEach(f => walk(f.geometry.coordinates));
+      State.center = { x:(minX+maxX)/2, y:(minY+maxY)/2 };
+      State.visualCenter = L.latLng(lat, lng);
+
+      const list = document.getElementById('feature-list');
+      list.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      
+      const projStr = isHighPrecision ? getProj4String(State.epsg) : null;
+
+      features.forEach((f, i) => {
+        const p = f.properties || {};
+        const label = [p['大字名'], p['丁目名'], p['小字名'], p['地番']].filter(Boolean).join(' ') || `土地 ${i+1}`;
+        
+        const div = document.createElement('div');
+        div.style.marginBottom = '6px';
+        div.innerHTML = `<input type="checkbox" id="feat-${i}" style="vertical-align:middle; cursor:pointer"> <label for="feat-${i}" style="cursor:pointer; vertical-align:middle;">${label}</label>`;
+        frag.appendChild(div);
+        div.querySelector('input').onchange = () => updateStyle(i);
+
+        const convert = c => {
+          if (isHighPrecision && projStr) {
+            let res = proj4(projStr, 'WGS84', [c[0], c[1]]);
+            if (!isInJapan(res[1], res[0])) {
+              res = proj4(projStr, 'WGS84', [c[1], c[0]]);
+            }
+            return [res[1], res[0]];
+          } else {
+            const dx=c[0]-State.center.x, dy=c[1]-State.center.y;
+            return [lat + dy/111320, lng + dx/(111320*Math.cos(lat*Math.PI/180))];
+          }
+        };
+        const walkGeom = g => Array.isArray(g[0][0]) ? g.map(walkGeom) : g.map(convert);
+        
+        // 非選択状態は背景として目立たないよう軽量に描画（視認性を確保した明るめの赤）
+        const poly = L.polygon(walkGeom(f.geometry.coordinates), { 
+          renderer: State.canvasRenderer, 
+          color:'#f87171', weight:1, opacity:0.8, fillOpacity:0.15 
+        }).addTo(State.activeLayer);
+        
+        poly._dragOffset = { lat: 0, lng: 0 };
+        poly.featureLabel = label;
+        // ホバー時のみツールチップを表示（DOM軽量化）
+        poly.bindTooltip(label, { permanent:false, direction:'center', className:'poly-label' });
+        poly._idx = i;
+        poly.on('dblclick', e => { 
+          const chk = document.getElementById(`feat-${i}`);
+          chk.checked = !chk.checked;
+          updateStyle(i);
+          L.DomEvent.stopPropagation(e);
+        });
+        
+        // Canvasレンダラー時のカーソル変更対応
+        poly.on('mouseover', () => { if (!State.dragging) State.map.getContainer().style.cursor = 'move'; });
+        poly.on('mouseout', () => { if (!State.dragging) State.map.getContainer().style.cursor = ''; });
+
+        poly.on('mousedown', e => { State.dragging=true; State.lastPoint=e.latlng; State.map.dragging.disable(); });
+      });
+
+      list.appendChild(frag);
+
+      State.map.on('mousemove', e => {
+        if(!State.dragging) return;
+        const dLat = e.latlng.lat - State.lastPoint.lat;
+        const dLng = e.latlng.lng - State.lastPoint.lng;
+        State.activeLayer.eachLayer(layer => {
+          if (!document.getElementById(`feat-${layer._idx}`).checked) return; // 選択中のみ移動（非選択は計算スキップ）
+          layer._dragOffset.lat += dLat;
+          layer._dragOffset.lng += dLng;
+          const moveArr = arr => Array.isArray(arr[0]) ? arr.forEach(moveArr) : arr.forEach(ll => { ll.lat+=dLat; ll.lng+=dLng; });
+          const lls = layer.getLatLngs(); moveArr(lls); layer.setLatLngs(lls);
+          
+          if (layer.getTooltip()) layer.getTooltip().setLatLng(layer.getBounds().getCenter());
+        });
+        State.lastPoint = e.latlng;
+      });
+      State.map.on('mouseup', () => { 
+        if(State.dragging) { 
+          State.dragging=false; 
+          State.map.dragging.enable(); 
+          // visualCenterの更新は不要。独立したdragOffsetで管理する。
+        } 
+      });
+      
+      document.getElementById('adjust-card').style.display = 'block';
+      document.getElementById('export-card').style.display = 'flex';
+      showToast('読み込み完了：ドラッグで位置調整してください');
+    }
+
+    function updateStyle(idx) {
+      const chk = document.getElementById(`feat-${idx}`);
+      const layer = State.activeLayer.getLayers().find(l => l._idx === idx);
+      if(layer) {
+        layer.unbindTooltip();
+        if(chk.checked) {
+          // 選択時: 目立たせ、ラベルを常時表示
+          layer.setStyle({ fillOpacity:0.3, weight:2, opacity:1, color:'#22d3ee' });
+          layer.bindTooltip(layer.featureLabel, { permanent:true, direction:'center', className:'poly-label' });
+        } else {
+          // 非選択時(背景): 目立たせずにラベルをホバー時のみ表示
+          layer.setStyle({ fillOpacity:0.15, weight:1, opacity:0.8, color:'#f87171' });
+          layer.bindTooltip(layer.featureLabel, { permanent:false, direction:'center', className:'poly-label' });
+        }
+      }
+    }
+
+    function toggleAll(state) {
+      if (!State.activeLayer) return;
+      State.activeLayer.eachLayer(layer => {
+        const chk = document.getElementById(`feat-${layer._idx}`);
+        if(chk && chk.checked !== state) {
+          chk.checked = state;
+          updateStyle(layer._idx);
+        }
+      });
+      updateAdjustment();
+    }
+
+    function updateAdjustment() {
+      if(!State.activeLayer || !State.visualCenter) return;
+      const scale = parseFloat(document.getElementById('scale-input').value)||1;
+      const rotate = parseFloat(document.getElementById('rotate-input').value)||0;
+      const center = State.visualCenter;
+      const rad = rotate*Math.PI/180, cos=Math.cos(rad), sin=Math.sin(rad);
+      const projStr = State.isPublic ? getProj4String(State.epsg) : null;
+
+      // 選択中の地物の中心（ピボット）を計算
+      let selMinX = Infinity, selMinY = Infinity, selMaxX = -Infinity, selMaxY = -Infinity;
+      let hasSelected = false;
+
+      State.activeLayer.eachLayer(layer => {
+        if (!document.getElementById(`feat-${layer._idx}`).checked) return;
+        hasSelected = true;
+        const f = State.sourceFeatures[layer._idx];
+        const walk = c => {
+          if(Array.isArray(c[0])) c.forEach(walk);
+          else { if(c[0]<selMinX)selMinX=c[0]; if(c[1]<selMinY)selMinY=c[1]; if(c[0]>selMaxX)selMaxX=c[0]; if(c[1]>selMaxY)selMaxY=c[1]; }
+        };
+        walk(f.geometry.coordinates);
+      });
+
+      if (!hasSelected) return;
+
+      const pivotX = (selMinX + selMaxX) / 2;
+      const pivotY = (selMinY + selMaxY) / 2;
+
+      State.activeLayer.eachLayer(layer => {
+        if (!document.getElementById(`feat-${layer._idx}`).checked) return; // 非選択状態は再描画せず完全固定
+
+        const f = State.sourceFeatures[layer._idx];
+        const convert = c => {
+          // 選択中心（ピボット）からの相対距離
+          const dx=(c[0]-pivotX)*scale, dy=(c[1]-pivotY)*scale;
+          const rx=dx*cos+dy*sin, ry=-dx*sin+dy*cos;
+          
+          // 再び元の平面距離に戻す
+          const globalX = pivotX + rx;
+          const globalY = pivotY + ry;
+
+          if (State.isPublic && projStr) {
+            let res = proj4(projStr, 'WGS84', [globalX, globalY]);
+            if (!isInJapan(res[1], res[0])) {
+              // Y, X が反転している公図系の座標データの場合
+              res = proj4(projStr, 'WGS84', [globalY, globalX]);
+            }
+            return [res[1] + layer._dragOffset.lat, res[0] + layer._dragOffset.lng];
+          }
+
+          // 任意座標の場合は当初の全体の中心(State.center)との差分から緯度経度を算出
+          const offsetX = globalX - State.center.x;
+          const offsetY = globalY - State.center.y;
+          return [
+            center.lat + layer._dragOffset.lat + offsetY/111320, 
+            center.lng + layer._dragOffset.lng + offsetX/(111320*Math.cos(center.lat*Math.PI/180))
+          ];
+        };
+        const walkGeom = g => Array.isArray(g[0][0]) ? g.map(walkGeom) : g.map(convert);
+        layer.setLatLngs(walkGeom(f.geometry.coordinates));
+        
+        if (layer.getTooltip()) layer.getTooltip().setLatLng(layer.getBounds().getCenter());
+      });
+    }
+
+    function exportGeoJSON() {
+      if(!State.activeLayer) return;
+      
+      const out = { type:'FeatureCollection', crs:{type:'name',properties:{name:`urn:ogc:def:crs:EPSG::4326`}}, features:[] };
+
+      State.activeLayer.eachLayer(layer => {
+        if(!document.getElementById(`feat-${layer._idx}`).checked) return;
+        const walk = arr => Array.isArray(arr[0]) && typeof arr[0].lat!=='number' ? arr.map(walk) : arr.map(ll => [ll.lng, ll.lat]);
+        out.features.push({ type:'Feature', properties:State.sourceFeatures[layer._idx].properties, geometry:{type:State.sourceFeatures[layer._idx].geometry.type, coordinates:walk(layer.getLatLngs())} });
+      });
+
+      if (out.features.length === 0) { showToast('エクスポート対象がありません', 'error'); return; }
+
+      // ファイル名を「大字名 丁目名 小字名 地番」から生成
+      let fileName = 'converted.geojson';
+      const props = out.features[0].properties || {};
+      const nameParts = [props['大字名'], props['丁目名'], props['小字名'], props['地番']].filter(Boolean);
+      if (nameParts.length > 0) {
+        fileName = nameParts.join('').replace(/[\\/:*?"<>|]/g, '_') + '.geojson';
+      }
+
+      const blob = new Blob([JSON.stringify(out, null, 2)], {type:'application/json'});
+      const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fileName; a.click();
+      showToast('出力完了: ' + fileName);
+    }
+
+    function showToast(m,t='info') { const el=document.getElementById('toast'); el.textContent=m; el.className=`toast show ${t==='error'?'error':''}`; setTimeout(()=>el.classList.remove('show'),3000); }
+  </script>
+</body>
+</html>
