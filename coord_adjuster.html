@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -40,7 +41,7 @@
     .app-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:12px 20px;background:var(--surface-glass);backdrop-filter:blur(16px);border:1px solid var(--border-primary);border-radius:var(--radius-md);box-shadow:0 0 30px rgba(56,189,248,.05)}
     .header-title-group{display:flex;align-items:center;gap:12px}
     .header-icon{width:36px;height:36px;background:linear-gradient(135deg,rgba(56,189,248,.2),rgba(34,211,238,.1));border:1px solid rgba(56,189,248,.3);border-radius:8px;display:flex;align-items:center;justify-content:center}
-    .header-icon svg{width:20px;height:20px;color:var(--accent-blue)}
+    .header-icon img, .header-icon svg{width:22px;height:22px;color:var(--accent-blue);object-fit:contain}
     .app-header h1{font-size:18px;font-weight:700;background:linear-gradient(120deg,var(--accent-blue),var(--accent-cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
     
     .main-layout{display:grid;grid-template-columns:320px 1fr;gap:16px;flex:1;min-height:0}
@@ -136,8 +137,8 @@
   <div class="app-container">
     <header class="app-header">
       <div class="header-title-group">
-        <div class="header-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>
-        <h1>座標調整ツール（GeoJSON → JGD2000）</h1>
+        <div class="header-icon"><img src="header-icon.svg" alt="App Icon"></div>
+        <h1>座標調整ツール（GeoJSON位置補正・WGS84出力）</h1>
       </div>
       <button class="btn-secondary" style="width:auto; padding:6px 12px; font-size:11px;" onclick="document.body.classList.toggle('theme-warm')">❄ 寒色/暖色</button>
     </header>
