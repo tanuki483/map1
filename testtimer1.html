@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyScript Premium Analog Clock</title>
+    
+    <!-- PyScript (MicroPython) の読み込み -->
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --clock-bg: rgba(30, 41, 59, 0.7);
+            --accent-color: #38bdf8;
+            --hour-hand: #f8fafc;
+            --min-hand: #94a3b8;
+            --sec-hand: #ef4444;
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        /* 時計の外装（グラスモフィズム） */
+        .clock {
+            position: relative;
+            width: 350px;
+            height: 350px;
+            background: var(--clock-bg);
+            border-radius: 50%;
+            border: 2px solid var(--glass-border);
+            box-shadow: 
+                0 25px 50px -12px rgba(0, 0, 0, 0.5),
+                inset 0 0 20px rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 中心点 */
+        .clock::after {
+            content: '';
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: var(--hour-hand);
+            border-radius: 50%;
+            z-index: 100;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        /* 針の共通スタイル */
+        .hand {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: bottom;
+            border-radius: 10px;
+            z-index: 10;
+        }
+
+        #hour {
+            width: 8px;
+            height: 80px;
+            background: var(--hour-hand);
+            margin-left: -4px;
+        }
+
+        #minute {
+            width: 5px;
+            height: 120px;
+            background: var(--min-hand);
+            margin-left: -2.5px;
+        }
+
+        #second {
+            width: 2px;
+            height: 140px;
+            background: var(--sec-hand);
+            margin-left: -1px;
+            box-shadow: 0 0 15px var(--sec-hand);
+        }
+
+        /* 目盛り */
+        .marker {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+        .dot {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            left: 50%;
+            transform-origin: 50% 160px;
+        }
+
+        .digital-time {
+            font-size: 1.5rem;
+            font-weight: 300;
+            letter-spacing: 0.2em;
+            color: var(--accent-color);
+            text-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+        }
+
+        .title {
+            position: absolute;
+            top: -60px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5em;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="clock" id="clock-face">
+            <div class="title">PyScript MicroPython</div>
+            <!-- Pythonで目盛りを生成する場所 -->
+            <div id="markers"></div>
+            
+            <div id="hour" class="hand"></div>
+            <div id="minute" class="hand"></div>
+            <div id="second" class="hand"></div>
+        </div>
+        <div id="digital" class="digital-time">00:00:00</div>
+    </div>
+
+    <!-- 
+      PyScriptのインライン実装 
+      type="mpy" を指定することでMicroPythonを使用（高速起動）
+    -->
+    <script type="mpy">
+        import time
+        from js import document
+        from math import sin, cos, pi
+
+        def update_clock():
+            # 現在時刻を取得
+            now = time.localtime()
+            h = now.tm_hour
+            m = now.tm_min
+            s = now.tm_sec
+
+            # 角度の計算 (度)
+            # 時針は分による進みも考慮
+            hour_deg = (h % 12) * 30 + (m / 60) * 30
+            min_deg = m * 6
+            sec_deg = s * 6
+
+            # DOM要素の更新
+            document.getElementById("hour").style.transform = f"rotate({hour_deg}deg)"
+            document.getElementById("minute").style.transform = f"rotate({min_deg}deg)"
+            document.getElementById("second").style.transform = f"rotate({sec_deg}deg)"
+
+            # デジタル表示の更新
+            document.getElementById("digital").innerText = f"{h:02}:{m:02}:{s:02}"
+
+        # 初回の目盛り作成
+        markers_div = document.getElementById("markers")
+        for i in range(12):
+            dot = document.createElement("div")
+            dot.className = "dot"
+            angle = i * 30
+            dot.style.transform = f"translateX(-50%) rotate({angle}deg)"
+            markers_div.appendChild(dot)
+
+        # 無限ループで更新 (MicroPythonの非同期処理的に実行)
+        while True:
+            update_clock()
+            time.sleep(1)
+    </script>
+
+</body>
+</html>
