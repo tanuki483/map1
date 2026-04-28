@@ -2,9 +2,9 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>PyScript 時計</title>
+    <title>PyScript 時計（外部ライブラリ版）</title>
 
-    <!-- 新しいPyScript -->
+    <!-- PyScript -->
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
 
@@ -26,18 +26,29 @@
 </head>
 <body>
 
-<div id="clock">--:--:--</div>
+<div id="clock">Loading...</div>
+
+<!-- 外部ライブラリ指定 -->
+<py-config>
+packages = ["pytz"]
+</py-config>
 
 <script type="py">
+import asyncio
 from datetime import datetime
-from js import document, setInterval
+from js import document
+import pytz
 
-def update_clock():
-    now = datetime.now().strftime("%H:%M:%S")
-    document.getElementById("clock").innerText = now
+tz = pytz.timezone("Asia/Tokyo")
 
-setInterval(update_clock, 1000)
-update_clock()
+async def update_clock():
+    while True:
+        now = datetime.now(tz).strftime("%H:%M:%S")
+        document.getElementById("clock").innerText = now
+        await asyncio.sleep(1)
+
+# 非同期実行
+asyncio.create_task(update_clock())
 </script>
 
 </body>
