@@ -1,0 +1,2553 @@
+<!DOCTYPE html>
+<!--
+  This application uses the following open-source library:
+
+  geojson2svg
+  Copyright (c) Gagan Bansal
+  Licensed under the MIT License
+  https://github.com/gagan-bansal/geojson2svg
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+-->
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GeoJSON形式の測量データをSVGに変換し、回転・寸法表示を行うローカルツール">
+  <title>想定整形地分析ツール（GeoJSON → SVG 加工ツール）</title>
+  <!-- geojson2svg: MIT License, Copyright (c) Gagan Bansal -->
+  <script src="geojson2svg.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.min.js"></script>
+  <script src="https://cdn.geolonia.com/community-geocoder.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    :root {
+      --bg-primary: #080c14;
+      --bg-secondary: #0f1520;
+      --bg-tertiary: #161d2e;
+      --surface-glass: rgba(15, 21, 32, 0.82);
+      --border-primary: rgba(56, 189, 248, 0.15);
+      --border-active: rgba(56, 189, 248, 0.45);
+      --border-hover: rgba(56, 189, 248, 0.3);
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted: #475569;
+      --accent-blue: #38bdf8;
+      --accent-cyan: #22d3ee;
+      --accent-green: #4ade80;
+      --accent-orange: #fb923c;
+      --accent-red: #f87171;
+      --accent-purple: #c084fc;
+      --accent-yellow: #fbbf24;
+      --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px;
+      --shadow-lg: 0 8px 40px rgba(0,0,0,0.6);
+      --transition-fast: 0.12s ease;
+      --transition-normal: 0.22s ease;
+      --font-mono: 'JetBrains Mono','Fira Code','Consolas',monospace;
+      --font-body: 'Inter','Segoe UI',-apple-system,sans-serif;
+    }
+    /* ── Theme: Warm (DEFAULT) ── */
+    body.theme-warm {
+      --bg-primary: #faf7f2;
+      --bg-secondary: #f5f0e8;
+      --bg-tertiary: #ede6d8;
+      --surface-glass: rgba(245, 240, 232, 0.92);
+      --border-primary: rgba(180, 140, 80, 0.2);
+      --border-active: rgba(180, 140, 80, 0.5);
+      --border-hover: rgba(180, 140, 80, 0.35);
+      --text-primary: #3d2e1c;
+      --text-secondary: #7a6b57;
+      --text-muted: #a89880;
+      --accent-blue: #b4721a;
+      --accent-cyan: #c4872e;
+      --accent-green: #2d8a56;
+      --accent-orange: #d97706;
+      --accent-red: #dc2626;
+      --shadow-lg: 0 8px 40px rgba(60,40,10,0.15);
+    }
+    body.theme-warm::before{background:radial-gradient(ellipse 700px 500px at 15% 10%,rgba(180,140,80,.06)0%,transparent 70%),radial-gradient(ellipse 500px 400px at 85% 80%,rgba(200,160,100,.04)0%,transparent 70%),radial-gradient(ellipse 400px 300px at 60% 30%,rgba(220,180,120,.03)0%,transparent 70%)}
+    body.theme-warm .scale-select option{background:var(--bg-secondary);color:var(--text-primary)}
+    body.theme-warm .mode-option input[type="radio"]:checked+label{background:linear-gradient(135deg,rgba(180,114,26,.15),rgba(196,135,46,.1));border-color:var(--accent-blue);color:var(--accent-blue);box-shadow:0 0 14px rgba(180,114,26,.15)}
+    body.theme-warm .btn-primary{background:linear-gradient(135deg,#b4721a,#c4872e);box-shadow:0 2px 14px rgba(180,114,26,.3)}
+    body.theme-warm .btn-success{background:linear-gradient(135deg,#2d8a56,#3da868);box-shadow:0 2px 14px rgba(45,138,86,.2)}
+    body.theme-warm .btn-print{background:linear-gradient(135deg,#7c5e2a,#a0783c);box-shadow:0 2px 14px rgba(124,94,42,.3)}
+    body.theme-warm .toast.info{background:linear-gradient(135deg,#b4721a,#c4872e)}
+    body.theme-warm .toast.success{background:linear-gradient(135deg,#2d8a56,#3da868)}
+    body.theme-warm .app-header h1{background:linear-gradient(120deg,#b4721a,#c4872e);-webkit-background-clip:text;background-clip:text}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font-body);background:var(--bg-primary);color:var(--text-primary);min-height:100vh;overflow-x:hidden}
+    body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 700px 500px at 15% 10%,rgba(56,189,248,.07)0%,transparent 70%),radial-gradient(ellipse 500px 400px at 85% 80%,rgba(34,211,238,.05)0%,transparent 70%),radial-gradient(ellipse 400px 300px at 60% 30%,rgba(192,132,252,.04)0%,transparent 70%);pointer-events:none;z-index:0}
+    .app-container{position:relative;z-index:1;max-width:1440px;margin:0 auto;padding:20px 24px 40px}
+
+    /* Header */
+    .app-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:16px 24px;background:var(--surface-glass);backdrop-filter:blur(16px);border:1px solid var(--border-primary);border-radius:var(--radius-lg);box-shadow:0 0 30px rgba(56,189,248,.05)}
+    .header-title-group{display:flex;align-items:center;gap:14px}
+    .header-icon{width:40px;height:40px;background:linear-gradient(135deg,rgba(56,189,248,.2),rgba(34,211,238,.1));border:1px solid rgba(56,189,248,.3);border-radius:10px;display:flex;align-items:center;justify-content:center}
+    .header-icon svg{width:22px;height:22px;color:var(--accent-blue)}
+    .app-header h1{font-size:20px;font-weight:700;background:linear-gradient(120deg,var(--accent-blue),var(--accent-cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .app-header p{color:var(--text-muted);font-size:12px;margin-top:2px}
+    .header-badge{padding:5px 12px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:100px;font-size:11px;color:var(--accent-blue);font-family:var(--font-mono)}
+
+    /* Controls Grid */
+    .controls-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px;margin-bottom:14px}
+    .control-card{background:var(--surface-glass);backdrop-filter:blur(12px);border:1px solid var(--border-primary);border-radius:var(--radius-md);padding:14px 16px;transition:border-color var(--transition-normal),box-shadow var(--transition-normal);min-width:0;overflow:hidden}
+    .control-card:hover{border-color:var(--border-hover);box-shadow:0 0 20px rgba(56,189,248,.06)}
+    .card-label{display:flex;align-items:center;gap:6px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin-bottom:10px;font-weight:600}
+    .card-label svg{width:12px;height:12px}
+
+    /* File input */
+    .file-input-label{display:flex;align-items:center;gap:10px;padding:11px 14px;background:linear-gradient(135deg,rgba(56,189,248,.1),rgba(34,211,238,.06));border:1px dashed rgba(56,189,248,.4);border-radius:var(--radius-sm);cursor:pointer;transition:all var(--transition-normal);font-size:13px;color:var(--accent-cyan);font-weight:500}
+    .file-input-label:hover{background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(34,211,238,.1));border-color:var(--accent-blue);box-shadow:0 0 20px rgba(56,189,248,.15)}
+    .file-input-label svg{width:16px;height:16px;flex-shrink:0}
+    #file-input{display:none}
+    .file-name-display{margin-top:7px;font-size:11px;color:var(--text-secondary);font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+
+    /* Mode toggle */
+    .mode-toggle{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    .mode-option{position:relative}
+    .mode-option input[type="radio"]{position:absolute;opacity:0;width:0;height:0}
+    .mode-option label{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 8px;background:var(--bg-tertiary);border:1px solid rgba(255,255,255,.06);border-radius:var(--radius-sm);cursor:pointer;font-size:12px;color:var(--text-secondary);font-weight:500;transition:all var(--transition-normal);user-select:none}
+    .mode-option label:hover{background:rgba(56,189,248,.08);color:var(--text-primary);border-color:rgba(56,189,248,.2)}
+    .mode-option input[type="radio"]:checked+label{background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(34,211,238,.1));border-color:var(--accent-blue);color:var(--accent-cyan);box-shadow:0 0 14px rgba(56,189,248,.2)}
+    .mode-option label svg{width:14px;height:14px}
+
+    /* Scale select */
+    .scale-select{width:100%;padding:10px 32px 10px 12px;background:var(--bg-tertiary);border:1px solid rgba(255,255,255,.08);border-radius:var(--radius-sm);color:var(--text-primary);font-size:13px;font-family:var(--font-mono);cursor:pointer;outline:none;transition:border-color var(--transition-fast);appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+    .scale-select:focus{border-color:var(--accent-blue);box-shadow:0 0 0 2px rgba(56,189,248,.12)}
+    .scale-select option{background:var(--bg-secondary);color:var(--text-primary)}
+
+    /* Style panel */
+    .style-panel-toggle{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:var(--radius-sm);cursor:pointer;font-size:12px;color:var(--text-secondary);margin-bottom:10px;width:fit-content;transition:all var(--transition-normal);font-family:inherit}
+    .style-panel-toggle:hover{border-color:var(--border-hover);color:var(--text-primary)}
+    .style-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:14px;max-height:0;overflow:hidden;opacity:0;transition:max-height .35s ease,opacity .2s ease,margin .3s ease}
+    .style-panel.open{max-height:500px;opacity:1}
+    .style-ctrl{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:var(--radius-sm)}
+    .style-ctrl label{font-size:11px;color:var(--text-secondary);white-space:nowrap;min-width:55px}
+    .style-ctrl input[type="color"]{width:28px;height:28px;border:none;border-radius:4px;cursor:pointer;padding:0;background:none}
+    .style-ctrl input[type="range"]{flex:1;accent-color:var(--accent-blue);max-width:90px}
+    .style-ctrl input[type="number"]{width:50px;padding:3px 5px;background:var(--bg-tertiary);border:1px solid var(--border-primary);border-radius:3px;color:var(--text-primary);font-size:12px;font-family:var(--font-mono)}
+
+    /* Action bar */
+    .action-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 16px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:var(--radius-md);backdrop-filter:blur(12px);flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 18px;border:1px solid transparent;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;transition:all var(--transition-normal);font-family:inherit;white-space:nowrap;position:relative;overflow:hidden}
+    .btn::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,.08);opacity:0;transition:opacity var(--transition-fast)}
+    .btn:hover::after{opacity:1}
+    .btn:disabled{opacity:.35;cursor:not-allowed}.btn:disabled::after{display:none}
+    .btn svg{width:15px;height:15px;flex-shrink:0}
+    .btn-primary{background:linear-gradient(135deg,#0284c7,#0ea5e9);color:#fff;box-shadow:0 2px 14px rgba(14,165,233,.35)}
+    .btn-primary:hover:not(:disabled){box-shadow:0 4px 22px rgba(14,165,233,.5)}
+    .btn-secondary{background:var(--bg-tertiary);color:var(--text-secondary);border-color:rgba(255,255,255,.08)}
+    .btn-secondary:hover:not(:disabled){background:rgba(56,189,248,.08);border-color:rgba(56,189,248,.25);color:var(--text-primary)}
+    .btn-success{background:linear-gradient(135deg,#059669,#10b981);color:#fff;box-shadow:0 2px 14px rgba(16,185,129,.3)}
+    .btn-success:hover:not(:disabled){box-shadow:0 4px 22px rgba(16,185,129,.45)}
+    .action-divider{width:1px;height:28px;background:var(--border-primary);margin:0 4px;flex-shrink:0}
+    .checkbox-wrapper{display:flex;align-items:center;gap:8px;padding:7px 14px;background:var(--bg-tertiary);border:1px solid rgba(255,255,255,.06);border-radius:var(--radius-sm);cursor:pointer}
+    .checkbox-wrapper input[type="checkbox"]{width:15px;height:15px;accent-color:var(--accent-blue);cursor:pointer}
+    .checkbox-wrapper label{font-size:12px;color:var(--text-secondary);cursor:pointer;user-select:none;white-space:nowrap}
+
+    /* Operation manual (details/summary) */
+    .op-manual{margin-bottom:12px}
+    .op-manual summary{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:var(--radius-sm);cursor:pointer;font-size:12px;color:var(--text-secondary);list-style:none;transition:all var(--transition-normal);font-family:inherit;user-select:none}
+    .op-manual summary::-webkit-details-marker{display:none}
+    .op-manual summary::before{content:'▶';font-size:10px;transition:transform .2s ease}
+    .op-manual[open] summary::before{transform:rotate(90deg)}
+    .op-manual summary:hover{border-color:var(--border-hover);color:var(--text-primary)}
+    .op-manual .manual-content{margin-top:8px;padding:14px 18px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:var(--radius-sm);font-size:12px;line-height:1.7;color:var(--text-secondary);max-height:300px;overflow-y:auto}
+    .op-manual .manual-content h4{color:var(--text-primary);font-size:13px;margin:10px 0 6px;font-weight:600}
+    .op-manual .manual-content h4:first-child{margin-top:0}
+    .op-manual .manual-content ul{margin:4px 0 8px 18px}
+    .op-manual .manual-content li{margin-bottom:3px}
+    .op-manual .manual-content kbd{display:inline-block;padding:1px 6px;background:var(--bg-tertiary);border:1px solid rgba(255,255,255,.1);border-radius:3px;font-family:var(--font-mono);font-size:11px;color:var(--accent-cyan)}
+
+    /* SVG Canvas */
+    .svg-canvas-wrapper{position:relative;background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:var(--radius-lg);overflow:hidden;min-height:520px;transition:border-color var(--transition-normal),box-shadow var(--transition-normal)}
+    .svg-canvas-wrapper.has-content{border-color:rgba(56,189,248,.2)}
+    .svg-canvas-wrapper.has-content:hover{border-color:var(--border-active);box-shadow:0 0 30px rgba(56,189,248,.08)}
+    .svg-canvas-wrapper::before,.svg-canvas-wrapper::after{content:'';position:absolute;width:16px;height:16px;border-color:rgba(56,189,248,.3);border-style:solid;z-index:2;pointer-events:none}
+    .svg-canvas-wrapper::before{top:10px;left:10px;border-width:2px 0 0 2px}
+    .svg-canvas-wrapper::after{bottom:10px;right:10px;border-width:0 2px 2px 0}
+    /* Drag & drop highlight */
+    .svg-canvas-wrapper.drag-over{border-color:var(--accent-green)!important;background:rgba(74,222,128,.06)!important;box-shadow:0 0 40px rgba(74,222,128,.18)!important}
+    .control-card.drag-over{border-color:var(--accent-green)!important;background:rgba(74,222,128,.08)!important;box-shadow:0 0 20px rgba(74,222,128,.15)!important}
+    .svg-canvas-wrapper.drag-over::before,.svg-canvas-wrapper.drag-over::after{border-color:var(--accent-green)}
+    .svg-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:520px;gap:14px;color:var(--text-muted)}
+    .svg-placeholder-icon{width:60px;height:60px;background:rgba(56,189,248,.05);border:1px solid rgba(56,189,248,.1);border-radius:16px;display:flex;align-items:center;justify-content:center}
+    .svg-placeholder-icon svg{width:28px;height:28px;opacity:.4}
+    .svg-placeholder p{font-size:13px}.svg-placeholder small{font-size:11px;opacity:.6}
+    #svg-container{width:100%;min-height:520px;display:flex;align-items:center;justify-content:center;padding:40px;position:relative}
+    #svg-container svg{max-width:100%;max-height:68vh}
+
+    /* SVG elements */
+    .geo-path{stroke-linejoin:round}
+    .geo-edge-hit{stroke:transparent;stroke-width:8px;fill:none;cursor:pointer}
+    .geo-edge{fill:none;pointer-events:none;transition:stroke var(--transition-fast),stroke-width var(--transition-fast)}
+    .geo-edge-group:hover .geo-edge{stroke:var(--accent-cyan);stroke-width:3.5px;filter:drop-shadow(0 0 5px rgba(34,211,238,.6))}
+    .geo-edge-group.selected .geo-edge{stroke:var(--accent-orange);stroke-width:3.5px;filter:drop-shadow(0 0 7px rgba(251,146,60,.55))}
+    .geo-vertex{cursor:pointer;transition:all var(--transition-fast)}
+    .geo-vertex.hovered{filter:drop-shadow(0 0 6px rgba(34,211,238,.7))}
+    .geo-vertex.selected{fill:var(--accent-orange)!important;stroke:#fff;stroke-width:2px;filter:drop-shadow(0 0 8px rgba(251,146,60,.7))}
+    #vertex-group{opacity:0;pointer-events:none}
+    #vertex-group.active{opacity:1;pointer-events:auto}
+    .guide-line{stroke:rgba(251,146,60,.75);stroke-dasharray:7 5;fill:none}
+    .bounding-rect{fill:none;stroke:var(--accent-green);stroke-dasharray:5 4;opacity:.75}
+    .dim-line{stroke:var(--accent-green);opacity:.75}
+    .dim-text{fill:var(--accent-green);font-family:var(--font-mono);font-weight:500;opacity:.9}
+    .label-assumed{fill:var(--accent-orange);font-family:var(--font-body);font-weight:700;opacity:.9}
+
+    /* Info bar */
+    .info-bar{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+    .info-chip{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;background:var(--surface-glass);border:1px solid var(--border-primary);border-radius:100px;font-size:11px;color:var(--text-secondary);font-family:var(--font-mono);white-space:nowrap}
+    .info-chip .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+    /* ========= Operation Manual list styling ========= */
+/* 余白（左側インデント）基本：階層ごとに増える */
+.manual-content ol,
+.manual-content ul {
+  margin: 0.4rem 0 0.9rem;
+  padding-inline-start: 3.6em; /* 1階層目 */
+}
+.manual-content ol ol,
+.manual-content ul ul,
+.manual-content ol ul,
+.manual-content ul ol {
+  margin-top: 0.35rem;
+  padding-inline-start: 0.0em; /* 2階層目はさらに深く */
+}
+.manual-content ol ol ol,
+.manual-content ul ul ul,
+.manual-content ol ul ol,
+.manual-content ul ol ol {
+  padding-inline-start: 1.0em; /* 3階層目 */
+}
+/* リスト項目間の行間を少し */
+.manual-content li {
+  line-height: 1.65;
+  margin: 0.15rem 0;
+}
+/* ネスト内の注釈（・）の見た目（必要なら） */
+.manual-content ul.note {
+  list-style: "・ ";
+}
+/* ============ カウンタスタイル定義（厳密表記） ============ */
+/* 「１．」：全角数字 + 全角ドット */
+@counter-style zenkaku-decimal-dot {
+  system: numeric;
+  symbols: "０" "１" "２" "３" "４" "５" "６" "７" "８" "９";
+  suffix: "． ";
+}
+/* 「⑴」：丸括弧数字（固定）※必要数だけ並べる */
+@counter-style maru-kakko {
+  system: fixed;
+  symbols:
+    "⑴" "⑵" "⑶" "⑷" "⑸" "⑹" "⑺" "⑻" "⑼" "⑽"
+    "⑾" "⑿" "⒀" "⒁" "⒂" "⒃" "⒄" "⒅" "⒆" "⒇";
+  suffix: " ";
+}
+/* 「①」：丸数字（固定）※必要数だけ並べる */
+@counter-style maru {
+  system: fixed;
+  symbols:
+    "①" "②" "③" "④" "⑤" "⑥" "⑦" "⑧" "⑨" "⑩"
+    "⑪" "⑫" "⑬" "⑭" "⑮" "⑯" "⑰" "⑱" "⑲" "⑳";
+  suffix: " ";
+}
+/* クラスで使い分け */
+.manual-content ol.list-lv1 { list-style: zenkaku-decimal-dot; }
+.manual-content ol.list-lv2 { list-style: maru-kakko; }
+.manual-content ol.list-lv3 { list-style: maru; }
+/* もし li の中で marker の位置がズレる場合の微調整 */
+.manual-content ol.list-lv1 > li::marker,
+.manual-content ol.list-lv2 > li::marker,
+.manual-content ol.list-lv3 > li::marker {
+  font-weight: 600; /* 任意 */
+}
+
+    /* Toast */
+    .toast{position:fixed;bottom:28px;right:28px;padding:11px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;z-index:9999;transform:translateY(120px);opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);box-shadow:var(--shadow-lg);max-width:360px}
+    .toast.show{transform:translateY(0);opacity:1}
+    .toast.success{background:linear-gradient(135deg,#059669,#10b981);color:#fff}
+    .toast.error{background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff}
+    .toast.info{background:linear-gradient(135deg,#0284c7,#38bdf8);color:#fff}
+    
+    .map-alert-warning {
+      background: rgba(249, 115, 22, 0.12);
+      border: 1px solid rgba(249, 115, 22, 0.3);
+      border-left: 4px solid #f97316;
+      color: var(--accent-green);
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      margin-bottom: 16px;
+      line-height: 1.5;
+      animation: fadeSlideIn 0.4s ease;
+    }
+    .map-alert-warning strong {
+      color: #fb923c;
+      font-size: 14px;
+    }
+
+    .map-banner {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: rgba(15, 21, 32, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--accent-cyan);
+      border-radius: var(--radius-md);
+      padding: 12px 20px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 10000;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 4px 20px rgba(34,211,238,0.2);
+    }
+    .map-banner.show { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
+    .map-banner button {
+      background: var(--accent-cyan);
+      color: #000;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 100px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.2s;
+    }
+    .map-banner button:hover { background: #67e8f9; }
+
+    @keyframes fadeSlideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .animate-in{animation:fadeSlideIn .35s ease forwards}
+    ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg-primary)}::-webkit-scrollbar-thumb{background:rgba(56,189,248,.2);border-radius:3px}
+    @media(max-width:900px){.controls-grid{grid-template-columns:1fr}.action-bar{flex-wrap:wrap}.style-panel{grid-template-columns:1fr 1fr}}
+
+    /* Theme toggle button */
+    .theme-toggle{display:flex;align-items:center;gap:6px;padding:5px 12px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);border-radius:100px;font-size:11px;color:var(--accent-blue);font-family:var(--font-mono);cursor:pointer;transition:all var(--transition-normal);white-space:nowrap}
+    .theme-toggle:hover{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.4)}
+
+    /* Print button */
+    .btn-print{background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;box-shadow:0 2px 14px rgba(168,85,247,.3)}
+    .btn-print:hover:not(:disabled){box-shadow:0 4px 22px rgba(168,85,247,.45)}
+
+    /* ── @media print ── */
+    @media print {
+      .app-container,#toast{display:none!important}
+      
+      /* A4 Fit Print (Default) */
+      body:not(.print-mode-real){margin:0!important;padding:0!important;background:#fff!important;overflow:hidden!important;height:297mm!important}
+      body:not(.print-mode-real)::before{display:none!important}
+      body:not(.print-mode-real) #print-target{
+        display:flex!important;align-items:center!important;justify-content:center!important;
+        width:210mm!important;height:297mm!important;
+        background:#fff!important;
+        margin:0!important;padding:10mm!important;
+        overflow:hidden!important;
+        page-break-inside:avoid!important;break-inside:avoid!important;
+        box-sizing:border-box!important;
+      }
+      body:not(.print-mode-real) #print-target svg{
+        page-break-inside:avoid!important;break-inside:avoid!important;
+        display:block!important;
+      }
+
+      /* Real Scale Print */
+      body.print-mode-real { margin:0!important; padding:0!important; background:#fff!important; overflow:visible!important; height:auto!important; }
+      body.print-mode-real::before{display:none!important}
+      body.print-mode-real #print-target {
+        display:block!important;
+        width:auto!important; height:auto!important;
+        background:#fff!important;
+        margin:0!important; padding:0!important;
+        overflow:visible!important;
+      }
+      body.print-mode-real #print-target svg {
+        display:block!important;
+        max-width:none!important; max-height:none!important;
+        page-break-inside:auto!important; break-inside:auto!important;
+      }
+
+      @page{size:A4 portrait;margin:0}
+    }
+    #print-target{display:none}
+  </style>
+</head>
+<body class="theme-warm">
+<div class="app-container">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-title-group">
+      <div class="header-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><path fill="currentColor" d="M124.3,102.6L101.9,3.3c-0.3-1.5-1.7-2.5-3.3-2.3c-0.7,0.1-1.3,0.4-1.7,0.9c-0.8,0.8-2.6,2.6-4,4 c-2.9,2.9-6.7,4.8-10.8,5c-4.7,0.3-9.2-1.4-12.5-4.7l-4.3-4.3c-0.5-0.5-1.1-0.8-1.7-0.9c-1.6-0.2-3,0.9-3.3,2.3L38,102.6 c-0.6,2.7-0.8,5.6-0.3,8.2l-2.9,1.3l-3.3-2.7l-15.1-3.5c-3.2-0.7-6.5,0-9.1,2.1c-2.7,2.2-4.2,5.5-4,9c0.3,5.7,5.3,10.1,11.1,10.1 h75.7c0.8,0,1.5-0.2,2.2-0.5l3-1.5l3.4,2h5.8c6,0,11.7-2.4,15.6-6.9C124.1,115.2,125.7,108.8,124.3,102.6z"/><path fill="#fff" d="M34.1 118.8c.5 1 1.6 1.6 2.7 1.6.5 0 .9-.1 1.4-.3 1.5-.8 2.1-2.6 1.3-4-.9-1.7-1.5-3.5-1.8-5.3l-6.2-1.4C31.7 112.7 32.6 115.8 34.1 118.8zM90 127h8.5c.3-.9.5-1.9.5-3 0-3.9-2.5-7.2-6-8.5L92.9 99c0-1.7-1.4-3-3-3-1.7 0-3 1.4-3 3l.1 18.6c0 .1 0 .2 0 .4 0 1.7 1.3 3 3 3s3 1.3 3 3S91.7 127 90 127zM72 120.4c-1.7 0-3-1.3-3-3L68.9 99c0-1.7 1.3-3 3-3l0 0c1.7 0 3 1.3 3 3l.1 18.4C75 119.1 73.7 120.4 72 120.4L72 120.4zM71 31A3 3 0 1 0 71 37 3 3 0 1 0 71 31zM91 31A3 3 0 1 0 91 37 3 3 0 1 0 91 31z"/></svg></div>
+      <div><h1>想定整形地分析ツール（GeoJSON → SVG 加工ツール）</h1><p>測量データの変換・回転・寸法表示をローカルで実行</p></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="theme-toggle" id="btn-theme" type="button" title="寒色テーマに切替">❄ 寒色</button>
+      <span class="header-badge">ローカル動作</span>
+    </div>
+  </header>
+
+<!-- Operation Manual -->
+<details class="op-manual">
+  <summary>操作説明</summary>
+  <div class="manual-content">
+    <!-- Intro -->
+    <section class="manual-intro" aria-label="ツール概要">
+      <p>
+        このツールは
+        <a href="https://kouzuviewer.com/chiban/" target="_blank" rel="noopener">
+          公図ビューア for 登記所備付地図データ
+        </a>
+        からダウンロードした公図や測量図のGeoJSONファイルを、路線価評価用の参考資料に加工するためのツールです。
+      </p>
+      <p>
+        本ツールは外部との通信を必要とせず、<strong>完全にローカルで動作</strong>します。
+        動作に必要なコードはHTMLファイル内に組み込んであるため、<strong>当該HTMLファイル単体</strong>で動作します。
+      </p>
+      <p>
+        なお、公図や測量図のGeoJSONファイルは外部サイトからダウンロードして別途用意する必要があります。
+      </p>
+    </section>
+    <!-- 1 -->
+    <section class="manual-section" aria-label="事前準備">
+      <h4>1. 事前準備</h4>
+      <ol class="list-lv1">
+        <li>
+          <a href="https://kouzuviewer.com/chiban/" target="_blank" rel="noopener">
+            公図ビューア for 登記所備付地図データ
+          </a>
+          にアクセスする。
+        </li>
+        <li>
+          調べたい地域の県、市区町村、地番区域（大字や丁目）を指定し、表示された地番から調べたいものにアクセスする。
+        </li>
+        <li>表示された地図からGeoJSONファイルをダウンロードしたい地番をクリックして選択する。</li>
+        <li>左側のアイコンから「GeoJSON形式保存」をクリックする。</li>
+        <li>表示されたポップアップから、対象データ＞「選択中の筆のみ」を選んで「保存」を押す。</li>
+        <li>選択した地番のGeoJSONデータがダウンロードされる。</li>
+        <li>
+          複数の筆から成る評価単位を評価したい場合は、上記の手順（3〜6）を繰り返し、評価対象の筆を1筆ずつすべてダウンロードする。
+        </li>
+      </ol>
+    </section>
+    <!-- 2 -->
+    <section class="manual-section" aria-label="ツールに読み込む">
+      <h4>2. ツールに読み込む</h4>
+      <ol class="list-lv1">
+        <li>このツール（想定整形地分析ツール（GeoJSON → SVG 加工ツール））を開く。</li>
+        <li>
+          <kbd>GeoJSONファイルを選択</kbd>ボタン、またはGeoJSONファイルを読込領域に
+          <kbd>ドラッグ＆ドロップ</kbd>してアップロードする。
+          <ul class="note">
+            <li>複数筆から成る土地はまとめてアップロードしてください。</li>
+          </ul>
+        </li>
+        <li>
+          読み込んだGeoJSONファイルが表示領域にSVG画像として表示される。
+          縮尺はGeoJSONファイル内に記述がある場合、自動的に読み取る。
+        </li>
+      </ol>
+    </section>
+    <!-- 3 -->
+    <section class="manual-section" aria-label="想定整形地を生成する">
+      <h4>3. 想定整形地を生成する</h4>
+      <ol class="list-lv1">
+        <li>
+          選択モードから①辺選択②頂点選択のいずれかを選択し、次の通り正面路線に接する部分を選択する。
+          ここで選択した部分を基に、次のステップで想定整形地を自動的に生成する。
+          <ol class="list-lv3">
+            <li>
+              辺選択モードを選択した場合、読み込んだGeoJSONファイル上で頂点同士をつなぐ辺になっている部分を選択する。
+            </li>
+            <li>
+              頂点選択モードを選択した場合、読み込んだGeoJSONファイル上から頂点を選択する。
+              隣り合っていない頂点も選択することができるので、道路に接している辺が複数の頂点から成っていて細切れになっている場合や、
+              正面路線に面している辺が凹形になっているため辺を選択しても適切な角度が取れない場合に使用する。
+              <ul class="note">
+                <li>この時点で選択された辺の想定される実寸距離が m（メートル）として表示される。</li>
+              </ul>
+            </li>
+          </ol>
+        </li>
+        <li>
+          <kbd>分析実行</kbd>ボタンを押すと、想定整形地が表示される。
+          想定整形地の間口距離と奥行の長さ、現在選択されている縮尺も表示される。
+          <ul class="note">
+            <li>角度維持オプションを選択していると、想定整形地を基準として垂直な角度が維持される。</li>
+          </ul>
+        </li>
+        <li>
+          <kbd>A4印刷</kbd>ボタンを押すと、基本的にはA4で印刷される。
+          A4用紙縦1枚で印刷することを想定しての機能だが、利用者の印刷設定が異なる場合はそれに従う。
+          <ul class="note">
+            <li>
+              当該A4印刷機能は基本的にいつでも有効なため、手順2の時点で印刷することで、
+              選択した辺の長さを表示した状態を印刷することもできる。間口距離や「ここからここまで何m」などを示すために使うこともできる。
+            </li>
+            <li>
+              当該A4印刷機能は正確な縮尺で印刷するものでは全くない。ツールが読み取り、表記しているｍ㍍は座標距離であるため、基本的に記載されている距離がそのまま地図上の距離である。
+            </li>
+          </ul>
+        </li>
+        <li>
+          表示画像はSVG（ベクトル画像）であり、<kbd>SVGダウンロード</kbd>ボタンを押すと現在表示している画像をダウンロードできる。
+          画像はA4縦印刷可能な縦横比で出力するように調整している。
+        </li>
+        <li>
+          不具合が生じた場合などは <kbd>リセット</kbd>ボタンを押すと現在の画像の状態がリセットされる。
+          角度維持オプションを選択したままリセットすると現在の角度を保ったまま辺の選択などがリセットされる。
+        </li>
+        <li>
+          表記上の距離ｍ㍍はGeoJsonファイルをそのまま返還したSVGファイル上の座標距離を採用している。
+          表記上の距離に違和感がある場合や実測距離と差がある場合は縮尺を手動で変更することができる。
+        </li>
+      </ol>
+    </section>
+    <!-- 4 -->
+    <section class="manual-section" aria-label="色などを調整する">
+      <h4>4. 色などを調整する</h4>
+      <ol class="list-lv1">
+        <li>
+          <kbd>スタイル設定</kbd>を開くとSVG画像やページの色、SVG背景の透過具合などを調整できる。
+        </li>
+        <li>
+          ページ右上の <kbd>寒色</kbd> <kbd>暖色</kbd> オプションを選択すると背景色のテーマが切り替わる。もう一度押すと元に戻る。
+        </li>
+      </ol>
+    </section>
+    <!-- Contact -->
+    <section class="manual-contact" aria-label="連絡先">
+      <h4>問い合わせ</h4>
+      <p>
+        <a href="mailto:sogo.nakamura.cv7@nta.go.jp?subject=GeoJson読込ツールについて">連絡先</a>
+      </p>
+    </section>
+  </div>
+</details>
+
+
+  <!-- Controls -->
+  <div class="controls-grid">
+    <!-- File -->
+    <div class="control-card" id="file-drop-card">
+      <div class="card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>ファイル入力</div>
+      <label class="file-input-label" for="file-input">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        GeoJSONファイルを選択（複数可・D&D対応）
+      </label>
+      <input type="file" id="file-input" accept=".geojson,.json" multiple>
+      <div class="file-name-display" id="file-name">ファイル未選択</div>
+    </div>
+    <!-- Mode -->
+    <div class="control-card">
+      <div class="card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>選択モード</div>
+      <div class="mode-toggle">
+        <div class="mode-option"><input type="radio" id="mode-edge" name="select-mode" value="edge" checked><label for="mode-edge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg>辺選択</label></div>
+        <div class="mode-option"><input type="radio" id="mode-vertex" name="select-mode" value="vertex"><label for="mode-vertex"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="2.5" fill="currentColor"/><circle cx="17" cy="17" r="2.5" fill="currentColor"/><line x1="9" y1="9" x2="15" y2="15" stroke-dasharray="3 2"/></svg>頂点選択</label></div>
+      </div>
+    </div>
+    <!-- Scale -->
+    <div class="control-card">
+      <div class="card-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M3 21l7-7M14 10l7-7"/></svg>印刷用縮尺</div>
+      <select class="scale-select" id="scale-select" title="等倍印刷時の縮尺を選択">
+        <option value="auto">なし（GeoJSON内縮尺分母）</option>
+        <option value="100">1 : 100</option><option value="150">1 : 150</option><option value="200">1 : 200</option><option value="250">1 : 250</option>
+        <option value="300">1 : 300</option><option value="400">1 : 400</option><option value="450">1 : 450</option>
+        <option value="500">1 : 500</option><option value="600">1 : 600</option><option value="750">1 : 750</option>
+        <option value="800">1 : 800</option><option value="900">1 : 900</option><option value="1000">1 : 1000</option>
+        <option value="1200">1 : 1200</option><option value="1250">1 : 1250</option><option value="1500">1 : 1500</option>
+        <option value="1800">1 : 1800</option><option value="2500">1 : 2500</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Style Panel -->
+  <button class="style-panel-toggle" id="style-panel-toggle" type="button"><span id="style-arrow">▶</span> スタイル設定</button>
+  <div class="style-panel" id="style-panel">
+    <div class="style-ctrl"><label>線色</label><input type="color" id="ctrl-stroke-color" value="#8b5e34"></div>
+    <div class="style-ctrl"><label>塗り色</label><input type="color" id="ctrl-fill-color" value="#c4872e"></div>
+    <div class="style-ctrl"><label>塗り透明度</label><input type="range" id="ctrl-fill-opacity" min="0" max="1" step="0.05" value="0.15"></div>
+    <div class="style-ctrl"><label>線透明度</label><input type="range" id="ctrl-stroke-opacity" min="0" max="1" step="0.05" value="1.0"></div>
+    <div class="style-ctrl"><label>ページ背景</label><input type="color" id="ctrl-page-bg" value="#faf7f2"></div>
+    <div class="style-ctrl"><label>SVG背景</label><input type="color" id="ctrl-svg-bg" value="#f5f0e8"></div>
+    <div class="style-ctrl"><label>ラベルサイズ</label><input type="number" id="ctrl-label-size" min="4" max="60" value="12"></div>
+    <div class="style-ctrl"><label>ラベル色</label><input type="color" id="ctrl-label-color" value="#3d2e1c"></div>
+  </div>
+
+  <!-- Action Bar -->
+  <div class="action-bar">
+    <button class="btn btn-primary" id="btn-execute" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></svg>分析実行
+    </button>
+    <button class="btn btn-secondary" id="btn-reset" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>リセット
+    </button>
+    <div class="action-divider"></div>
+    <button class="btn btn-success" id="btn-download" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>SVGダウンロード
+    </button>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <select id="print-mode" class="scale-select" style="width: auto; padding-right: 28px; padding-left: 10px;">
+        <option value="a4">A4フィット印刷</option>
+        <option value="real">等倍印刷</option>
+      </select>
+      <div class="checkbox-wrapper" id="wrap-lbp441" style="display: none; margin-left: -4px;">
+        <input type="checkbox" id="chk-lbp441" checked>
+        <label for="chk-lbp441" style="color:var(--accent-cyan); font-weight:600;">LBP441補正</label>
+      </div>
+      <button class="btn btn-print" id="btn-print" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>印刷
+      </button>
+    </div>
+    <div class="action-divider"></div>
+    <div class="checkbox-wrapper"><input type="checkbox" id="chk-fill" checked><label for="chk-fill">半透明塗り</label></div>
+    <div class="checkbox-wrapper"><input type="checkbox" id="chk-keep-rotation"><label for="chk-keep-rotation">角度維持</label></div>
+    <div class="checkbox-wrapper"><input type="checkbox" id="chk-bent-frontage"><label for="chk-bent-frontage" style="color:var(--accent-magenta); font-weight:600;">屈折間口</label></div>
+  </div>
+
+
+  <!-- SVG Canvas -->
+  <div class="svg-canvas-wrapper" id="svg-canvas-wrapper">
+    <div class="svg-placeholder" id="svg-placeholder">
+      <div class="svg-placeholder-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></div>
+      <p>GeoJSONファイルをアップロードしてください</p>
+      <small>Polygon / MultiPolygon 形式に対応（複数ファイル可・ドラッグ＆ドロップ対応）</small>
+    </div>
+    <div id="svg-container" style="display:none;"></div>
+  </div>
+
+  <!-- Info Bar -->
+  <div class="info-bar" id="info-bar" style="display:none;">
+    <div class="info-chip"><span class="dot" style="background:var(--accent-green)"></span><span id="info-paths">パス: 0</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-blue)"></span><span id="info-vertices">頂点: 0</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-orange)"></span><span id="info-selection">選択: なし</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-purple)"></span><span id="info-scale">縮尺: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-cyan)"></span><span id="info-dimensions">寸法: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-yellow)"></span><span id="info-angle">角度: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-green)"></span><span id="info-area">想定整形地面積: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-yellow)"></span><span id="info-path-area">不整形地面積合計: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-orange)"></span><span id="info-kagechi">かげ地割合: -</span></div>
+    <div class="info-chip" id="chip-depth" style="display:none;"><span class="dot" style="background:#d946ef"></span><span id="info-depth">平均奥行距離: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-cyan)"></span><span id="info-map-type">地図種類: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-purple)"></span><span id="info-map-class">地図分類: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-orange)"></span><span id="info-precision">精度区分: -</span></div>
+    <div class="info-chip"><span class="dot" style="background:var(--accent-blue)"></span><span id="info-coord-type">座標値種別: -</span></div>
+  </div>
+
+  <!-- External Map Integration Container -->
+  <div id="map-integration-container" style="display:none; padding:16px 20px; background:var(--surface-glass); border:1px solid var(--border-primary); border-radius:var(--radius-md); margin-top: 16px;">
+    <div style="font-weight:600; margin-bottom:12px; font-size:14px; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
+       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+       <span>外部マップ連携 <small style="color:var(--text-secondary); font-weight:normal;" id="map-status-text"></small></span>
+    </div>
+    <div id="map-links" style="display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;"></div>
+    <div id="map-iframes" style="display:flex; gap:16px; flex-wrap:wrap;"></div>
+  </div>
+</div>
+<div id="print-target"></div>
+<div id="toast" class="toast"></div>
+
+<!-- Map notification banner -->
+<div id="map-banner" class="map-banner">
+  <span id="map-banner-text">外部マップの埋め込み準備が完了しました</span>
+  <button onclick="window.loadMapIframes(); document.getElementById('map-integration-container').scrollIntoView({behavior:'smooth'}); document.getElementById('map-banner').classList.remove('show');">地図を見る</button>
+</div>
+
+<script>
+'use strict';
+const NS = 'http://www.w3.org/2000/svg';
+
+// Map offsets for Chikamap integration
+const CHIKAMAP_OFFSET_X = 0.003725;
+const CHIKAMAP_OFFSET_Y = -0.00275;
+
+
+window.loadMapIframes = function() {
+  document.querySelectorAll('#map-iframes iframe').forEach(i => {
+    if (i.getAttribute('data-src')) {
+      i.src = i.getAttribute('data-src');
+      i.style.display = '';
+    }
+  });
+  const ph = document.getElementById('map-load-placeholder');
+  if (ph) ph.style.display = 'none';
+};
+
+// =============================================================================
+// State
+// =============================================================================
+const State = {
+  geojson: null,
+  paths: [],             // [{pathIndex, vertices:[{x,y}]}]
+  originalPaths: [],     // deep clone before rotation
+  features: [],          // [{featureId, properties, outerRingPathIndices:[]}]
+  allVertices: [],
+  selectedEdge: null,
+  selectedVertices: [],
+  mode: 'edge',
+  isRotated: false,
+  rotationAngle: 0,
+  rotationCenter: null,  // {cx, cy} for reverse transform
+  svgBounds: null,
+  // Style settings — warm theme defaults
+  strokeColor: '#8b5e34',
+  fillColor: '#c4872e',
+  fillEnabled: true,
+  fillOpacity: 0.15,
+  strokeOpacity: 1.0,
+  svgBgColor: '#f5f0e8',
+  // Label settings
+  labelFontSize: 12,
+  labelColor: '#3d2e1c',
+};
+
+// Theme color profiles
+const ThemeProfiles = {
+  warm: {
+    strokeColor: '#8b5e34', fillColor: '#c4872e', svgBgColor: '#f5f0e8', labelColor: '#3d2e1c',
+    dimColor: '#2d8a56', boundingColor: '#2d8a56', assumedColor: '#d97706',
+    edgeHover: 'rgba(196,135,46,0.45)', vertexColor: '#8b5e34'
+  },
+  cool: {
+    strokeColor: '#38bdf8', fillColor: '#3b82f6', svgBgColor: '#0f1520', labelColor: '#e2e8f0',
+    dimColor: '#4ade80', boundingColor: '#4ade80', assumedColor: '#fb923c',
+    edgeHover: 'rgba(56,189,248,0.45)', vertexColor: '#38bdf8'
+  }
+};
+
+// =============================================================================
+// Utilities
+// =============================================================================
+function showToast(m, t = 'info', duration = 3400) {
+  const el = document.getElementById('toast');
+  el.textContent = m; el.className = `toast ${t} show`;
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), duration);
+}
+function dist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
+
+function getScaleDenominator() {
+  const sel = document.getElementById('scale-select').value;
+  if (sel !== 'auto') return Number(sel);
+  // In auto mode, check GeoJSON properties
+  if (!State.geojson) return null;
+  const feats = State.geojson.features || (State.geojson.type === 'Feature' ? [State.geojson] : []);
+  for (const f of feats) {
+    if (!f.properties) continue;
+    const raw = f.properties.scale || f.properties.Scale || f.properties.縮尺
+      || f.properties.scaleDenominator || f.properties.scale_denominator
+      || f.properties.縮尺分母;
+    if (raw != null && !isNaN(Number(raw)) && Number(raw) > 0) return Number(raw);
+  }
+  return null;
+}
+
+/**
+ * Convert SVG coordinate distance to real-world distance.
+ * 座標値は常にメートル(m)としてそのまま扱います。
+ */
+function convertDistance(svgDist) {
+  return { meters: svgDist, label: `${svgDist.toFixed(3)} m`, unit: 'm' };
+}
+
+function fmtDist(v) {
+  return convertDistance(Math.abs(v)).label;
+}
+
+// =============================================================================
+// Dijkstra Shortest Path across Polygons
+// =============================================================================
+function computeShortestPath(paths, vA, vB) {
+  const nodes = [];
+  const EPSILON = 1e-6;
+  
+  function findOrCreateNode(x, y) {
+    for (const n of nodes) {
+      if (Math.abs(n.x - x) < EPSILON && Math.abs(n.y - y) < EPSILON) return n;
+    }
+    const newNode = { id: nodes.length, x, y, edges: [] };
+    nodes.push(newNode);
+    return newNode;
+  }
+
+  for (const p of paths) {
+    const verts = p.vertices;
+    if (verts.length < 2) continue;
+    const ringNodes = verts.map(v => findOrCreateNode(v.x, v.y));
+    for (let i = 0; i < ringNodes.length; i++) {
+      const u = ringNodes[i];
+      const v = ringNodes[(i + 1) % ringNodes.length]; // Z closing
+      if (u.id !== v.id) {
+        const d = dist(u, v);
+        if (!u.edges.find(e => e.to.id === v.id)) u.edges.push({ to: v, weight: d });
+        if (!v.edges.find(e => e.to.id === u.id)) v.edges.push({ to: u, weight: d });
+      }
+    }
+  }
+
+  const startNode = findOrCreateNode(vA.x, vA.y);
+  const endNode = findOrCreateNode(vB.x, vB.y);
+  if (startNode.id === endNode.id) return { path: [startNode], totalDist: 0 };
+
+  const distances = new Map();
+  const prev = new Map();
+  for (const n of nodes) distances.set(n.id, Infinity);
+  distances.set(startNode.id, 0);
+
+  const pq = [{ node: startNode, d: 0 }];
+  let found = false;
+
+  while (pq.length > 0) {
+    pq.sort((a, b) => a.d - b.d);
+    const curr = pq.shift();
+    const u = curr.node;
+
+    if (u.id === endNode.id) { found = true; break; }
+    if (curr.d > distances.get(u.id)) continue;
+
+    for (const edge of u.edges) {
+      const v = edge.to;
+      const alt = distances.get(u.id) + edge.weight;
+      if (alt < distances.get(v.id)) {
+        distances.set(v.id, alt);
+        prev.set(v.id, u);
+        pq.push({ node: v, d: alt });
+      }
+    }
+  }
+
+  if (!found) return null;
+
+  const path = [];
+  let curr = endNode;
+  while (curr) {
+    path.unshift(curr);
+    curr = prev.get(curr.id);
+  }
+  
+  return { path, totalDist: distances.get(endNode.id) };
+}
+
+// =============================================================================
+// Geometry helpers (Feature 7: centroid/area)
+// =============================================================================
+function computePolygonArea(verts) {
+  let a = 0; const n = verts.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) a += verts[j].x * verts[i].y - verts[i].x * verts[j].y;
+  return Math.abs(a) / 2;
+}
+
+function computeCentroid(verts) {
+  let a = 0, cx = 0, cy = 0; const n = verts.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const cross = verts[j].x * verts[i].y - verts[i].x * verts[j].y;
+    a += cross; cx += (verts[j].x + verts[i].x) * cross; cy += (verts[j].y + verts[i].y) * cross;
+  }
+  a /= 2;
+  if (Math.abs(a) < 1e-12) {
+    const sx = verts.reduce((s, p) => s + p.x, 0), sy = verts.reduce((s, p) => s + p.y, 0);
+    return { x: sx / n, y: sy / n };
+  }
+  return { x: cx / (6 * a), y: cy / (6 * a) };
+}
+
+/** Feature 7: extract label text from GeoJSON properties */
+function extractLabelText(props) {
+  if (!props) return null;
+  const fields = ['大字名', '丁目名', '小字名', '予備名', '地番'];
+  const parts = fields.map(f => props[f]).filter(v => v != null && v !== '');
+  return parts.length > 0 ? parts.join(' ') : null;
+}
+
+// =============================================================================
+// GeoJSON → path extraction (modified for Feature 6+7)
+// =============================================================================
+function ringToVertices(ring) {
+  // GeoJSON: [longitude, latitude] — latitude (Y) increases northward
+  // SVG: Y increases downward → negate Y to fix vertical flip
+  const vs = ring.map(c => ({ x: c[0], y: -c[1] }));
+  if (vs.length < 2) return vs;
+  const f = vs[0], l = vs[vs.length - 1];
+  if (f.x !== l.x || f.y !== l.y) vs.push({ x: f.x, y: f.y });
+  return vs;
+}
+
+function extractPaths(geojson) {
+  const paths = [], features = [];
+  let pIdx = 0, fIdx = 0;
+
+  function addGeom(geom, properties) {
+    if (!geom) return;
+    const feat = { featureId: fIdx++, properties: properties || {}, outerRingPathIndices: [] };
+    function addRings(rings) {
+      for (let r = 0; r < rings.length; r++) {
+        if (rings[r].length < 2) continue;
+        const pi = pIdx++;
+        paths.push({ pathIndex: pi, vertices: ringToVertices(rings[r]) });
+        if (r === 0) feat.outerRingPathIndices.push(pi);
+      }
+    }
+    if (geom.type === 'Polygon') addRings(geom.coordinates);
+    else if (geom.type === 'MultiPolygon') for (const poly of geom.coordinates) addRings(poly);
+    if (feat.outerRingPathIndices.length > 0) features.push(feat);
+  }
+
+  if (geojson.type === 'FeatureCollection')
+    for (const f of (geojson.features || [])) addGeom(f.geometry, f.properties);
+  else if (geojson.type === 'Feature') addGeom(geojson.geometry, geojson.properties);
+  else addGeom(geojson, null);
+
+  return { paths, features };
+}
+
+function uniqueRingVerts(vertices) {
+  if (!vertices.length) return [];
+  const res = [vertices[0]];
+  for (let i = 1; i < vertices.length; i++) {
+    const p = vertices[i], prev = vertices[i - 1];
+    if (p.x === prev.x && p.y === prev.y) continue;
+    if (i === vertices.length - 1 && p.x === vertices[0].x && p.y === vertices[0].y) continue;
+    res.push(p);
+  }
+  return res;
+}
+
+// =============================================================================
+// Bounds & Rotation
+// =============================================================================
+function computeBounds(paths) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of paths) for (const v of p.vertices) {
+    if (v.x < minX) minX = v.x; if (v.y < minY) minY = v.y;
+    if (v.x > maxX) maxX = v.x; if (v.y > maxY) maxY = v.y;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function rotatePaths(paths, theta) {
+  const c = Math.cos(theta), s = Math.sin(theta);
+  for (const p of paths) for (const v of p.vertices) {
+    const nx = v.x * c - v.y * s, ny = v.x * s + v.y * c; v.x = nx; v.y = ny;
+  }
+}
+
+function sf() { return State.svgBounds ? Math.max(State.svgBounds.vbW, State.svgBounds.vbH) / 600 : 1; }
+
+// =============================================================================
+// SVG Rendering
+// =============================================================================
+function buildPathD(verts) {
+  let d = `M ${verts[0].x} ${verts[0].y}`;
+  for (let i = 1; i < verts.length; i++) d += ` L ${verts[i].x} ${verts[i].y}`;
+  return d + ' Z';
+}
+
+function makeLine(v1, v2, cls) {
+  const el = document.createElementNS(NS, 'line');
+  el.setAttribute('x1', v1.x); el.setAttribute('y1', v1.y);
+  el.setAttribute('x2', v2.x); el.setAttribute('y2', v2.y);
+  el.setAttribute('class', cls); return el;
+}
+
+function renderSVG(paths) {
+  const container = document.getElementById('svg-container');
+  const placeholder = document.getElementById('svg-placeholder');
+  const wrapper = document.getElementById('svg-canvas-wrapper');
+  container.innerHTML = ''; container.style.display = 'flex';
+  placeholder.style.display = 'none'; wrapper.classList.add('has-content');
+  if (!paths.length) return;
+
+  const bounds = computeBounds(paths);
+  const dw = bounds.maxX - bounds.minX, dh = bounds.maxY - bounds.minY;
+  const padBase = Math.max(dw, dh) * 0.15;
+  const vbMinX = bounds.minX - padBase, vbMinY = bounds.minY - padBase;
+  const vbW = dw + padBase * 2.8, vbH = dh + padBase * 2.8;
+  State.svgBounds = { vbMinX, vbMinY, vbW, vbH };
+
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('xmlns', NS);
+  svg.setAttribute('viewBox', `${vbMinX} ${vbMinY} ${vbW} ${vbH}`);
+  svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%');
+  svg.style.maxHeight = '68vh'; svg.style.display = 'block';
+  const s = sf();
+
+  // Determine fill/stroke from state
+  const strokeCol = State.strokeColor;
+  const strokeOp = State.strokeOpacity;
+  const fillCol = State.fillEnabled ? State.fillColor : 'none';
+  const fillOp = State.fillEnabled ? State.fillOpacity : 0;
+
+  // ① Path group (layer 1)
+  const pathGroup = document.createElementNS(NS, 'g'); pathGroup.id = 'path-group';
+  for (const p of paths) {
+    if (p.vertices.length < 2) continue;
+    const el = document.createElementNS(NS, 'path');
+    el.setAttribute('d', buildPathD(p.vertices));
+    el.setAttribute('class', 'geo-path');
+    el.setAttribute('data-path-index', p.pathIndex);
+    el.style.stroke = strokeCol; el.style.strokeWidth = `${1.8 * s}px`;
+    el.style.strokeOpacity = strokeOp;
+    el.style.fill = fillCol; el.style.fillOpacity = fillOp;
+    pathGroup.appendChild(el);
+  }
+  svg.appendChild(pathGroup);
+
+  // Edge group
+  const edgeG = document.createElementNS(NS, 'g'); edgeG.id = 'edge-group';
+  for (const p of paths) {
+    const uv = uniqueRingVerts(p.vertices), n = uv.length;
+    for (let i = 0; i < n; i++) {
+      const v1 = uv[i], v2 = uv[(i + 1) % n];
+      if (v1.x === v2.x && v1.y === v2.y) continue;
+      const g = document.createElementNS(NS, 'g');
+      g.setAttribute('class', 'geo-edge-group'); g.setAttribute('data-path-index', p.pathIndex);
+      g.setAttribute('data-edge-index', i);
+      const vis = makeLine(v1, v2, 'geo-edge'); vis.style.stroke = `rgba(56,189,248,0.45)`; vis.style.strokeWidth = `${2 * s}px`;
+      const hit = makeLine(v1, v2, 'geo-edge-hit'); hit.style.strokeWidth = `${10 * s}px`;
+      hit.addEventListener('click', onEdgeClick);
+      g.appendChild(vis); g.appendChild(hit); edgeG.appendChild(g);
+    }
+  }
+  svg.appendChild(edgeG);
+
+  // Vertex group
+  const vtxG = document.createElementNS(NS, 'g'); vtxG.id = 'vertex-group';
+  if (State.mode === 'vertex') vtxG.classList.add('active');
+  State.allVertices = [];
+  for (const p of paths) {
+    const uv = uniqueRingVerts(p.vertices);
+    for (let i = 0; i < uv.length; i++) {
+      const v = uv[i];
+      State.allVertices.push({ x: v.x, y: v.y, pathIndex: p.pathIndex, vertexIndex: i });
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', v.x); c.setAttribute('cy', v.y); c.setAttribute('r', 4 * s);
+      c.setAttribute('class', 'geo-vertex'); c.setAttribute('data-path-index', p.pathIndex);
+      c.setAttribute('data-vertex-index', i);
+      c.style.fill = strokeCol; c.style.stroke = 'var(--bg-primary)'; c.style.strokeWidth = `${1.5 * s}px`;
+      c.addEventListener('click', onVertexClick);
+      c.addEventListener('mouseenter', () => c.classList.add('hovered'));
+      c.addEventListener('mouseleave', () => c.classList.remove('hovered'));
+      vtxG.appendChild(c);
+    }
+  }
+  svg.appendChild(vtxG);
+
+  // ④ Label group — 地番ラベル (Feature 7, layer 4)
+  const labelG = document.createElementNS(NS, 'g'); labelG.id = 'label-group';
+  renderParcelLabels(labelG, paths, State.features, s);
+  svg.appendChild(labelG);
+  // Aux group (bounding rect, dimensions, 想定整形地 added in drawBoundingAndDimensions)
+  const auxG = document.createElementNS(NS, 'g'); auxG.id = 'aux-group';
+  svg.appendChild(auxG);
+
+  container.appendChild(svg);
+  // Apply SVG BG color
+  wrapper.style.background = State.svgBgColor;
+  updateInfoBar(paths);
+}
+
+function drawGuideLine(p1, p2) {
+  clearGuide(); const aux = getAux(); if (!aux) return; const s0 = sf();
+  const useBentFrontage = document.getElementById('chk-bent-frontage') ? document.getElementById('chk-bent-frontage').checked : false;
+
+  function addSegLabel(x, y, text, size, color) {
+    const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'edge-distance-label');
+    const r = document.createElementNS(NS, 'rect');
+    const lh = size * 1.3, pw = size * 0.6;
+    const estW = text.length * size * 0.55 + pw * 1.5;
+    r.setAttribute('x', x - estW/2); r.setAttribute('y', y - lh/2);
+    r.setAttribute('width', estW); r.setAttribute('height', lh);
+    r.setAttribute('fill', 'rgba(255,255,255,0.85)'); r.setAttribute('rx', size * 0.2);
+    g.appendChild(r);
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', x); t.setAttribute('y', y);
+    t.setAttribute('text-anchor', 'middle'); t.setAttribute('dominant-baseline', 'central');
+    t.style.fontSize = `${size}px`; t.style.fill = color; t.style.fontWeight = 'bold';
+    t.textContent = text; g.appendChild(t); aux.appendChild(g);
+  }
+
+  if (useBentFrontage && State.mode === 'vertex') {
+    const res = computeShortestPath(State.paths, p1, p2);
+    if (!res) {
+      showToast('エラー: ポリゴンが分断されており経路が存在しません', 'error');
+      State.shortestPathResult = null;
+      return; 
+    }
+    State.shortestPathResult = res;
+
+    const poly = document.createElementNS(NS, 'polyline');
+    const pts = res.path.map(n => `${n.x},${n.y}`).join(' ');
+    poly.setAttribute('points', pts);
+    poly.setAttribute('fill', 'none');
+    poly.setAttribute('stroke', '#d946ef');
+    poly.style.strokeWidth = `${3 * s0}px`;
+    poly.style.strokeLinejoin = 'round';
+    poly.setAttribute('class', 'guide-line');
+    aux.appendChild(poly);
+
+    for (let i = 0; i < res.path.length - 1; i++) {
+        const u = res.path[i], v = res.path[i+1], d = dist(u, v);
+        if (d > 0.001) addSegLabel((u.x + v.x)/2, (u.y + v.y)/2, fmtDist(d), 11 * s0, '#d946ef');
+    }
+    addSegLabel((p1.x + p2.x)/2, ((p1.y + p2.y)/2) - (15 * s0), `合計: ${fmtDist(res.totalDist)}`, 13 * s0, '#d946ef');
+
+  } else {
+    State.shortestPathResult = null;
+    const line = document.createElementNS(NS, 'line');
+    line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+    line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+    line.setAttribute('class', 'guide-line'); line.style.strokeWidth = `${1.5 * s0}px`;
+    line.style.strokeDasharray = `${7 * s0} ${5 * s0}`; aux.appendChild(line);
+    
+    // Original label
+    const len = dist(p1, p2);
+    addSegLabel((p1.x + p2.x)/2, (p1.y + p2.y)/2, fmtDist(len), 12 * s0, '#f97316');
+  }
+
+  // Endpoints
+  [p1, p2].forEach(p => {
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 3 * s0);
+    c.setAttribute('fill', '#fb923c'); c.setAttribute('stroke', 'none'); c.style.opacity = '0.8';
+    c.setAttribute('class', 'guide-endpoint');
+    aux.appendChild(c);
+  });
+}
+
+/** Feature 7: render parcel labels at centroid */
+function renderParcelLabels(group, paths, features, s) {
+  for (const feat of features) {
+    const labelText = extractLabelText(feat.properties);
+    if (!labelText) continue;
+    // Find largest outer ring
+    let maxArea = 0, bestPath = null;
+    for (const pi of feat.outerRingPathIndices) {
+      const p = paths.find(pp => pp.pathIndex === pi);
+      if (!p) continue;
+      const uv = uniqueRingVerts(p.vertices);
+      const area = computePolygonArea(uv);
+      if (area > maxArea) { maxArea = area; bestPath = p; }
+    }
+    if (!bestPath) continue;
+    const uv = uniqueRingVerts(bestPath.vertices);
+    const c = computeCentroid(uv);
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', c.x); t.setAttribute('y', c.y);
+    t.setAttribute('text-anchor', 'middle'); t.setAttribute('dominant-baseline', 'central');
+    t.setAttribute('class', 'parcel-label');
+    t.style.fontSize = `${State.labelFontSize * s}px`;
+    t.style.fill = State.labelColor;
+    t.style.fontFamily = 'Inter, sans-serif'; t.style.fontWeight = '500';
+    t.textContent = labelText;
+    group.appendChild(t);
+  }
+}
+
+// =============================================================================
+// Dijkstra Shortest Path
+// =============================================================================
+function computeShortestPath(paths, start, end) {
+  const nodes = [];
+  const adj = new Map();
+  function addNode(p) {
+    const key = `${p.x.toFixed(6)},${p.y.toFixed(6)}`;
+    if (!adj.has(key)) { nodes.push(p); adj.set(key, []); }
+    return key;
+  }
+  for (const p of paths) {
+    const uv = uniqueRingVerts(p.vertices);
+    for (let i = 0; i < uv.length; i++) {
+      const u = uv[i], v = uv[(i + 1) % uv.length];
+      const k1 = addNode(u), k2 = addNode(v);
+      const d = dist(u, v);
+      adj.get(k1).push({ to: k2, d }); adj.get(k2).push({ to: k1, d });
+    }
+  }
+  const startKey = `${start.x.toFixed(6)},${start.y.toFixed(6)}`, endKey = `${end.x.toFixed(6)},${end.y.toFixed(6)}`;
+  if (!adj.has(startKey) || !adj.has(endKey)) return null;
+  const dists = new Map(), prev = new Map(), pq = [{ k: startKey, d: 0 }];
+  dists.set(startKey, 0);
+  while (pq.length > 0) {
+    pq.sort((a, b) => a.d - b.d);
+    const { k, d } = pq.shift();
+    if (d > (dists.get(k) ?? Infinity)) continue;
+    if (k === endKey) break;
+    for (const edge of adj.get(k)) {
+      const newD = d + edge.d;
+      if (newD < (dists.get(edge.to) ?? Infinity)) {
+        dists.set(edge.to, newD); prev.set(edge.to, k);
+        pq.push({ k: edge.to, d: newD });
+      }
+    }
+  }
+  if (!dists.has(endKey)) return null;
+  const path = [], totalDist = dists.get(endKey);
+  for (let at = endKey; at; at = prev.get(at)) {
+    const [x, y] = at.split(',').map(Number);
+    path.unshift({ x, y });
+  }
+  return { path, totalDist };
+}
+
+// =============================================================================
+// Auxiliary graphics
+// =============================================================================
+function getAux() { return document.getElementById('aux-group'); }
+function clearAux() { const g = getAux(); if (g) g.innerHTML = ''; }
+/** Clear only guide lines and distance labels, preserving bounding rect/dimensions */
+function clearGuide() {
+  const g = getAux(); if (!g) return;
+  g.querySelectorAll('.guide-line, .guide-endpoint, .edge-distance-label, .edge-distance-label-outline').forEach(el => el.remove());
+}
+
+function drawBoundingAndDimensions(paths) {
+  const aux = getAux(); if (!aux) return;
+  const s0 = sf(), bnd = computeBounds(paths);
+  const { minX, minY, maxX, maxY } = bnd, W = maxX - minX, H = maxY - minY;
+
+  // ② Bounding rect (layer 2)
+  const rect = document.createElementNS(NS, 'rect');
+  rect.setAttribute('x', minX); rect.setAttribute('y', minY);
+  rect.setAttribute('width', W); rect.setAttribute('height', H);
+  rect.setAttribute('class', 'bounding-rect');
+  rect.style.strokeWidth = `${s0}px`; rect.style.strokeDasharray = `${5 * s0} ${4 * s0}`;
+  aux.appendChild(rect);
+
+  const fs = 10 * s0, off = 8 * s0, tick = 5 * s0;
+  const wLabel = fmtDist(W), hLabel = fmtDist(H);
+  const scaleStr = getScaleDenominator() ? `縮尺 1:${getScaleDenominator()}` : null;
+
+  // ③ Width dimension (bottom, layer 3)
+  addDimLine(aux, minX, maxY + off, minX, maxY + off + tick, s0);
+  addDimLine(aux, maxX, maxY + off, maxX, maxY + off + tick, s0);
+  addDimLine(aux, minX, maxY + off + tick / 2, maxX, maxY + off + tick / 2, s0);
+  addDimText(aux, (minX + maxX) / 2, maxY + off + tick + fs * 1.3, `想定整形地間口: ${wLabel}`, 'middle', fs);
+  if (scaleStr) addDimText(aux, (minX + maxX) / 2, maxY + off + tick + fs * 2.6, scaleStr, 'middle', fs * 0.85);
+
+  // ③ Height dimension (right side, VERTICAL text — Feature 2, layer 3)
+  addDimLine(aux, maxX + off, minY, maxX + off + tick, minY, s0);
+  addDimLine(aux, maxX + off, maxY, maxX + off + tick, maxY, s0);
+  addDimLine(aux, maxX + off + tick / 2, minY, maxX + off + tick / 2, maxY, s0);
+
+  // Vertical text via writing-mode (NOT a transform — text layout property)
+  const hText = document.createElementNS(NS, 'text');
+  hText.setAttribute('x', maxX + off + tick + fs * 1.2);
+  hText.setAttribute('y', (minY + maxY) / 2);
+  hText.setAttribute('text-anchor', 'middle');
+  hText.setAttribute('dominant-baseline', 'central');
+  hText.setAttribute('class', 'dim-text');
+  hText.style.fontSize = `${fs}px`;
+  hText.style.writingMode = 'vertical-rl';
+  hText.style.textOrientation = 'mixed';
+  hText.textContent = `想定整形地奥行: ${hLabel}`;
+  aux.appendChild(hText);
+
+  if (scaleStr) {
+    const hsText = document.createElementNS(NS, 'text');
+    hsText.setAttribute('x', maxX + off + tick + fs * 2.6);
+    hsText.setAttribute('y', (minY + maxY) / 2);
+    hsText.setAttribute('text-anchor', 'middle');
+    hsText.setAttribute('dominant-baseline', 'central');
+    hsText.setAttribute('class', 'dim-text');
+    hsText.style.fontSize = `${fs * 0.85}px`;
+    hsText.style.writingMode = 'vertical-rl';
+    hsText.style.textOrientation = 'mixed';
+    hsText.textContent = scaleStr;
+    aux.appendChild(hsText);
+  }
+
+  // ⑤「想定整形地」label (Feature 3, layer 5 — topmost)
+  const assumedLabel = document.createElementNS(NS, 'text');
+  assumedLabel.setAttribute('x', minX);
+  assumedLabel.setAttribute('y', minY - off * 1.5);
+  assumedLabel.setAttribute('text-anchor', 'start');
+  assumedLabel.setAttribute('class', 'label-assumed');
+  assumedLabel.style.fontSize = `${fs * 1.2}px`;
+  assumedLabel.textContent = '想定整形地';
+  aux.appendChild(assumedLabel);
+
+  // Calculate area using real distances
+  const wReal = convertDistance(W);
+  const hReal = convertDistance(H);
+  const areaM2 = (wReal.meters || W) * (hReal.meters || H);
+  State.lastRectArea = areaM2; // store for print
+
+  document.getElementById('info-dimensions').textContent = `寸法: 間口 ${fmtDist(W)} × 奥行 ${fmtDist(H)}`;
+  document.getElementById('info-area').textContent = `想定整形地面積: ${areaM2.toFixed(2)} ㎡`;
+  updateKagechiRatio();
+}
+
+function addDimLine(aux, x1, y1, x2, y2, s0) {
+  const l = document.createElementNS(NS, 'line');
+  l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+  l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+  l.setAttribute('class', 'dim-line'); l.style.strokeWidth = `${s0}px`;
+  aux.appendChild(l);
+}
+
+function addDimText(aux, x, y, text, anchor, size) {
+  const t = document.createElementNS(NS, 'text');
+  t.setAttribute('x', x); t.setAttribute('y', y);
+  t.setAttribute('text-anchor', anchor); t.setAttribute('class', 'dim-text');
+  t.style.fontSize = `${size}px`; t.textContent = text;
+  aux.appendChild(t);
+}
+
+// =============================================================================
+// Info bar
+// =============================================================================
+function updateInfoBar(paths) {
+  document.getElementById('info-bar').style.display = 'flex';
+  document.getElementById('info-bar').classList.add('animate-in');
+  document.getElementById('info-paths').textContent = `パス: ${paths.length}`;
+  document.getElementById('info-vertices').textContent = `頂点: ${State.allVertices.length}`;
+  updateSelectionInfo(); updateScaleInfo();
+  // Calculate total path area (Shoelace formula)
+  computeTotalPathArea(paths);
+}
+
+/** Compute total area from all paths using Shoelace formula */
+function computeTotalPathArea(paths) {
+  let totalSvgArea = 0;
+  for (const p of paths) {
+    const verts = uniqueRingVerts(p.vertices);
+    if (verts.length < 3) continue;
+    totalSvgArea += computePolygonArea(verts);
+  }
+
+  // Coordinates are always meters → area is m²
+  let areaM2 = totalSvgArea;
+
+  State.lastPathArea = areaM2;
+  document.getElementById('info-path-area').textContent = `不整形地面積合計: ${areaM2.toFixed(2)} ㎡（参考、自動計算）`;
+  updateKagechiRatio();
+  updateDepthInfo();
+}
+
+/** Calculate かげ地割合 = 不整形地面積合計 / 想定整形地面積 × 100 */
+function updateKagechiRatio() {
+  State.lastKagechiRatio = null;
+  const el = document.getElementById('info-kagechi');
+  if (State.lastPathArea != null && State.lastRectArea != null && State.lastRectArea > 0) {
+    const ratio = ((State.lastRectArea - State.lastPathArea) / State.lastRectArea) * 100;
+    State.lastKagechiRatio = ratio;
+    el.textContent = `かげ地割合: ${ratio.toFixed(2)} %（参考、自動計算）`;
+  } else {
+    el.textContent = 'かげ地割合: -';
+  }
+}
+
+function updateSelectionInfo() {
+  const el = document.getElementById('info-selection');
+  if (State.mode === 'edge' && State.selectedEdge) {
+    el.textContent = `選択: 辺 ${fmtDist(dist(State.selectedEdge.p1, State.selectedEdge.p2))}`;
+  } else if (State.mode === 'vertex' && State.selectedVertices.length > 0) {
+    if (State.selectedVertices.length === 2) {
+      if (State.shortestPathResult) {
+        el.textContent = `選択: 屈折経路 ${State.shortestPathResult.totalDist.toFixed(3)} m`;
+      } else {
+        el.textContent = `選択: 2頂点 ${fmtDist(dist(State.selectedVertices[0], State.selectedVertices[1]))}`;
+      }
+    }
+    else el.textContent = `選択: ${State.selectedVertices.length}頂点`;
+  } else el.textContent = '選択: なし';
+  updateDepthInfo();
+}
+
+function updateDepthInfo() {
+  const el = document.getElementById('info-depth');
+  const chip = document.getElementById('chip-depth');
+  if (!el || !chip) return;
+  State.lastDepth = null;
+
+  if (State.isRotated && State.lastPathArea != null) {
+    let selDist = null;
+    if (State.mode === 'edge' && State.selectedEdge) {
+      selDist = dist(State.selectedEdge.p1, State.selectedEdge.p2);
+    } else if (State.mode === 'vertex' && State.selectedVertices.length === 2) {
+      selDist = State.shortestPathResult ? State.shortestPathResult.totalDist : dist(State.selectedVertices[0], State.selectedVertices[1]);
+    }
+    
+    if (selDist != null && selDist > 0) {
+      const depth = State.lastPathArea / selDist;
+      State.lastDepth = depth;
+      // ユーザーの指定要件に基づき、単位は「㎡」として表記する
+      el.textContent = `平均奥行距離: ${depth.toFixed(3)} ㎡（参考、自動計算）`;
+      chip.style.display = 'inline-flex';
+      return;
+    }
+  }
+  chip.style.display = 'none';
+  el.textContent = '平均奥行距離: -';
+}
+
+function updateScaleInfo() {
+  const d = getScaleDenominator();
+  document.getElementById('info-scale').textContent = d ? `印刷縮尺: 1:${d}` : '印刷縮尺: 未設定';
+}
+
+function updateAngleInfo(theta) {
+  document.getElementById('info-angle').textContent = theta != null ? `角度: ${(theta * 180 / Math.PI).toFixed(3)}°` : '角度: -';
+}
+
+// =============================================================================
+// Selection handlers
+// =============================================================================
+function onEdgeClick(e) {
+  if (State.mode !== 'edge') return; e.stopPropagation();
+  const hit = e.currentTarget, group = hit.parentElement;
+  document.querySelectorAll('#edge-group .geo-edge-group.selected').forEach(g => g.classList.remove('selected'));
+  group.classList.add('selected');
+  const x1 = +hit.getAttribute('x1'), y1 = +hit.getAttribute('y1');
+  const x2 = +hit.getAttribute('x2'), y2 = +hit.getAttribute('y2');
+  State.selectedEdge = { pathIndex: +group.getAttribute('data-path-index'), edgeIndex: +group.getAttribute('data-edge-index'), p1: { x: x1, y: y1 }, p2: { x: x2, y: y2 } };
+  State.selectedVertices = [];
+  drawGuideLine({ x: x1, y: y1 }, { x: x2, y: y2 });
+  document.getElementById('btn-execute').disabled = false;
+  updateSelectionInfo(); showToast('辺を選択しました', 'info');
+}
+
+function onVertexClick(e) {
+  if (State.mode !== 'vertex') return; e.stopPropagation();
+  const circle = e.currentTarget;
+  const pathIdx = +circle.getAttribute('data-path-index'), vtxIdx = +circle.getAttribute('data-vertex-index');
+  const x = +circle.getAttribute('cx'), y = +circle.getAttribute('cy');
+  const existing = State.selectedVertices.findIndex(v => v.pathIndex === pathIdx && v.vertexIndex === vtxIdx);
+  if (existing >= 0) { State.selectedVertices.splice(existing, 1); circle.classList.remove('selected'); }
+  else {
+    if (State.selectedVertices.length >= 2) {
+      const old = State.selectedVertices.shift();
+      const oldEl = document.querySelector(`#vertex-group .geo-vertex[data-path-index="${old.pathIndex}"][data-vertex-index="${old.vertexIndex}"]`);
+      if (oldEl) oldEl.classList.remove('selected');
+    }
+    State.selectedVertices.push({ pathIndex: pathIdx, vertexIndex: vtxIdx, x, y });
+    circle.classList.add('selected');
+  }
+  State.selectedEdge = null; clearGuide();
+  if (State.selectedVertices.length === 2) {
+    drawGuideLine(State.selectedVertices[0], State.selectedVertices[1]);
+    document.getElementById('btn-execute').disabled = false;
+  } else document.getElementById('btn-execute').disabled = true;
+  updateSelectionInfo();
+}
+
+function updateModeUI() {
+  const eG = document.getElementById('edge-group'), vG = document.getElementById('vertex-group');
+  if (!eG || !vG) return;
+  if (State.mode === 'edge') { eG.style.display = ''; vG.classList.remove('active'); }
+  else { eG.style.display = 'none'; vG.classList.add('active'); }
+}
+
+// =============================================================================
+// Rotation
+// =============================================================================
+function executeRotation() {
+  let p1, p2;
+  if (State.mode === 'edge' && State.selectedEdge) { p1 = State.selectedEdge.p1; p2 = State.selectedEdge.p2; }
+  else if (State.mode === 'vertex' && State.selectedVertices.length === 2) { p1 = State.selectedVertices[0]; p2 = State.selectedVertices[1]; }
+  else { showToast('基準となる辺または2頂点を選択してください', 'error'); return; }
+
+  if (!State.isRotated) State.originalPaths = JSON.parse(JSON.stringify(State.paths));
+  const theta = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+  // Accumulate rotation angle across multiple executions so reverse transform works correctly
+  State.rotationAngle = (State.isRotated ? State.rotationAngle : 0) + theta;
+  rotatePaths(State.paths, -theta);
+  State.isRotated = true;
+
+  // Rotate selected edge/vertex coordinates by the same -theta to keep them in sync
+  const cosN = Math.cos(-theta), sinN = Math.sin(-theta);
+  function rotatePoint(pt) {
+    const nx = pt.x * cosN - pt.y * sinN;
+    const ny = pt.x * sinN + pt.y * cosN;
+    return { ...pt, x: nx, y: ny };
+  }
+  if (State.selectedEdge) {
+    State.selectedEdge.p1 = rotatePoint(State.selectedEdge.p1);
+    State.selectedEdge.p2 = rotatePoint(State.selectedEdge.p2);
+  }
+  if (State.selectedVertices.length > 0) {
+    State.selectedVertices = State.selectedVertices.map(v => rotatePoint(v));
+  }
+
+  // Compute rotation center from rotated paths bbox
+  const rBounds = computeBounds(State.paths);
+  State.rotationCenter = { cx: (rBounds.minX + rBounds.maxX) / 2, cy: (rBounds.minY + rBounds.maxY) / 2 };
+
+  renderSVG(State.paths); drawBoundingAndDimensions(State.paths);
+
+  // Re-apply visual selection state after re-render
+  restoreSelectionVisuals();
+
+  // Apply reverse rotation transform if 角度維持 is OFF
+  applyReverseTransform();
+
+  updateModeUI();
+  // Keep execute button enabled so user can rotate again with the preserved selection
+  document.getElementById('btn-execute').disabled = !(State.selectedEdge || State.selectedVertices.length === 2);
+  document.getElementById('btn-reset').disabled = false;
+  updateAngleInfo(State.rotationAngle);
+  updateSelectionInfo();
+  showToast(`回転完了 (${(theta * 180 / Math.PI).toFixed(3)}°)`, 'success');
+}
+
+/** Re-apply visual selection CSS classes and guide lines after SVG re-render */
+function restoreSelectionVisuals() {
+  if (State.mode === 'edge' && State.selectedEdge) {
+    // Find the closest edge group by matching coordinates
+    const edgeGroups = document.querySelectorAll('#edge-group .geo-edge-group');
+    const ep1 = State.selectedEdge.p1, ep2 = State.selectedEdge.p2;
+    let bestGroup = null, bestDist = Infinity;
+    for (const g of edgeGroups) {
+      const hit = g.querySelector('.geo-edge-hit');
+      if (!hit) continue;
+      const x1 = +hit.getAttribute('x1'), y1 = +hit.getAttribute('y1');
+      const x2 = +hit.getAttribute('x2'), y2 = +hit.getAttribute('y2');
+      const d = Math.hypot(x1 - ep1.x, y1 - ep1.y) + Math.hypot(x2 - ep2.x, y2 - ep2.y);
+      if (d < bestDist) { bestDist = d; bestGroup = g; }
+    }
+    if (bestGroup && bestDist < 0.01) {
+      bestGroup.classList.add('selected');
+      // Update stored coordinates to exact rendered values
+      const hit = bestGroup.querySelector('.geo-edge-hit');
+      State.selectedEdge.p1 = { x: +hit.getAttribute('x1'), y: +hit.getAttribute('y1') };
+      State.selectedEdge.p2 = { x: +hit.getAttribute('x2'), y: +hit.getAttribute('y2') };
+      State.selectedEdge.pathIndex = +bestGroup.getAttribute('data-path-index');
+      State.selectedEdge.edgeIndex = +bestGroup.getAttribute('data-edge-index');
+      drawGuideLine(State.selectedEdge.p1, State.selectedEdge.p2);
+    }
+  } else if (State.mode === 'vertex' && State.selectedVertices.length > 0) {
+    // Match each selected vertex to the closest rendered vertex
+    const circles = document.querySelectorAll('#vertex-group .geo-vertex');
+    for (let si = 0; si < State.selectedVertices.length; si++) {
+      const sv = State.selectedVertices[si];
+      let bestCircle = null, bestDist = Infinity;
+      for (const c of circles) {
+        const cx = +c.getAttribute('cx'), cy = +c.getAttribute('cy');
+        const d = Math.hypot(cx - sv.x, cy - sv.y);
+        if (d < bestDist) { bestDist = d; bestCircle = c; }
+      }
+      if (bestCircle && bestDist < 0.01) {
+        bestCircle.classList.add('selected');
+        // Update stored coordinates to exact rendered values
+        State.selectedVertices[si] = {
+          ...sv,
+          x: +bestCircle.getAttribute('cx'),
+          y: +bestCircle.getAttribute('cy'),
+          pathIndex: +bestCircle.getAttribute('data-path-index'),
+          vertexIndex: +bestCircle.getAttribute('data-vertex-index')
+        };
+      }
+    }
+    if (State.selectedVertices.length === 2) {
+      drawGuideLine(State.selectedVertices[0], State.selectedVertices[1]);
+    }
+  }
+}
+
+/**
+ * Feature 1: Apply or remove reverse rotation transform.
+ * When 角度維持 is OFF → wrap all SVG content in <g transform="rotate(angle, cx, cy)">
+ * When 角度維持 is ON  → no transform (show axis-aligned)
+ */
+function applyReverseTransform() {
+  const svg = document.querySelector('#svg-container svg');
+  if (!svg || !State.isRotated) return;
+
+  const keepRotation = document.getElementById('chk-keep-rotation').checked;
+
+  // Remove existing rootGroup wrapper if present
+  const existingRoot = svg.querySelector('#rootGroup');
+  if (existingRoot) {
+    // Unwrap: move children back to svg
+    while (existingRoot.firstChild) svg.appendChild(existingRoot.firstChild);
+    existingRoot.remove();
+  }
+
+  if (!keepRotation) {
+    // Wrap all children in a <g> with reverse rotation
+    const degrees = State.rotationAngle * 180 / Math.PI;
+    const { cx, cy } = State.rotationCenter;
+    const rootGroup = document.createElementNS(NS, 'g');
+    rootGroup.setAttribute('id', 'rootGroup');
+    rootGroup.setAttribute('transform', `rotate(${degrees}, ${cx}, ${cy})`);
+
+    // Move all svg children into rootGroup
+    const children = Array.from(svg.childNodes);
+    for (const child of children) rootGroup.appendChild(child);
+    svg.appendChild(rootGroup);
+
+    // Recalculate viewBox for the visual bounding box after transform
+    recalcViewBoxAfterTransform(svg, State.rotationAngle, cx, cy);
+  } else {
+    // Restore original viewBox (axis-aligned)
+    if (State.svgBounds) {
+      const { vbMinX, vbMinY, vbW, vbH } = State.svgBounds;
+      svg.setAttribute('viewBox', `${vbMinX} ${vbMinY} ${vbW} ${vbH}`);
+    }
+  }
+}
+
+/**
+ * Recalculate SVG viewBox after a rotation transform is applied.
+ * We compute the visual bounding box by rotating all relevant points.
+ */
+function recalcViewBoxAfterTransform(svg, theta, cx, cy) {
+  const cosT = Math.cos(theta), sinT = Math.sin(theta);
+  function rotPt(x, y) {
+    const dx = x - cx, dy = y - cy;
+    return { x: cx + dx * cosT - dy * sinT, y: cy + dx * sinT + dy * cosT };
+  }
+
+  const allPts = [];
+  // Path vertices (visual = rotated forward from axis-aligned)
+  for (const p of State.paths) for (const v of p.vertices) allPts.push(rotPt(v.x, v.y));
+
+  // Bounding rect corners
+  const bnd = computeBounds(State.paths);
+  const s0 = sf(), fs = 10 * s0, off = 8 * s0, tick = 5 * s0;
+  // Extend to include dimension labels area
+  const extR = bnd.maxX + off + tick + fs * 3;
+  const extB = bnd.maxY + off + tick + fs * 3;
+  const extT = bnd.minY - off * 2;
+  [[bnd.minX, extT], [extR, extT], [extR, extB], [bnd.minX, extB]].forEach(([x, y]) => allPts.push(rotPt(x, y)));
+
+  let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+  for (const p of allPts) {
+    if (p.x < mnX) mnX = p.x; if (p.y < mnY) mnY = p.y;
+    if (p.x > mxX) mxX = p.x; if (p.y > mxY) mxY = p.y;
+  }
+  const dw = mxX - mnX, dh = mxY - mnY;
+  const pad = Math.max(dw, dh) * 0.08;
+  svg.setAttribute('viewBox', `${mnX - pad} ${mnY - pad} ${dw + pad * 2} ${dh + pad * 2}`);
+}
+
+// =============================================================================
+// Reset
+// =============================================================================
+function resetAll() {
+  const keep = document.getElementById('chk-keep-rotation').checked;
+  if (keep && State.isRotated) {
+    State.selectedEdge = null; State.selectedVertices = []; clearGuide();
+    renderSVG(State.paths); updateModeUI();
+    document.getElementById('btn-execute').disabled = true;
+    showToast('選択をリセットしました（角度維持）', 'info'); return;
+  }
+  if (State.originalPaths.length > 0) State.paths = JSON.parse(JSON.stringify(State.originalPaths));
+  State.selectedEdge = null; State.selectedVertices = [];
+  State.isRotated = false; State.rotationAngle = 0;
+  
+  renderSVG(State.paths); updateModeUI(); updateAngleInfo(null); updateScaleInfo();
+  document.getElementById('btn-execute').disabled = true;
+  document.getElementById('info-dimensions').textContent = '寸法: -';
+  document.getElementById('info-area').textContent = '想定整形地面積: -';
+  document.getElementById('info-path-area').textContent = '不整形地面積合計: -';
+  document.getElementById('info-kagechi').textContent = 'かげ地割合: -';
+  State.lastRectArea = null;
+  State.lastPathArea = null;
+  State.lastKagechiRatio = null;
+  showToast('リセットしました', 'info');
+}
+
+// =============================================================================
+// SVG Download (transform-based reverse rotation + A4 optimization)
+// =============================================================================
+function downloadSVG() {
+  const svgEl = document.querySelector('#svg-container svg');
+  if (!svgEl) { showToast('SVGがありません', 'error'); return; }
+
+  const clone = svgEl.cloneNode(true);
+
+  // Remove interactive groups (edge/vertex selection)
+  ['edge-group', 'vertex-group'].forEach(id => {
+    const g = clone.querySelector(`#${id}`);
+    if (g) g.remove();
+  });
+
+  // ── A4 Output Optimization + Aspect Ratio Constraint ──
+  const vb = clone.getAttribute('viewBox');
+  if (vb) {
+    const parts = vb.split(/\s+/).map(Number);
+    let vbX = parts[0], vbY = parts[1], vbW = parts[2], vbH = parts[3];
+
+    // Aspect ratio constraint: height/width ≤ 1.4
+    // If too tall, widen the viewBox (centered) without distorting geometry
+    if (vbH / vbW > 1.4) {
+      const newVbW = vbH / 1.4;
+      const delta = (newVbW - vbW) / 2;
+      vbX -= delta;
+      vbW = newVbW;
+      clone.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
+    }
+
+    // Scale so max(width, height) = 1200
+    const maxDim = Math.max(vbW, vbH);
+    const scale = 1200 / maxDim;
+    clone.setAttribute('width', Math.round(vbW * scale));
+    clone.setAttribute('height', Math.round(vbH * scale));
+  }
+  clone.removeAttribute('style');
+
+  // ── Style cleanup ──
+  // Read style values before removing inline styles
+  const dimTextData = [];
+  clone.querySelectorAll('.dim-text').forEach(el => {
+    dimTextData.push({
+      fs: el.style.fontSize || '10px',
+      wm: el.style.writingMode || '',
+      to: el.style.textOrientation || ''
+    });
+  });
+
+  function clean(el) {
+    el.removeAttribute('class');
+    [...el.attributes].filter(a => a.name.startsWith('data-')).forEach(a => el.removeAttribute(a.name));
+  }
+
+  // Paths
+  clone.querySelectorAll('.geo-path,[class~="geo-path"]').forEach(el => {
+    const fill = el.style.fill || 'none', fillOp = el.style.fillOpacity || '0';
+    const stroke = el.style.stroke || '#333', strokeOp = el.style.strokeOpacity || '1';
+    el.removeAttribute('style'); clean(el);
+    el.setAttribute('fill', fill === 'none' ? 'none' : fill);
+    el.setAttribute('fill-opacity', fillOp);
+    el.setAttribute('stroke', stroke); el.setAttribute('stroke-opacity', strokeOp);
+    el.setAttribute('stroke-width', '0.5'); el.setAttribute('stroke-linejoin', 'round');
+  });
+
+  // Bounding rect
+  clone.querySelectorAll('.bounding-rect').forEach(el => {
+    el.removeAttribute('style'); clean(el);
+    el.setAttribute('fill', 'none'); el.setAttribute('stroke', '#008844');
+    el.setAttribute('stroke-width', '0.4'); el.setAttribute('stroke-dasharray', '3 2');
+  });
+
+  // Dimension text
+  let dIdx = 0;
+  clone.querySelectorAll('.dim-text').forEach(el => {
+    const d = dimTextData[dIdx++] || { fs: '10px', wm: '', to: '' };
+    el.removeAttribute('style'); clean(el);
+    el.setAttribute('fill', '#006633');
+    el.setAttribute('font-family', "'Consolas','Courier New',monospace");
+    el.setAttribute('font-size', d.fs);
+    if (d.wm) {
+      el.setAttribute('writing-mode', 'tb');
+      el.setAttribute('style', `writing-mode:vertical-rl;text-orientation:${d.to || 'mixed'}`);
+    }
+  });
+
+  // Dimension lines
+  clone.querySelectorAll('.dim-line').forEach(el => { el.removeAttribute('style'); clean(el); el.setAttribute('stroke', '#008844'); el.setAttribute('stroke-width', '0.4'); });
+  // Guide lines
+  clone.querySelectorAll('.guide-line').forEach(el => { el.removeAttribute('style'); clean(el); el.setAttribute('stroke', '#cc6600'); el.setAttribute('stroke-width', '0.4'); el.setAttribute('stroke-dasharray', '5 4'); });
+  // 想定整形地 label
+  clone.querySelectorAll('.label-assumed').forEach(el => {
+    const fs = el.style.fontSize || '12px';
+    el.removeAttribute('style'); clean(el);
+    el.setAttribute('fill', '#cc6600'); el.setAttribute('font-family', 'sans-serif');
+    el.setAttribute('font-weight', '700'); el.setAttribute('font-size', fs);
+  });
+  // Parcel labels
+  clone.querySelectorAll('.parcel-label').forEach(el => {
+    const fs = el.style.fontSize || '12px', fill = el.style.fill || '#333';
+    el.removeAttribute('style'); clean(el);
+    el.setAttribute('fill', fill); el.setAttribute('font-family', 'sans-serif');
+    el.setAttribute('font-size', fs); el.setAttribute('text-anchor', 'middle');
+  });
+  // Guide circles
+  clone.querySelectorAll('circle').forEach(el => {
+    const fill = el.getAttribute('fill') || '';
+    if (fill.includes('var(')) el.setAttribute('fill', '#cc6600');
+    el.removeAttribute('style'); el.removeAttribute('class');
+  });
+  // Clean group IDs except rootGroup (which carries the transform)
+  clone.querySelectorAll('g').forEach(g => {
+    if (g.id !== 'rootGroup') g.removeAttribute('id');
+    else g.removeAttribute('id'); // remove id but keep transform attribute
+  });
+
+  const serializer = new XMLSerializer();
+  let svgStr = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(clone);
+
+  const inputName = document.getElementById('file-name').textContent || '';
+  const baseName = inputName.replace(/\.[^.]+$/, '').replace(/[^\w\u3000-\u9FFF-]/g, '_') || 'geojson';
+  const downloadName = `${baseName}_output.svg`;
+
+  const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = downloadName;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`SVGをダウンロードしました: ${downloadName}`, 'success');
+}
+
+// =============================================================================
+// File loading (Feature 6: multiple files)
+// =============================================================================
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsText(file);
+  });
+}
+
+/** Accept files from either <input> or drag & drop */
+async function processFiles(files) {
+  if (!files.length) return;
+
+  document.getElementById('file-name').textContent = Array.from(files).map(f => f.name).join(', ');
+
+  try {
+    const texts = await Promise.all(files.map(f => readFileAsText(f)));
+    const merged = { type: 'FeatureCollection', features: [] };
+
+    for (let i = 0; i < texts.length; i++) {
+      let geojson;
+      try { geojson = JSON.parse(texts[i]); }
+      catch { showToast(`JSONパースエラー: ${files[i].name}`, 'error'); continue; }
+
+      if (!geojson || !geojson.type) { showToast(`非GeoJSON: ${files[i].name}`, 'error'); continue; }
+
+      if (geojson.type === 'FeatureCollection') {
+        merged.features.push(...(geojson.features || []));
+      } else if (geojson.type === 'Feature') {
+        merged.features.push(geojson);
+      } else if (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon') {
+        merged.features.push({ type: 'Feature', geometry: geojson, properties: {} });
+      } else {
+        showToast(`未対応形式: ${files[i].name}`, 'error');
+      }
+      
+      // Preserve Coordinate Reference System (CRS) if present
+      if (geojson.crs && !merged.crs) {
+        merged.crs = geojson.crs;
+      }
+    }
+
+    const hasValidGeom = g => g && (g.type === 'Polygon' || g.type === 'MultiPolygon');
+    if (!merged.features.some(f => hasValidGeom(f.geometry))) {
+      showToast('エラー: Polygon / MultiPolygon が含まれていません', 'error'); return;
+    }
+
+    if (typeof proj4 !== 'undefined') {
+      proj4.defs('EPSG:3857', "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs");
+      let isGeo = false, isWebMerc = false, epsg = null;
+      if (merged.crs && merged.crs.properties && merged.crs.properties.name) {
+        const m = merged.crs.properties.name.match(/EPSG::?(\d+)/);
+        if (m) epsg = parseInt(m[1]);
+      }
+      if (epsg === 4326 || epsg === 4612 || epsg === 6668 || epsg === 4301) isGeo = true;
+      else if (epsg === 3857) isWebMerc = true;
+      else if (!epsg) {
+        let first = null;
+        const walkF = c => { if(!first){ if(Array.isArray(c[0])) c.forEach(walkF); else { if(typeof c[0]==='number') first = c; } } };
+        merged.features.forEach(f => { if(f.geometry && f.geometry.coordinates) walkF(f.geometry.coordinates); });
+        // 日本付近の緯度経度ならWGS84と推定
+        if (first && first[0]>120 && first[0]<150 && first[1]>20 && first[1]<50) isGeo = true;
+      }
+
+      if (isGeo || isWebMerc) {
+         let minLng=Infinity, minLat=Infinity, maxLng=-Infinity, maxLat=-Infinity;
+         const w1 = c => {
+            if (Array.isArray(c[0])) c.forEach(w1);
+            else if (typeof c[0]==='number') {
+               let lng = c[0], lat = c[1];
+               if (isWebMerc) { const r = proj4('EPSG:3857', 'WGS84', [lng, lat]); lng=r[0]; lat=r[1]; }
+               if (lng !== 0) { minLng=Math.min(minLng,lng); maxLng=Math.max(maxLng,lng); minLat=Math.min(minLat,lat); maxLat=Math.max(maxLat,lat); }
+            }
+         };
+         merged.features.forEach(f => { if(f.geometry && f.geometry.coordinates) w1(f.geometry.coordinates); });
+
+         if (minLng !== Infinity) {
+           const cx = (minLng+maxLng)/2;
+           const cy = (minLat+maxLat)/2;
+           merged._detectedCenter = { lat: cy, lng: cx };
+           
+           // 中心を原点とする局所的な平面直角座標系へ投影 (1単位=1メートルを確保するため)
+           const tmStr = `+proj=tmerc +lat_0=${cy} +lon_0=${cx} +k=1.0 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs`;
+           const w2 = c => {
+              if (Array.isArray(c[0])) c.forEach(w2);
+              else if (typeof c[0]==='number') {
+                 let lng = c[0], lat = c[1];
+                 if (isWebMerc) { const r = proj4('EPSG:3857', 'WGS84', [lng, lat]); lng=r[0]; lat=r[1]; }
+                 const res = proj4('WGS84', tmStr, [lng, lat]);
+                 c[0] = res[0]; c[1] = res[1];
+              }
+           };
+           merged.features.forEach(f => { if(f.geometry && f.geometry.coordinates) w2(f.geometry.coordinates); });
+           merged.crs = { type: 'name', properties: { name: 'EPSG:_LOCAL_TMERC_' } };
+         }
+      }
+    }
+
+    State.geojson = merged;
+    const { paths, features } = extractPaths(merged);
+    State.paths = paths; State.features = features;
+    State.originalPaths = JSON.parse(JSON.stringify(paths));
+    State.selectedEdge = null; State.selectedVertices = [];
+    State.isRotated = false; State.rotationAngle = 0;
+
+    // Auto-detect 縮尺分母 from GeoJSON properties
+    autoDetectScale(merged);
+
+    renderSVG(State.paths); updateModeUI(); updateAngleInfo(null);
+    document.getElementById('btn-reset').disabled = false;
+    document.getElementById('btn-download').disabled = false;
+    document.getElementById('btn-print').disabled = false;
+    document.getElementById('info-dimensions').textContent = '寸法: -';
+    document.getElementById('info-area').textContent = '想定整形地面積: -';
+    document.getElementById('info-path-area').textContent = '不整形地面積合計: -';
+    State.lastRectArea = null;
+    State.lastPathArea = null;
+
+    // Extract GeoJSON metadata from first feature
+    extractGeoMeta(merged);
+    processMapIntegration(merged);
+
+    showToast(`読み込み完了: ${files.length}ファイル / ${State.paths.length}パス / ${State.allVertices.length}頂点`, 'success');
+  } catch (err) {
+    showToast('ファイル読み込みエラー', 'error'); console.error(err);
+  }
+}
+
+/** Extract GeoJSON metadata (地図種類, 地図分類, 精度区分, 座標値種別) from first feature */
+function extractGeoMeta(geojson) {
+  State.geoMeta = null;
+  const metaFields = ['地図種類', '地図分類', '精度区分', '座標値種別'];
+  const idMap = { '地図種類': 'info-map-type', '地図分類': 'info-map-class', '精度区分': 'info-precision', '座標値種別': 'info-coord-type' };
+
+  // Reset all
+  for (const [field, id] of Object.entries(idMap)) {
+    document.getElementById(id).textContent = `${field}: -`;
+  }
+
+  const feats = geojson.features || (geojson.type === 'Feature' ? [geojson] : []);
+  if (feats.length === 0) return;
+
+  const props = feats[0].properties;
+  if (!props) return;
+
+  const meta = {};
+  for (const field of metaFields) {
+    const val = props[field];
+    if (val != null && val !== '') {
+      meta[field] = String(val);
+      document.getElementById(idMap[field]).textContent = `${field}: ${val}`;
+    }
+  }
+  if (Object.keys(meta).length > 0) State.geoMeta = meta;
+}
+
+// =============================================================================
+// Map Integration (EPSG Projection & Geocoding)
+// =============================================================================
+function processMapIntegration(geojson) {
+  const container = document.getElementById('map-integration-container');
+  const linksBox = document.getElementById('map-links');
+  const framesBox = document.getElementById('map-iframes');
+  const statusTxt = document.getElementById('map-status-text');
+  
+  if (!geojson) { container.style.display = 'none'; return; }
+  
+  // WGS84等から自動検出された地理的中心位置がある場合
+  if (geojson._detectedCenter) {
+     statusTxt.textContent = `[計算完了] 経緯度またはWebメルカトルデータにより位置を確定`;
+     container.style.display = 'block';
+     renderMapViews(geojson._detectedCenter.lat, geojson._detectedCenter.lng);
+     return;
+  }
+
+  container.querySelectorAll('.map-alert-warning').forEach(e => e.remove());
+  linksBox.innerHTML = ''; framesBox.innerHTML = '';
+  statusTxt.textContent = '座標探索中...';
+  container.style.display = 'block';
+
+  let lat = null, lng = null;
+
+  // 1. EPSG Check -> Proj4 translation
+  const crsName = geojson.crs?.properties?.name || '';
+  const match = crsName.match(/EPSG::(\d+)/) || crsName.match(/EPSG:(\d+)/);
+  if (match) {
+    const epsg = parseInt(match[1], 10);
+    // Japan Plane Rectangular CS (JGD2000: 2443-2461, JGD2011: 6669-6687)
+    let sysNum = null;
+    if (epsg >= 2443 && epsg <= 2461) sysNum = epsg - 2442;
+    else if (epsg >= 6669 && epsg <= 6687) sysNum = epsg - 6668;
+    
+    if (sysNum) {
+      statusTxt.textContent = `[計算完了] 平面直角座標系 第${sysNum}系 (${epsg}) より変換`;
+      const Origins = [ null, 
+        {lat: 33, lon:129.5}, {lat: 33, lon:131}, {lat: 36, lon:132.16666666666666},
+        {lat: 33, lon:133.5}, {lat: 36, lon:134.33333333333334}, {lat: 36, lon:136},
+        {lat: 36, lon:137.16666666666666}, {lat: 36, lon:138.5}, {lat: 36, lon:139.83333333333334},
+        {lat: 40, lon:140.83333333333334}, {lat: 44, lon:140.25}, {lat: 44, lon:142.25}, 
+        {lat: 44, lon:144.25}, {lat: 26, lon:142}, {lat: 26, lon:127.5}, {lat: 26, lon:124},
+        {lat: 26, lon:131}, {lat: 20, lon:136}, {lat: 26, lon:154}
+      ];
+      const origin = Origins[sysNum];
+      const proj4Str = `+proj=tmerc +lat_0=${origin.lat} +lon_0=${origin.lon} +k=0.9999 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs`;
+      
+      if (State.paths.length > 0 && State.paths[0].vertices.length > 0) {
+        const c = State.paths[0].vertices[0];
+        const rawX = c.x, rawY = -c.y; 
+        
+        if (typeof proj4 !== 'undefined') {
+          const tryProj = (e, n) => {
+            const p = proj4(proj4Str, 'WGS84', [e, n]);
+            return { lng: p[0], lat: p[1] };
+          };
+          
+          let res = tryProj(rawX, rawY);
+          
+          // MOJ Map XML (法務省公図) sometimes stores `[Northing, Easting]` array instead of `[Easting, Northing]`.
+          // We can auto-detect this by checking if the point jumps outside of the Japanese archipelago bounds (Lat: 20-46, Lng: 122-154).
+          if (res.lat < 20 || res.lat > 46 || res.lng < 122 || res.lng > 154) {
+             const flipped = tryProj(rawY, rawX);
+             if (flipped.lat >= 20 && flipped.lat <= 46 && flipped.lng >= 122 && flipped.lng <= 154) {
+                 res = flipped;
+             }
+          }
+
+          lng = res.lng; lat = res.lat;
+          renderMapViews(lat, lng);
+        } else statusTxt.textContent += ' (エラー: 投影変換ライブラリが読み込めません)';
+      }
+      return;
+    }
+  }
+
+  // 2. Geocoding
+  // IF execution reaches here, it is considered an arbitrary coordinate system.
+  const alertBox = document.createElement('div');
+  alertBox.className = 'map-alert-warning';
+  alertBox.innerHTML = `<strong>⚠️ 任意座標系（正確な位置は特定できません）</strong><br>登録された住所情報などを元に概算位置を表示しています。`;
+  container.insertBefore(alertBox, linksBox);
+
+  const feats = geojson.features || (geojson.type === 'Feature' ? [geojson] : []);
+  if (feats.length > 0 && feats[0].properties) {
+    const p = feats[0].properties;
+    const parts = [p['市区町村名'], p['大字名'], p['丁目名'], p['小字名']].filter(Boolean);
+    const address = parts.join('');
+    
+    if (address) {
+      statusTxt.textContent = `[API推測中...] 任意座標系（住所: ${address}）`;
+      if (typeof getLatLng === 'function') {
+        getLatLng(address, (res) => {
+          statusTxt.textContent = `[推測完了] 任意座標系（住所: ${address}）による概算位置`;
+          renderMapViews(res.lat, res.lng);
+        }, (err) => {
+          statusTxt.textContent = `[失敗] 住所からの位置推測ができませんでした`;
+        });
+      } else statusTxt.textContent = `[失敗] ジオコーダーAPIがありません`;
+      return;
+    }
+  }
+  
+  statusTxt.textContent = '座標系または住所情報が存在しません';
+}
+
+function renderMapViews(lat, lng) {
+  const linksBox = document.getElementById('map-links');
+  const framesBox = document.getElementById('map-iframes');
+  const z = 18; 
+  const gMapsUrl = `https://www.google.co.jp/maps/@${lat},${lng},${z}z`;
+  const gMapsEmbed = `https://www.google.com/maps?q=${lat},${lng}&z=${z}&output=embed`;
+  const maplUrl = `https://labs.mapple.com/mapplexml.html#${z}/${lat}/${lng}`;
+  
+  const createLink = (text, url, bg, svgIcon) => {
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.className = 'btn';
+    a.style.backgroundColor = bg; a.style.color = '#fff';
+    a.style.textDecoration = 'none'; a.style.display = 'inline-flex';
+    a.style.alignItems = 'center'; a.style.padding = '6px 12px'; a.style.fontSize = '12px';
+    a.innerHTML = `${svgIcon}<span style="margin-left:6px;">${text}で開く</span>`;
+    return a;
+  };
+
+  const gIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
+  linksBox.appendChild(createLink('Googleマップ', gMapsUrl, '#10b981', gIcon));
+  linksBox.appendChild(createLink('マップル法務局ビューア', maplUrl, '#f59e0b', gIcon));
+
+  const chikaUrl = `https://www.chikamap.jp/chikamap/Map?mid=225&mpx=${(lng + CHIKAMAP_OFFSET_X).toFixed(6)}&mpy=${(lat + CHIKAMAP_OFFSET_Y).toFixed(6)}`;
+  linksBox.appendChild(createLink('全国地価マップ', chikaUrl, '#3b82f6', gIcon));
+
+  const gsiUrl = `https://maps.gsi.go.jp/#${z}/${lat}/${lng}/&base=std&ls=std%7Crelief_free%2C0.8&blend=0&disp=11&lcd=relief_free&vs=c1g1j0h0k0l0u0t0z0r0s0m0f1&d=m&reliefdata=21G0000FFG5G0095FFGAG00EEFFG14G91FF00G1EGFFFF00G28GFF8C00GGFF4400`;
+  linksBox.appendChild(createLink('国土地理院地図', gsiUrl, '#6366f1', gIcon));
+  
+  const createIframe = (url) => {
+    const ifm = document.createElement('iframe');
+    ifm.setAttribute('data-src', url);
+    ifm.sandbox = "allow-scripts allow-popups allow-forms allow-same-origin";
+    ifm.style.border = '1px solid var(--border-primary)';
+    ifm.style.borderRadius = 'var(--radius-sm)';
+    ifm.style.height = '480px';
+    ifm.style.flex = '1 1 calc(50% - 8px)';
+    ifm.style.minWidth = '380px';
+    ifm.style.display = 'none';
+    return ifm;
+  };
+  
+  framesBox.appendChild(createIframe(gMapsEmbed));
+  framesBox.appendChild(createIframe(maplUrl));
+  
+  const gsiIframe = createIframe(gsiUrl);
+  gsiIframe.style.flex = '1 1 100%'; // Make GSI map full width to occupy the bottom row
+  framesBox.appendChild(gsiIframe);
+  
+  const ph = document.createElement('div');
+  ph.id = 'map-load-placeholder';
+  ph.style.width = '100%';
+  ph.style.padding = '50px 20px';
+  ph.style.textAlign = 'center';
+  ph.style.background = 'var(--surface-glass)';
+  ph.style.border = '2px dashed var(--accent-cyan)';
+  ph.style.borderRadius = 'var(--radius-md)';
+  ph.innerHTML = `<p style="margin-bottom:20px; font-size:14px; color:var(--text-primary); font-weight:600;">地図プレビューはパフォーマンスおよび強制スクロール防止のため遅延ロードされています</p>
+                  <button style="background:var(--accent-cyan); color:#000; font-weight:800; font-size:15px; padding:12px 32px; border:none; border-radius:100px; cursor:pointer; box-shadow:0 4px 16px rgba(34,211,238,0.4); outline:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" onclick="window.loadMapIframes()">埋め込み地図を読み込む（プレビュー）</button>`;
+  framesBox.appendChild(ph);
+  
+  // Show banner
+  const banner = document.getElementById('map-banner');
+  banner.classList.add('show');
+  clearTimeout(banner._t);
+  banner._t = setTimeout(() => banner.classList.remove('show'), 3000);
+}
+
+// =============================================================================
+// Style re-application (Feature 4+5)
+// =============================================================================
+function applyStyleChanges() {
+  // Re-render paths with new colors
+  document.querySelectorAll('#path-group .geo-path').forEach(el => {
+    el.style.stroke = State.strokeColor;
+    el.style.strokeOpacity = State.strokeOpacity;
+    el.style.fill = State.fillEnabled ? State.fillColor : 'none';
+    el.style.fillOpacity = State.fillEnabled ? State.fillOpacity : 0;
+  });
+  // Vertices
+  document.querySelectorAll('#vertex-group .geo-vertex').forEach(el => {
+    if (!el.classList.contains('selected')) el.style.fill = State.strokeColor;
+  });
+  // Edge hover lines
+  const tp = getCurrentThemeProfile();
+  document.querySelectorAll('#edge-group .geo-edge').forEach(el => {
+    el.style.stroke = tp.edgeHover;
+  });
+  document.getElementById('chk-bent-frontage').addEventListener('change', () => {
+    if (State.mode === 'vertex' && State.selectedVertices.length === 2) {
+      drawGuideLine(State.selectedVertices[0], State.selectedVertices[1]);
+      updateSelectionInfo();
+    }
+  });
+  // SVG background
+  document.getElementById('svg-canvas-wrapper').style.background = State.svgBgColor;
+  // Labels
+  document.querySelectorAll('#label-group .parcel-label').forEach(el => {
+    el.style.fill = State.labelColor;
+    el.style.fontSize = `${State.labelFontSize * sf()}px`;
+  });
+  // Dimension elements
+  document.querySelectorAll('.dim-text').forEach(el => el.style.fill = tp.dimColor);
+  document.querySelectorAll('.dim-line').forEach(el => el.style.stroke = tp.dimColor);
+  document.querySelectorAll('.bounding-rect').forEach(el => el.style.stroke = tp.boundingColor);
+  document.querySelectorAll('.label-assumed').forEach(el => el.style.fill = tp.assumedColor);
+}
+
+/** Get current theme profile */
+function getCurrentThemeProfile() {
+  return document.body.classList.contains('theme-warm') ? ThemeProfiles.warm : ThemeProfiles.cool;
+}
+
+/** Apply theme colors to State + SVG + style controls */
+function applyThemeToSVG() {
+  const tp = getCurrentThemeProfile();
+  // Update State
+  State.strokeColor = tp.strokeColor;
+  State.fillColor = tp.fillColor;
+  State.svgBgColor = tp.svgBgColor;
+  State.labelColor = tp.labelColor;
+  // Update style control inputs to match
+  document.getElementById('ctrl-stroke-color').value = tp.strokeColor;
+  document.getElementById('ctrl-fill-color').value = tp.fillColor;
+  document.getElementById('ctrl-svg-bg').value = tp.svgBgColor;
+  document.getElementById('ctrl-label-color').value = tp.labelColor;
+  // Apply to rendered elements
+  applyStyleChanges();
+}
+
+// =============================================================================
+// Event bindings
+// =============================================================================
+document.getElementById('file-input').addEventListener('change', e => processFiles(Array.from(e.target.files)));
+
+/**
+ * Auto-detect 縮尺分母 from GeoJSON properties and update scale selector.
+ */
+function autoDetectScale(geojson) {
+  // Reset scale UI state
+  const sel = document.getElementById('scale-select');
+  sel.disabled = false;
+
+  const feats = geojson.features || (geojson.type === 'Feature' ? [geojson] : []);
+  for (const f of feats) {
+    if (!f.properties) continue;
+    // Prioritize 縮尺分母 (exact property name)
+    const raw = f.properties.縮尺分母;
+    if (raw != null && !isNaN(Number(raw)) && Number(raw) > 0) {
+      const val = Number(raw);
+      // Update UI
+      const existing = Array.from(sel.options).find(o => Number(o.value) === val);
+      if (existing) {
+        sel.value = existing.value;
+      } else {
+        const opt = document.createElement('option');
+        opt.value = val; opt.textContent = `1 : ${val}  (GeoJSON)`;
+        sel.appendChild(opt);
+        sel.value = val;
+      }
+      updateScaleInfo();
+      showToast(`印刷スケールを検出: 1:${val}（手動変更可）`, 'info');
+      return;
+    }
+  }
+  // No 縮尺分母 found — check other scale properties for UI hint only
+  for (const f of feats) {
+    if (!f.properties) continue;
+    const raw = f.properties.scale || f.properties.Scale || f.properties.縮尺
+      || f.properties.scaleDenominator || f.properties.scale_denominator;
+    if (raw != null && !isNaN(Number(raw)) && Number(raw) > 0) {
+      const val = Number(raw);
+      const existing = Array.from(sel.options).find(o => Number(o.value) === val);
+      if (existing) sel.value = existing.value;
+      else {
+        const opt = document.createElement('option');
+        opt.value = val; opt.textContent = `1 : ${val}  (自動)`;
+        sel.appendChild(opt);
+        sel.value = val;
+      }
+      updateScaleInfo();
+      showToast(`印刷スケールを検出: 1:${val}`, 'info');
+      return;
+    }
+  }
+  updateScaleInfo();
+}
+
+document.querySelectorAll('input[name="select-mode"]').forEach(radio => {
+  radio.addEventListener('change', e => {
+    State.mode = e.target.value;
+    State.selectedEdge = null; State.selectedVertices = [];
+    document.querySelectorAll('#edge-group .geo-edge-group.selected').forEach(g => g.classList.remove('selected'));
+    document.querySelectorAll('#vertex-group .geo-vertex.selected').forEach(c => c.classList.remove('selected'));
+    clearGuide(); updateModeUI(); updateSelectionInfo();
+    document.getElementById('btn-execute').disabled = true;
+    showToast(State.mode === 'edge' ? '辺選択モード' : '頂点選択モード', 'info');
+  });
+});
+
+document.getElementById('scale-select').addEventListener('change', () => {
+  updateScaleInfo();
+  if (State.isRotated) {
+    clearAux(); drawBoundingAndDimensions(State.paths);
+    applyReverseTransform();
+  }
+});
+
+document.getElementById('btn-execute').addEventListener('click', executeRotation);
+document.getElementById('btn-reset').addEventListener('click', resetAll);
+document.getElementById('btn-download').addEventListener('click', downloadSVG);
+document.getElementById('btn-print').addEventListener('click', () => {
+  const svgEl = document.querySelector('#svg-container svg');
+  if (!svgEl) { showToast('SVGがありません', 'error'); return; }
+
+  const printMode = document.getElementById('print-mode').value;
+
+  // Clone SVG, removing interactive elements
+  const clone = svgEl.cloneNode(true);
+  ['edge-group', 'vertex-group'].forEach(id => {
+    const g = clone.querySelector(`#${id}`); if (g) g.remove();
+  });
+
+  // 印刷用にコンテンツの境界（Bounding Box）を厳密に計算し、不要な余白を削減する
+  let printMinX = Infinity, printMinY = Infinity, printMaxX = -Infinity, printMaxY = -Infinity;
+  const bnd = computeBounds(State.paths);
+  const s0 = sf(), fs = 10 * s0, off = 8 * s0, tick = 5 * s0;
+  
+  const keepRotation = document.getElementById('chk-keep-rotation').checked;
+  if (!keepRotation && State.isRotated) {
+    const theta = State.rotationAngle;
+    const { cx, cy } = State.rotationCenter;
+    const cosT = Math.cos(theta), sinT = Math.sin(theta);
+    function rotPt(x, y) {
+      const dx = x - cx, dy = y - cy;
+      return { x: cx + dx * cosT - dy * sinT, y: cy + dx * sinT + dy * cosT };
+    }
+    const allPts = [];
+    for (const p of State.paths) for (const v of p.vertices) allPts.push(rotPt(v.x, v.y));
+    const extR = bnd.maxX + off + tick + fs * 3;
+    const extB = bnd.maxY + off + tick + fs * 3;
+    const extT = bnd.minY - off * 2;
+    [[bnd.minX, extT], [extR, extT], [extR, extB], [bnd.minX, extB]].forEach(([x, y]) => allPts.push(rotPt(x, y)));
+    
+    for (const p of allPts) {
+      if (p.x < printMinX) printMinX = p.x; if (p.y < printMinY) printMinY = p.y;
+      if (p.x > printMaxX) printMaxX = p.x; if (p.y > printMaxY) printMaxY = p.y;
+    }
+  } else {
+    printMinX = bnd.minX;
+    printMinY = bnd.minY - off * 2;
+    printMaxX = bnd.maxX + off + tick + fs * 3;
+    printMaxY = bnd.maxY + off + tick + fs * 3;
+  }
+  
+  const cW = printMaxX - printMinX;
+  const cH = printMaxY - printMinY;
+  // 余白をわずか2%（画面上の15%〜42%に対して大幅減）にして白紙の発生を防ぐ
+  const tightPad = Math.max(cW, cH) * 0.02;
+  
+  const vbMinX = printMinX - tightPad;
+  const vbMinY = printMinY - tightPad;
+  const vbW = cW + tightPad * 2;
+  const vbH = cH + tightPad * 2;
+
+  const target = document.getElementById('print-target');
+  target.innerHTML = '';
+
+  if (printMode === 'real') {
+    // ---------------------------------------------------------
+    // 等倍印刷モード
+    // ---------------------------------------------------------
+    const demon = getScaleDenominator();
+    if (!demon) {
+      showToast('印刷エラー: 縮尺が未指定です。縮尺を選択してください。', 'error');
+      return;
+    }
+
+    // 1m = 3779.527px (since 1 inch = 96px, 1m = 1000/25.4 * 96)
+    // Scale on paper: real scale / denominator
+    const scale = 3779.527 / demon;
+
+    // LBP441 correction (shrinkage in X direction by ~99%)
+    const useLBP = document.getElementById('chk-lbp441').checked;
+    const scaleX = useLBP ? scale / 0.99 : scale;
+    const scaleY = scale;
+
+    const fullW_px = vbW * scaleX;
+    const fullH_px = vbH * scaleY;
+
+    // ブラウザの強制縮小を回避しつつ、プリンターのハードウェア余白を考慮し
+    // 上下左右に各10mmの余白を設けた 190mm x 277mm のタイルで分割出力します。
+    const TILE_W_MM = 190;
+    const TILE_H_MM = 277;
+    const MARGIN_MM = 10;
+    
+    // 1mm = 3.779527px
+    const TILE_W_PX = TILE_W_MM * 3.779527; // ~718px
+    const TILE_H_PX = TILE_H_MM * 3.779527; // ~1046.9px
+
+    const cols = Math.ceil(fullW_px / TILE_W_PX);
+    const rows = Math.ceil(fullH_px / TILE_H_PX);
+
+    // SVGタグ本体のサイズとviewBoxを調整
+    clone.setAttribute('viewBox', `${vbMinX * scaleX} ${vbMinY * scaleY} ${vbW * scaleX} ${vbH * scaleY}`);
+    clone.setAttribute('width', fullW_px + 'px');
+    clone.setAttribute('height', fullH_px + 'px');
+
+    // 中身を <g transform="..."> でラッピングしてスケール適用
+    const wrapperG = document.createElementNS(NS, 'g');
+    wrapperG.setAttribute('transform', `scale(${scaleX} ${scaleY})`);
+    while (clone.firstChild) wrapperG.appendChild(clone.firstChild);
+    clone.appendChild(wrapperG);
+    clone.removeAttribute('style');
+
+    // A4サイズごとにスライスして出力
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        // 大枠のA4用紙コンテナ
+        const pageDiv = document.createElement('div');
+        pageDiv.style.width = '210mm';
+        pageDiv.style.height = '297mm';
+        pageDiv.style.position = 'relative';
+        pageDiv.style.overflow = 'hidden';
+        pageDiv.style.pageBreakInside = 'avoid';
+        pageDiv.style.breakInside = 'avoid';
+        // 最後のページ以外は改ページ
+        if (!(r === rows - 1 && c === cols - 1)) {
+          pageDiv.style.pageBreakAfter = 'always';
+          pageDiv.style.breakAfter = 'page';
+        }
+        
+        // 10mm余白を適用するための内側クリップウィンドウ
+        const clipWindow = document.createElement('div');
+        clipWindow.style.width = `${TILE_W_MM}mm`;
+        clipWindow.style.height = `${TILE_H_MM}mm`;
+        clipWindow.style.position = 'absolute';
+        clipWindow.style.left = `${MARGIN_MM}mm`;
+        clipWindow.style.top = `${MARGIN_MM}mm`;
+        clipWindow.style.overflow = 'hidden';
+        
+        // SVGの該当タイル部分を絶対配置で切り抜き表示
+        const sliceSvg = clone.cloneNode(true);
+        sliceSvg.style.position = 'absolute';
+        sliceSvg.style.left = `-${c * TILE_W_PX}px`;
+        sliceSvg.style.top = `-${r * TILE_H_PX}px`;
+        sliceSvg.style.display = 'block';
+        
+        clipWindow.appendChild(sliceSvg);
+        pageDiv.appendChild(clipWindow);
+        target.appendChild(pageDiv);
+      }
+    }
+
+    document.body.classList.add('print-mode-real');
+
+  } else {
+    // ---------------------------------------------------------
+    // A4フィット印刷モード（既存）
+    // ---------------------------------------------------------
+    // A4 at 96dpi = 794 x 1123 px
+    // Horizontal: 25px each side (50px total)
+    // Vertical:   40px each side (80px total) — extra margin to prevent page overflow
+    const safeW = 794 - 50;
+    const safeH = 1123 - 80;
+    const fitScale = Math.min(safeW / vbW, safeH / vbH) * 0.98; // ×0.98 safety factor
+    const outW = Math.floor(vbW * fitScale);
+    const outH = Math.floor(vbH * fitScale);
+
+    clone.setAttribute('width', outW + 'px');
+    clone.setAttribute('height', outH + 'px');
+    clone.removeAttribute('style');
+    clone.style.display = 'block';
+    clone.style.maxWidth = safeW + 'px';
+    clone.style.maxHeight = safeH + 'px';
+    clone.style.overflow = 'hidden';
+
+    target.appendChild(clone);
+    document.body.classList.remove('print-mode-real');
+  }
+
+  // Add info label at bottom-right if available
+  const printLines = [];
+  if (State.lastRectArea != null) printLines.push(`想定整形地面積: ${State.lastRectArea.toFixed(2)} ㎡`);
+  if (State.lastPathArea != null) printLines.push(`不整形地面積合計: ${State.lastPathArea.toFixed(2)} ㎡（参考、自動計算）`);
+  if (State.lastKagechiRatio != null) printLines.push(`かげ地割合: ${State.lastKagechiRatio.toFixed(2)} %（参考、自動計算）`);
+  if (State.lastDepth != null) printLines.push(`平均奥行距離: ${State.lastDepth.toFixed(3)} ㎡（参考、自動計算）`);
+  if (State.geoMeta) {
+    if (State.geoMeta.地図種類) printLines.push(`地図種類: ${State.geoMeta.地図種類}`);
+    if (State.geoMeta.地図分類) printLines.push(`地図分類: ${State.geoMeta.地図分類}`);
+    if (State.geoMeta.精度区分) printLines.push(`精度区分: ${State.geoMeta.精度区分}`);
+    if (State.geoMeta.座標値種別) printLines.push(`座標値種別: ${State.geoMeta.座標値種別}`);
+  }
+  if (printLines.length > 0) {
+    const infoDiv = document.createElement('div');
+    infoDiv.style.cssText = 'position:absolute;bottom:20px;right:20px;font-family:Inter,sans-serif;font-size:11px;font-weight:500;color:#333;background:rgba(255,255,255,0.92);padding:8px 14px;border:1px solid #ccc;border-radius:4px;z-index:100000;line-height:1.6;';
+    infoDiv.innerHTML = printLines.join('<br>');
+    target.appendChild(infoDiv);
+  }
+
+  window.print();
+
+  // Cleanup after print
+  setTimeout(() => { 
+    target.innerHTML = ''; 
+    document.body.classList.remove('print-mode-real'); 
+  }, 1000);
+});
+
+// Print mode toggle UI
+document.getElementById('print-mode').addEventListener('change', e => {
+  document.getElementById('wrap-lbp441').style.display = e.target.value === 'real' ? 'flex' : 'none';
+});
+
+// Fill toggle
+document.getElementById('chk-fill').addEventListener('change', e => {
+  State.fillEnabled = e.target.checked;
+  applyStyleChanges();
+});
+
+// 角度維持 checkbox
+document.getElementById('chk-keep-rotation').addEventListener('change', () => {
+  if (State.isRotated) applyReverseTransform();
+});
+
+// Theme toggle — switches between warm and cool
+document.getElementById('btn-theme').addEventListener('click', () => {
+  const btn = document.getElementById('btn-theme');
+  const isWarm = document.body.classList.toggle('theme-warm');
+  btn.textContent = isWarm ? '❄ 寒色' : '☀ 暖色';
+  btn.title = isWarm ? '寒色テーマに切替' : '暖色テーマに切替';
+  applyThemeToSVG();
+});
+
+// Style panel toggle
+document.getElementById('style-panel-toggle').addEventListener('click', () => {
+  const panel = document.getElementById('style-panel');
+  const arrow = document.getElementById('style-arrow');
+  panel.classList.toggle('open');
+  arrow.textContent = panel.classList.contains('open') ? '▼' : '▶';
+});
+
+// Color/opacity controls
+document.getElementById('ctrl-stroke-color').addEventListener('input', e => { State.strokeColor = e.target.value; applyStyleChanges(); });
+document.getElementById('ctrl-fill-color').addEventListener('input', e => { State.fillColor = e.target.value; applyStyleChanges(); });
+document.getElementById('ctrl-fill-opacity').addEventListener('input', e => { State.fillOpacity = parseFloat(e.target.value); applyStyleChanges(); });
+document.getElementById('ctrl-stroke-opacity').addEventListener('input', e => { State.strokeOpacity = parseFloat(e.target.value); applyStyleChanges(); });
+document.getElementById('ctrl-page-bg').addEventListener('input', e => { document.body.style.background = e.target.value; });
+document.getElementById('ctrl-svg-bg').addEventListener('input', e => { State.svgBgColor = e.target.value; applyStyleChanges(); });
+document.getElementById('ctrl-label-size').addEventListener('input', e => { State.labelFontSize = parseInt(e.target.value) || 12; applyStyleChanges(); });
+document.getElementById('ctrl-label-color').addEventListener('input', e => { State.labelColor = e.target.value; applyStyleChanges(); });
+
+// =============================================================================
+// Drag & Drop — SVG canvas + File input card
+// =============================================================================
+function setupDropZone(el) {
+  ['dragenter', 'dragover'].forEach(evt => {
+    el.addEventListener(evt, e => {
+      e.preventDefault(); e.stopPropagation();
+      el.classList.add('drag-over');
+    });
+  });
+  ['dragleave', 'drop'].forEach(evt => {
+    el.addEventListener(evt, e => {
+      e.preventDefault(); e.stopPropagation();
+      el.classList.remove('drag-over');
+    });
+  });
+  el.addEventListener('drop', e => {
+    const files = e.dataTransfer.files;
+    if (files && files.length) {
+      const valid = Array.from(files).filter(f =>
+        f.name.endsWith('.geojson') || f.name.endsWith('.json')
+      );
+      if (valid.length === 0) {
+        showToast('GeoJSON (.geojson / .json) ファイルをドロップしてください', 'error');
+        return;
+      }
+      processFiles(valid);
+    }
+  });
+}
+
+// Register both drop zones
+setupDropZone(document.getElementById('svg-canvas-wrapper'));
+setupDropZone(document.getElementById('file-drop-card'));
+</script>
+</body>
+</html>
