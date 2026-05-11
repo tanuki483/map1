@@ -1522,6 +1522,15 @@ function updateRoadConnection() {
         else aux.appendChild(polyEl);
     }
     
+    let dimsGroup = document.getElementById('road-connection-dims');
+    if (!dimsGroup) {
+        dimsGroup = document.createElementNS(NS, 'g');
+        dimsGroup.id = 'road-connection-dims';
+        aux.appendChild(dimsGroup);
+    } else {
+        dimsGroup.innerHTML = '';
+    }
+    
     let roadConnectArea = 0;
     
     if (pts && pts.length > 0) {
@@ -1529,6 +1538,71 @@ function updateRoadConnection() {
         polyEl.setAttribute('points', pointsStr);
         polyEl.style.display = '';
         roadConnectArea = computePolygonArea(pts);
+        
+        const s0 = State.rcS0;
+        const fs = 10 * s0, off = 8 * s0, tick = 5 * s0;
+        const yHitLeft = pts[1].y;
+        const yHitRight = pts[pts.length - 2].y;
+        const dir = isLandBelowEdge ? -1 : 1;
+        
+        const dimY = edgeY + dir * off;
+        addDimLine(dimsGroup, xLeft, dimY, xLeft, dimY + dir * tick, s0);
+        addDimLine(dimsGroup, xLeft + w, dimY, xLeft + w, dimY + dir * tick, s0);
+        addDimLine(dimsGroup, xLeft, dimY + dir * tick/2, xLeft + w, dimY + dir * tick/2, s0);
+        
+        const wText = document.createElementNS(NS, 'text');
+        wText.setAttribute('x', xLeft + w / 2);
+        wText.setAttribute('y', dimY + dir * (tick + fs * 0.8));
+        wText.setAttribute('text-anchor', 'middle');
+        wText.setAttribute('dominant-baseline', 'central');
+        wText.setAttribute('class', 'dim-text');
+        wText.style.fontSize = `${fs * 0.9}px`;
+        wText.textContent = `間口 ${fmtDist(w)}`;
+        dimsGroup.appendChild(wText);
+        
+        const lDimX = xLeft - off;
+        const lLen = Math.abs(yHitLeft - edgeY);
+        if (lLen > 0.01) {
+            addDimLine(dimsGroup, lDimX, edgeY, lDimX + tick, edgeY, s0);
+            addDimLine(dimsGroup, lDimX, yHitLeft, lDimX + tick, yHitLeft, s0);
+            addDimLine(dimsGroup, lDimX + tick/2, edgeY, lDimX + tick/2, yHitLeft, s0);
+            
+            const lText = document.createElementNS(NS, 'text');
+            lText.setAttribute('x', lDimX - fs * 0.5);
+            lText.setAttribute('y', (edgeY + yHitLeft) / 2);
+            lText.setAttribute('text-anchor', 'middle');
+            lText.setAttribute('dominant-baseline', 'central');
+            lText.setAttribute('class', 'dim-text');
+            lText.style.fontSize = `${fs * 0.9}px`;
+            lText.style.writingMode = 'vertical-rl';
+            lText.style.textOrientation = 'mixed';
+            lText.textContent = `左側方 ${fmtDist(lLen)}`;
+            dimsGroup.appendChild(lText);
+        }
+
+        const rDimX = xLeft + w + off;
+        const rLen = Math.abs(yHitRight - edgeY);
+        if (rLen > 0.01) {
+            addDimLine(dimsGroup, rDimX, edgeY, rDimX - tick, edgeY, s0);
+            addDimLine(dimsGroup, rDimX, yHitRight, rDimX - tick, yHitRight, s0);
+            addDimLine(dimsGroup, rDimX - tick/2, edgeY, rDimX - tick/2, yHitRight, s0);
+            
+            const rText = document.createElementNS(NS, 'text');
+            rText.setAttribute('x', rDimX + fs * 1.5);
+            rText.setAttribute('y', (edgeY + yHitRight) / 2);
+            rText.setAttribute('text-anchor', 'middle');
+            rText.setAttribute('dominant-baseline', 'central');
+            rText.setAttribute('class', 'dim-text');
+            rText.style.fontSize = `${fs * 0.9}px`;
+            rText.style.writingMode = 'vertical-rl';
+            rText.style.textOrientation = 'mixed';
+            rText.textContent = `右側方 ${fmtDist(rLen)}`;
+            dimsGroup.appendChild(rText);
+        }
+        
+        dimsGroup.querySelectorAll('.dim-text').forEach(el => el.style.fill = '#ef4444');
+        dimsGroup.querySelectorAll('.dim-line').forEach(el => el.style.stroke = '#ef4444');
+        
     } else {
         polyEl.style.display = 'none';
     }
