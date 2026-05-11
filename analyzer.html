@@ -627,6 +627,20 @@
     <div class="checkbox-wrapper"><input type="checkbox" id="chk-bent-frontage"><label for="chk-bent-frontage" style="color:var(--accent-magenta); font-weight:600;">屈折間口</label></div>
   </div>
 
+  <div class="action-bar" id="road-action-bar" style="display:none; margin-top: 8px;">
+    <div style="display:flex; align-items:center; gap:12px; width:100%;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <label style="color:var(--text-secondary); font-size:12px; white-space:nowrap;">接道幅員:</label>
+        <input type="number" id="ctrl-road-width" value="2" min="0.1" step="0.1" style="width: 60px; padding:4px 8px; border-radius:4px; border:1px solid var(--border-primary); background:var(--bg-tertiary); color:var(--text-primary); outline:none;">
+        <label style="color:var(--text-secondary); font-size:12px; white-space:nowrap;">m</label>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex:1;">
+        <label style="color:var(--text-secondary); font-size:12px; white-space:nowrap;">接道位置:</label>
+        <input type="range" id="ctrl-road-pos" min="0" max="1000" value="500" style="flex:1; cursor:pointer;">
+      </div>
+    </div>
+  </div>
+
 
   <!-- SVG Canvas -->
   <div class="svg-canvas-wrapper" id="svg-canvas-wrapper">
@@ -649,6 +663,7 @@
     <div class="info-chip"><span class="dot" style="background:var(--accent-green)"></span><span id="info-area">想定整形地面積: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-yellow)"></span><span id="info-path-area">不整形地面積合計: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-orange)"></span><span id="info-kagechi">かげ地割合: -</span></div>
+    <div class="info-chip" id="chip-road-connect" style="display:none;"><span class="dot" style="background:#ef4444"></span><span id="info-road-connect">接道義務土地面積: -</span></div>
     <div class="info-chip" id="chip-depth" style="display:none;"><span class="dot" style="background:#d946ef"></span><span id="info-depth">平均奥行距離: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-cyan)"></span><span id="info-map-type">地図種類: -</span></div>
     <div class="info-chip"><span class="dot" style="background:var(--accent-purple)"></span><span id="info-map-class">地図分類: -</span></div>
@@ -979,6 +994,10 @@ function computeBounds(paths) {
     }
   }
   
+  const polyMinY = minY;
+  const polyMaxY = maxY;
+  let edgeY = null;
+
   if (State.isRotated) {
       const pts = [];
       if (State.selectedEdge) {
@@ -987,13 +1006,13 @@ function computeBounds(paths) {
           pts.push(State.selectedVertices[0], State.selectedVertices[1]);
       }
       if (pts.length > 0) {
-          const edgeY = pts[0].y; 
+          edgeY = pts[0].y; 
           if (edgeY < minY) minY = edgeY;
           if (edgeY > maxY) maxY = edgeY;
       }
   }
 
-  return { minX, minY, maxX, maxY };
+  return { minX, minY, maxX, maxY, polyMinY, polyMaxY, edgeY };
 }
 
 function rotatePaths(paths, theta) {
@@ -1294,7 +1313,8 @@ function clearGuide() {
 function drawBoundingAndDimensions(paths) {
   const aux = getAux(); if (!aux) return;
   const s0 = sf(), bnd = computeBounds(paths);
-  const { minX, minY, maxX, maxY } = bnd, W = maxX - minX, H = maxY - minY;
+  const { minX, minY, maxX, maxY, polyMinY, polyMaxY, edgeY } = bnd;
+  const W = maxX - minX, H = maxY - minY;
 
   // ② Bounding rect (layer 2)
   const rect = document.createElementNS(NS, 'rect');
@@ -1363,9 +1383,167 @@ function drawBoundingAndDimensions(paths) {
   const areaM2 = (wReal.meters || W) * (hReal.meters || H);
   State.lastRectArea = areaM2; // store for print
 
+  const hasExcluded = paths.some(p => p.isExcluded);
+
+  if (State.isRotated && edgeY !== null && hasExcluded) {
+      document.getElementById('road-action-bar').style.display = 'flex';
+      initRoadConnection(paths, edgeY, polyMinY, polyMaxY, minX, maxX, s0);
+  } else {
+      document.getElementById('road-action-bar').style.display = 'none';
+      const rcChip = document.getElementById('chip-road-connect');
+      if (rcChip) rcChip.style.display = 'none';
+      State.lastRoadConnectArea = null;
+  }
+
   document.getElementById('info-dimensions').textContent = `寸法: 間口 ${fmtDist(W)} × 奥行 ${fmtDist(H)}`;
   document.getElementById('info-area').textContent = `想定整形地面積: ${areaM2.toFixed(2)} ㎡`;
   updateKagechiRatio();
+}
+
+function clipPolygonAABB(polyCoords, xmin, ymin, xmax, ymax) {
+    let result = polyCoords;
+    const edges = [
+        { isX: true,  sign: 1,  val: xmin },
+        { isX: true,  sign: -1, val: xmax },
+        { isX: false, sign: 1,  val: ymin },
+        { isX: false, sign: -1, val: ymax }
+    ];
+
+    for (let e of edges) {
+        if (result.length === 0) break;
+        let nextResult = [];
+        for (let i = 0; i < result.length; i++) {
+            let p1 = result[i];
+            let p2 = result[(i + 1) % result.length];
+            let d1 = e.isX ? (p1.x - e.val) * e.sign : (p1.y - e.val) * e.sign;
+            let d2 = e.isX ? (p2.x - e.val) * e.sign : (p2.y - e.val) * e.sign;
+
+            if (d1 >= 0) {
+                nextResult.push(p1);
+            }
+            if ((d1 >= 0 && d2 < 0) || (d1 < 0 && d2 >= 0)) {
+                let t = d1 / (d1 - d2);
+                let ix = p1.x + t * (p2.x - p1.x);
+                let iy = p1.y + t * (p2.y - p1.y);
+                nextResult.push({ x: ix, y: iy });
+            }
+        }
+        result = nextResult;
+    }
+    return result;
+}
+
+function initRoadConnection(paths, edgeY, polyMinY, polyMaxY, minX, maxX, s0) {
+    State.rcPaths = paths;
+    State.rcEdgeY = edgeY;
+    State.rcPolyMinY = polyMinY;
+    State.rcPolyMaxY = polyMaxY;
+    State.rcMinX = minX;
+    State.rcMaxX = maxX;
+    State.rcS0 = s0;
+
+    let distToLand = 0;
+    let closestY = null;
+    if (edgeY < polyMinY - 1e-4) {
+        distToLand = polyMinY - edgeY;
+        closestY = polyMinY;
+    } else if (edgeY > polyMaxY + 1e-4) {
+        distToLand = edgeY - polyMaxY;
+        closestY = polyMaxY;
+    }
+    
+    let closestX = minX;
+    if (distToLand > 0) {
+        for (const p of paths) {
+            if (p.isExcluded) continue;
+            let found = false;
+            for (const v of p.vertices) {
+                if (Math.abs(v.y - closestY) < 1e-3) {
+                    closestX = v.x;
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+    }
+    
+    const slider = document.getElementById('ctrl-road-pos');
+    const widthInput = document.getElementById('ctrl-road-width');
+    if (!slider || !widthInput) return;
+    
+    let w = parseFloat(widthInput.value) || 2;
+    slider.min = minX;
+    slider.max = maxX;
+    slider.step = (maxX - minX) / 1000;
+    slider.value = closestX - (w / 2);
+    
+    updateRoadConnection();
+}
+
+function updateRoadConnection() {
+    if (!State.isRotated || State.rcEdgeY === null) return;
+    
+    const slider = document.getElementById('ctrl-road-pos');
+    const widthInput = document.getElementById('ctrl-road-width');
+    const w = parseFloat(widthInput.value) || 2;
+    const xLeft = parseFloat(slider.value);
+    
+    const edgeY = State.rcEdgeY;
+    const polyMinY = State.rcPolyMinY;
+    const polyMaxY = State.rcPolyMaxY;
+    
+    const yMin = Math.min(edgeY, polyMinY);
+    const yMax = Math.max(edgeY, polyMaxY);
+    
+    let aux = getAux();
+    if (!aux) return;
+    
+    let rect = document.getElementById('road-connection-rect');
+    if (!rect) {
+        rect = document.createElementNS(NS, 'rect');
+        rect.id = 'road-connection-rect';
+        rect.setAttribute('fill', 'rgba(239, 68, 68, 0.4)');
+        rect.setAttribute('stroke', '#ef4444');
+        rect.setAttribute('stroke-dasharray', `${4 * State.rcS0} ${4 * State.rcS0}`);
+        rect.setAttribute('stroke-width', `${1.5 * State.rcS0}px`);
+        if (aux.firstChild) aux.insertBefore(rect, aux.firstChild);
+        else aux.appendChild(rect);
+    }
+    
+    rect.setAttribute('x', xLeft);
+    rect.setAttribute('y', yMin);
+    rect.setAttribute('width', w);
+    rect.setAttribute('height', yMax - yMin);
+    
+    const totalArea = w * (yMax - yMin);
+    
+    let intersectionArea = 0;
+    for (const p of State.rcPaths) {
+        if (p.isExcluded) continue;
+        const verts = uniqueRingVerts(p.vertices);
+        if (verts.length < 3) continue;
+        
+        const clipped = clipPolygonAABB(verts, xLeft, yMin, xLeft + w, yMax);
+        if (clipped.length >= 3) {
+            intersectionArea += computePolygonArea(clipped);
+        }
+    }
+    
+    const roadConnectArea = Math.max(0, totalArea - intersectionArea);
+    State.lastRoadConnectArea = roadConnectArea;
+    
+    const rcChip = document.getElementById('chip-road-connect');
+    const rcInfo = document.getElementById('info-road-connect');
+    if (rcChip && rcInfo) {
+        if (roadConnectArea > 0.01) {
+            rcInfo.textContent = `接道義務土地面積: ${roadConnectArea.toFixed(2)} ㎡`;
+            rcChip.style.display = 'inline-flex';
+        } else {
+            rcInfo.textContent = `接道義務土地面積: -`;
+            rcChip.style.display = 'none';
+        }
+    }
 }
 
 function addDimLine(aux, x1, y1, x2, y2, s0) {
@@ -2332,6 +2510,8 @@ function applyThemeToSVG() {
 // Event bindings
 // =============================================================================
 document.getElementById('file-input').addEventListener('change', e => processFiles(Array.from(e.target.files)));
+document.getElementById('ctrl-road-pos').addEventListener('input', updateRoadConnection);
+document.getElementById('ctrl-road-width').addEventListener('input', updateRoadConnection);
 
 /**
  * Auto-detect 縮尺分母 from GeoJSON properties and update scale selector.
@@ -2593,6 +2773,7 @@ document.getElementById('btn-print').addEventListener('click', () => {
   if (State.lastPathArea != null) printLines.push(`不整形地面積合計: ${State.lastPathArea.toFixed(2)} ㎡（参考、自動計算）`);
   if (State.lastKagechiRatio != null) printLines.push(`かげ地割合: ${State.lastKagechiRatio.toFixed(2)} %（参考、自動計算）`);
   if (State.lastDepth != null) printLines.push(`平均奥行距離: ${State.lastDepth.toFixed(3)} ㎡（参考、自動計算）`);
+  if (State.lastRoadConnectArea != null && State.lastRoadConnectArea > 0) printLines.push(`接道義務土地面積: ${State.lastRoadConnectArea.toFixed(2)} ㎡`);
   if (State.geoMeta) {
     if (State.geoMeta.地図種類) printLines.push(`地図種類: ${State.geoMeta.地図種類}`);
     if (State.geoMeta.地図分類) printLines.push(`地図分類: ${State.geoMeta.地図分類}`);
