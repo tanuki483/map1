@@ -1400,37 +1400,59 @@ function drawBoundingAndDimensions(paths) {
   updateKagechiRatio();
 }
 
-function clipPolygonAABB(polyCoords, xmin, ymin, xmax, ymax) {
-    let result = polyCoords;
-    const edges = [
-        { isX: true,  sign: 1,  val: xmin },
-        { isX: true,  sign: -1, val: xmax },
-        { isX: false, sign: 1,  val: ymin },
-        { isX: false, sign: -1, val: ymax }
-    ];
-
-    for (let e of edges) {
-        if (result.length === 0) break;
-        let nextResult = [];
-        for (let i = 0; i < result.length; i++) {
-            let p1 = result[i];
-            let p2 = result[(i + 1) % result.length];
-            let d1 = e.isX ? (p1.x - e.val) * e.sign : (p1.y - e.val) * e.sign;
-            let d2 = e.isX ? (p2.x - e.val) * e.sign : (p2.y - e.val) * e.sign;
-
-            if (d1 >= 0) {
-                nextResult.push(p1);
-            }
-            if ((d1 >= 0 && d2 < 0) || (d1 < 0 && d2 >= 0)) {
-                let t = d1 / (d1 - d2);
-                let ix = p1.x + t * (p2.x - p1.x);
-                let iy = p1.y + t * (p2.y - p1.y);
-                nextResult.push({ x: ix, y: iy });
+function getRoadConnectionPolygon(paths, edgeY, isLandBelowEdge, xLeft, w) {
+    const numSamples = 500;
+    const dx = w / numSamples;
+    const pts = [];
+    pts.push({ x: xLeft, y: edgeY });
+    
+    let hasHitAny = false;
+    
+    for (let i = 0; i <= numSamples; i++) {
+        const x = xLeft + i * dx;
+        let closestY = isLandBelowEdge ? Infinity : -Infinity;
+        let hit = false;
+        
+        for (const p of paths) {
+            if (p.isExcluded) continue;
+            const verts = p.vertices;
+            for (let j = 0; j < verts.length; j++) {
+                const p1 = verts[j], p2 = verts[(j + 1) % verts.length];
+                const minX = Math.min(p1.x, p2.x);
+                const maxX = Math.max(p1.x, p2.x);
+                
+                if (x >= minX - 1e-6 && x <= maxX + 1e-6) {
+                    if (Math.abs(p1.x - p2.x) < 1e-6) {
+                        checkY(p1.y); checkY(p2.y);
+                    } else {
+                        const m = (p2.y - p1.y) / (p2.x - p1.x);
+                        const b = p1.y - m * p1.x;
+                        const y = m * x + b;
+                        checkY(y);
+                    }
+                }
+                
+                function checkY(y) {
+                    if (isLandBelowEdge) {
+                        if (y >= edgeY - 1e-4 && y < closestY) { closestY = y; hit = true; }
+                    } else {
+                        if (y <= edgeY + 1e-4 && y > closestY) { closestY = y; hit = true; }
+                    }
+                }
             }
         }
-        result = nextResult;
+        
+        if (hit) {
+            pts.push({ x: x, y: closestY });
+            hasHitAny = true;
+        } else {
+            pts.push({ x: x, y: edgeY });
+        }
     }
-    return result;
+    
+    pts.push({ x: xLeft + w, y: edgeY });
+    if (!hasHitAny) return null;
+    return pts;
 }
 
 function initRoadConnection(paths, edgeY, polyMinY, polyMaxY, minX, maxX, s0) {
@@ -1442,29 +1464,18 @@ function initRoadConnection(paths, edgeY, polyMinY, polyMaxY, minX, maxX, s0) {
     State.rcMaxX = maxX;
     State.rcS0 = s0;
 
-    let distToLand = 0;
-    let closestY = null;
-    if (edgeY < polyMinY - 1e-4) {
-        distToLand = polyMinY - edgeY;
-        closestY = polyMinY;
-    } else if (edgeY > polyMaxY + 1e-4) {
-        distToLand = edgeY - polyMaxY;
-        closestY = polyMaxY;
-    }
-    
+    const isLandBelowEdge = ((polyMinY + polyMaxY) / 2) > edgeY;
+    let closestY = isLandBelowEdge ? Infinity : -Infinity;
     let closestX = minX;
-    if (distToLand > 0) {
-        for (const p of paths) {
-            if (p.isExcluded) continue;
-            let found = false;
-            for (const v of p.vertices) {
-                if (Math.abs(v.y - closestY) < 1e-3) {
-                    closestX = v.x;
-                    found = true;
-                    break;
-                }
+    
+    for (const p of paths) {
+        if (p.isExcluded) continue;
+        for (const v of p.vertices) {
+            if (isLandBelowEdge) {
+                if (v.y > edgeY - 1e-4 && v.y < closestY) { closestY = v.y; closestX = v.x; }
+            } else {
+                if (v.y < edgeY + 1e-4 && v.y > closestY) { closestY = v.y; closestX = v.x; }
             }
-            if (found) break;
         }
     }
     
@@ -1493,44 +1504,35 @@ function updateRoadConnection() {
     const polyMinY = State.rcPolyMinY;
     const polyMaxY = State.rcPolyMaxY;
     
-    const yMin = Math.min(edgeY, polyMinY);
-    const yMax = Math.max(edgeY, polyMaxY);
+    const isLandBelowEdge = ((polyMinY + polyMaxY) / 2) > edgeY;
+    const pts = getRoadConnectionPolygon(State.rcPaths, edgeY, isLandBelowEdge, xLeft, w);
     
     let aux = getAux();
     if (!aux) return;
     
-    let rect = document.getElementById('road-connection-rect');
-    if (!rect) {
-        rect = document.createElementNS(NS, 'rect');
-        rect.id = 'road-connection-rect';
-        rect.setAttribute('fill', 'rgba(239, 68, 68, 0.4)');
-        rect.setAttribute('stroke', '#ef4444');
-        rect.setAttribute('stroke-dasharray', `${4 * State.rcS0} ${4 * State.rcS0}`);
-        rect.setAttribute('stroke-width', `${1.5 * State.rcS0}px`);
-        if (aux.firstChild) aux.insertBefore(rect, aux.firstChild);
-        else aux.appendChild(rect);
+    let polyEl = document.getElementById('road-connection-poly');
+    if (!polyEl) {
+        polyEl = document.createElementNS(NS, 'polygon');
+        polyEl.id = 'road-connection-poly';
+        polyEl.setAttribute('fill', 'rgba(239, 68, 68, 0.4)');
+        polyEl.setAttribute('stroke', '#ef4444');
+        polyEl.setAttribute('stroke-dasharray', `${4 * State.rcS0} ${4 * State.rcS0}`);
+        polyEl.setAttribute('stroke-width', `${1.5 * State.rcS0}px`);
+        if (aux.firstChild) aux.insertBefore(polyEl, aux.firstChild);
+        else aux.appendChild(polyEl);
     }
     
-    rect.setAttribute('x', xLeft);
-    rect.setAttribute('y', yMin);
-    rect.setAttribute('width', w);
-    rect.setAttribute('height', yMax - yMin);
+    let roadConnectArea = 0;
     
-    const totalArea = w * (yMax - yMin);
-    
-    let intersectionArea = 0;
-    for (const p of State.rcPaths) {
-        if (p.isExcluded) continue;
-        const verts = uniqueRingVerts(p.vertices);
-        if (verts.length < 3) continue;
-        
-        const clipped = clipPolygonAABB(verts, xLeft, yMin, xLeft + w, yMax);
-        if (clipped.length >= 3) {
-            intersectionArea += computePolygonArea(clipped);
-        }
+    if (pts && pts.length > 0) {
+        const pointsStr = pts.map(p => `${p.x},${p.y}`).join(' ');
+        polyEl.setAttribute('points', pointsStr);
+        polyEl.style.display = '';
+        roadConnectArea = computePolygonArea(pts);
+    } else {
+        polyEl.style.display = 'none';
     }
     
-    const roadConnectArea = Math.max(0, totalArea - intersectionArea);
     State.lastRoadConnectArea = roadConnectArea;
     
     const rcChip = document.getElementById('chip-road-connect');
