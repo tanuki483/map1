@@ -119,7 +119,7 @@
     .file-name-display{margin-top:7px;font-size:11px;color:var(--text-secondary);font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 
     /* Mode toggle */
-    .mode-toggle{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    .mode-toggle{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
     .mode-option{position:relative}
     .mode-option input[type="radio"]{position:absolute;opacity:0;width:0;height:0}
     .mode-option label{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 8px;background:var(--bg-tertiary);border:1px solid rgba(255,255,255,.06);border-radius:var(--radius-sm);cursor:pointer;font-size:12px;color:var(--text-secondary);font-weight:500;transition:all var(--transition-normal);user-select:none}
@@ -565,6 +565,7 @@
       <div class="mode-toggle">
         <div class="mode-option"><input type="radio" id="mode-edge" name="select-mode" value="edge" checked><label for="mode-edge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg>辺選択</label></div>
         <div class="mode-option"><input type="radio" id="mode-vertex" name="select-mode" value="vertex"><label for="mode-vertex"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="2.5" fill="currentColor"/><circle cx="17" cy="17" r="2.5" fill="currentColor"/><line x1="9" y1="9" x2="15" y2="15" stroke-dasharray="3 2"/></svg>頂点選択</label></div>
+        <div class="mode-option"><input type="radio" id="mode-exclude" name="select-mode" value="exclude"><label for="mode-exclude"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM9 9l6 6M15 9l-6 6"/></svg>前面宅地切替</label></div>
       </div>
     </div>
     <!-- Scale -->
@@ -960,10 +961,38 @@ function uniqueRingVerts(vertices) {
 // =============================================================================
 function computeBounds(paths) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const p of paths) for (const v of p.vertices) {
-    if (v.x < minX) minX = v.x; if (v.y < minY) minY = v.y;
-    if (v.x > maxX) maxX = v.x; if (v.y > maxY) maxY = v.y;
+  let hasIncluded = false;
+  for (const p of paths) {
+    if (p.isExcluded) continue;
+    for (const v of p.vertices) {
+      hasIncluded = true;
+      if (v.x < minX) minX = v.x; if (v.y < minY) minY = v.y;
+      if (v.x > maxX) maxX = v.x; if (v.y > maxY) maxY = v.y;
+    }
   }
+  if (!hasIncluded) {
+    for (const p of paths) {
+      for (const v of p.vertices) {
+        if (v.x < minX) minX = v.x; if (v.y < minY) minY = v.y;
+        if (v.x > maxX) maxX = v.x; if (v.y > maxY) maxY = v.y;
+      }
+    }
+  }
+  
+  if (State.isRotated) {
+      const pts = [];
+      if (State.selectedEdge) {
+          pts.push(State.selectedEdge.p1, State.selectedEdge.p2);
+      } else if (State.selectedVertices.length === 2) {
+          pts.push(State.selectedVertices[0], State.selectedVertices[1]);
+      }
+      if (pts.length > 0) {
+          const edgeY = pts[0].y; 
+          if (edgeY < minY) minY = edgeY;
+          if (edgeY > maxY) maxY = edgeY;
+      }
+  }
+
   return { minX, minY, maxX, maxY };
 }
 
@@ -1028,9 +1057,28 @@ function renderSVG(paths) {
     el.setAttribute('d', buildPathD(p.vertices));
     el.setAttribute('class', 'geo-path');
     el.setAttribute('data-path-index', p.pathIndex);
-    el.style.stroke = strokeCol; el.style.strokeWidth = `${1.8 * s}px`;
-    el.style.strokeOpacity = strokeOp;
-    el.style.fill = fillCol; el.style.fillOpacity = fillOp;
+    
+    const isEx = p.isExcluded;
+    el.style.stroke = isEx ? '#94a3b8' : strokeCol; 
+    el.style.strokeWidth = `${1.8 * s}px`;
+    el.style.strokeOpacity = isEx ? 0.4 : strokeOp;
+    el.style.fill = isEx ? 'rgba(0,0,0,0)' : fillCol; 
+    el.style.fillOpacity = isEx ? 0 : fillOp;
+    if (isEx) el.style.strokeDasharray = `${4 * s} ${4 * s}`;
+    el.style.pointerEvents = 'all';
+    el.style.cursor = State.mode === 'exclude' ? 'pointer' : 'default';
+    
+    el.addEventListener('click', (e) => {
+      if (State.mode !== 'exclude') return;
+      p.isExcluded = !p.isExcluded;
+      renderSVG(State.paths);
+      if (State.isRotated) {
+        clearAux(); drawBoundingAndDimensions(State.paths);
+        applyReverseTransform();
+      }
+      restoreSelectionVisuals();
+    });
+
     pathGroup.appendChild(el);
   }
   svg.appendChild(pathGroup);
@@ -1353,6 +1401,7 @@ function updateInfoBar(paths) {
 function computeTotalPathArea(paths) {
   let totalSvgArea = 0;
   for (const p of paths) {
+    if (p.isExcluded) continue;
     const verts = uniqueRingVerts(p.vertices);
     if (verts.length < 3) continue;
     totalSvgArea += computePolygonArea(verts);
@@ -1477,8 +1526,14 @@ function onVertexClick(e) {
 function updateModeUI() {
   const eG = document.getElementById('edge-group'), vG = document.getElementById('vertex-group');
   if (!eG || !vG) return;
+  
   if (State.mode === 'edge') { eG.style.display = ''; vG.classList.remove('active'); }
-  else { eG.style.display = 'none'; vG.classList.add('active'); }
+  else if (State.mode === 'vertex') { eG.style.display = 'none'; vG.classList.add('active'); }
+  else { eG.style.display = 'none'; vG.classList.remove('active'); }
+  
+  document.querySelectorAll('.geo-path').forEach(p => {
+      p.style.cursor = State.mode === 'exclude' ? 'pointer' : 'default';
+  });
 }
 
 // =============================================================================
@@ -1486,8 +1541,8 @@ function updateModeUI() {
 // =============================================================================
 function executeRotation() {
   let p1, p2;
-  if (State.mode === 'edge' && State.selectedEdge) { p1 = State.selectedEdge.p1; p2 = State.selectedEdge.p2; }
-  else if (State.mode === 'vertex' && State.selectedVertices.length === 2) { p1 = State.selectedVertices[0]; p2 = State.selectedVertices[1]; }
+  if (State.selectedEdge) { p1 = State.selectedEdge.p1; p2 = State.selectedEdge.p2; }
+  else if (State.selectedVertices.length === 2) { p1 = State.selectedVertices[0]; p2 = State.selectedVertices[1]; }
   else { showToast('基準となる辺または2頂点を選択してください', 'error'); return; }
 
   if (!State.isRotated) State.originalPaths = JSON.parse(JSON.stringify(State.paths));
@@ -2333,13 +2388,21 @@ function autoDetectScale(geojson) {
 
 document.querySelectorAll('input[name="select-mode"]').forEach(radio => {
   radio.addEventListener('change', e => {
-    State.mode = e.target.value;
-    State.selectedEdge = null; State.selectedVertices = [];
-    document.querySelectorAll('#edge-group .geo-edge-group.selected').forEach(g => g.classList.remove('selected'));
-    document.querySelectorAll('#vertex-group .geo-vertex.selected').forEach(c => c.classList.remove('selected'));
-    clearGuide(); updateModeUI(); updateSelectionInfo();
-    document.getElementById('btn-execute').disabled = true;
-    showToast(State.mode === 'edge' ? '辺選択モード' : '頂点選択モード', 'info');
+    const newMode = e.target.value;
+    const oldMode = State.mode;
+    State.mode = newMode;
+    
+    if ((oldMode === 'edge' && newMode === 'vertex') || (oldMode === 'vertex' && newMode === 'edge')) {
+      State.selectedEdge = null; State.selectedVertices = [];
+      document.querySelectorAll('#edge-group .geo-edge-group.selected').forEach(g => g.classList.remove('selected'));
+      document.querySelectorAll('#vertex-group .geo-vertex.selected').forEach(c => c.classList.remove('selected'));
+      clearGuide();
+      document.getElementById('btn-execute').disabled = true;
+    }
+    
+    updateModeUI(); updateSelectionInfo();
+    const modeNames = { 'edge': '辺選択モード', 'vertex': '頂点選択モード', 'exclude': '前面宅地切替モード' };
+    showToast(modeNames[newMode], 'info');
   });
 });
 
