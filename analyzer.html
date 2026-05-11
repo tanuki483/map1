@@ -565,7 +565,7 @@
       <div class="mode-toggle">
         <div class="mode-option"><input type="radio" id="mode-edge" name="select-mode" value="edge" checked><label for="mode-edge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg>辺選択</label></div>
         <div class="mode-option"><input type="radio" id="mode-vertex" name="select-mode" value="vertex"><label for="mode-vertex"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="2.5" fill="currentColor"/><circle cx="17" cy="17" r="2.5" fill="currentColor"/><line x1="9" y1="9" x2="15" y2="15" stroke-dasharray="3 2"/></svg>頂点選択</label></div>
-        <div class="mode-option"><input type="radio" id="mode-exclude" name="select-mode" value="exclude"><label for="mode-exclude"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM9 9l6 6M15 9l-6 6"/></svg>前面宅地切替</label></div>
+        <div class="mode-option"><input type="radio" id="mode-exclude" name="select-mode" value="exclude"><label for="mode-exclude"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM9 9l6 6M15 9l-6 6"/></svg>前面宅地選択（評価しない土地を選択）</label></div>
       </div>
     </div>
     <!-- Scale -->
@@ -1040,6 +1040,30 @@ function makeLine(v1, v2, cls) {
   el.setAttribute('class', cls); return el;
 }
 
+function computeOverallBounds(paths) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of paths) {
+    for (const v of p.vertices) {
+      if (v.x < minX) minX = v.x; if (v.y < minY) minY = v.y;
+      if (v.x > maxX) maxX = v.x; if (v.y > maxY) maxY = v.y;
+    }
+  }
+  if (State.isRotated) {
+      const pts = [];
+      if (State.selectedEdge) {
+          pts.push(State.selectedEdge.p1, State.selectedEdge.p2);
+      } else if (State.selectedVertices.length === 2) {
+          pts.push(State.selectedVertices[0], State.selectedVertices[1]);
+      }
+      if (pts.length > 0) {
+          const edgeY = pts[0].y; 
+          if (edgeY < minY) minY = edgeY;
+          if (edgeY > maxY) maxY = edgeY;
+      }
+  }
+  return { minX, minY, maxX, maxY };
+}
+
 function renderSVG(paths) {
   const container = document.getElementById('svg-container');
   const placeholder = document.getElementById('svg-placeholder');
@@ -1048,7 +1072,7 @@ function renderSVG(paths) {
   placeholder.style.display = 'none'; wrapper.classList.add('has-content');
   if (!paths.length) return;
 
-  const bounds = computeBounds(paths);
+  const bounds = computeOverallBounds(paths);
   const dw = bounds.maxX - bounds.minX, dh = bounds.maxY - bounds.minY;
   const padBase = Math.max(dw, dh) * 0.15;
   const vbMinX = bounds.minX - padBase, vbMinY = bounds.minY - padBase;
@@ -1613,10 +1637,10 @@ function updateRoadConnection() {
     const rcInfo = document.getElementById('info-road-connect');
     if (rcChip && rcInfo) {
         if (roadConnectArea > 0.01) {
-            rcInfo.textContent = `接道義務土地面積: ${roadConnectArea.toFixed(2)} ㎡`;
+            rcInfo.textContent = `接道義務土地面積（参考、自動計算）: ${roadConnectArea.toFixed(2)} ㎡`;
             rcChip.style.display = 'inline-flex';
         } else {
-            rcInfo.textContent = `接道義務土地面積: -`;
+            rcInfo.textContent = `接道義務土地面積（参考、自動計算）: -`;
             rcChip.style.display = 'none';
         }
     }
@@ -2657,7 +2681,7 @@ document.querySelectorAll('input[name="select-mode"]').forEach(radio => {
     }
     
     updateModeUI(); updateSelectionInfo();
-    const modeNames = { 'edge': '辺選択モード', 'vertex': '頂点選択モード', 'exclude': '前面宅地切替モード' };
+    const modeNames = { 'edge': '辺選択モード', 'vertex': '頂点選択モード', 'exclude': '前面宅地選択（評価しない土地を選択）モード' };
     showToast(modeNames[newMode], 'info');
   });
 });
@@ -2849,7 +2873,7 @@ document.getElementById('btn-print').addEventListener('click', () => {
   if (State.lastPathArea != null) printLines.push(`不整形地面積合計: ${State.lastPathArea.toFixed(2)} ㎡（参考、自動計算）`);
   if (State.lastKagechiRatio != null) printLines.push(`かげ地割合: ${State.lastKagechiRatio.toFixed(2)} %（参考、自動計算）`);
   if (State.lastDepth != null) printLines.push(`平均奥行距離: ${State.lastDepth.toFixed(3)} ㎡（参考、自動計算）`);
-  if (State.lastRoadConnectArea != null && State.lastRoadConnectArea > 0) printLines.push(`接道義務土地面積: ${State.lastRoadConnectArea.toFixed(2)} ㎡`);
+  if (State.lastRoadConnectArea != null && State.lastRoadConnectArea > 0) printLines.push(`接道義務土地面積（参考、自動計算）: ${State.lastRoadConnectArea.toFixed(2)} ㎡`);
   if (State.geoMeta) {
     if (State.geoMeta.地図種類) printLines.push(`地図種類: ${State.geoMeta.地図種類}`);
     if (State.geoMeta.地図分類) printLines.push(`地図分類: ${State.geoMeta.地図分類}`);
