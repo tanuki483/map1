@@ -1617,6 +1617,10 @@
           <label style="color:var(--text-secondary); font-size:12px; white-space:nowrap;">接道位置:</label>
           <input type="range" id="ctrl-road-pos" min="0" max="1000" value="500" style="flex:1; cursor:pointer;">
         </div>
+        <div class="checkbox-wrapper" style="margin-left: auto;">
+          <input type="checkbox" id="chk-extend-outermost" checked>
+          <label for="chk-extend-outermost" style="color:var(--accent-green); font-weight:600; white-space:nowrap;">全土地の外縁まで延長</label>
+        </div>
       </div>
     </div>
 
@@ -1981,26 +1985,67 @@
     // =============================================================================
     function computeBounds(paths) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let polyMinY = Infinity, polyMaxY = -Infinity;
       let hasIncluded = false;
+
+      const useOutermost = document.getElementById('chk-extend-outermost') ? document.getElementById('chk-extend-outermost').checked : true;
+
+      // 1. 分析対象地（非除外）のみのX方向の最小/最大、およびY方向の最小/最大
       for (const p of paths) {
         if (p.isExcluded) continue;
         for (const v of p.vertices) {
           hasIncluded = true;
-          if (v.x < minX) minX = v.x; if (v.y < minY) minY = v.y;
-          if (v.x > maxX) maxX = v.x; if (v.y > maxY) maxY = v.y;
+          if (v.x < minX) minX = v.x;
+          if (v.x > maxX) maxX = v.x;
+          if (v.y < polyMinY) polyMinY = v.y;
+          if (v.y > polyMaxY) polyMaxY = v.y;
         }
       }
+
       if (!hasIncluded) {
         for (const p of paths) {
           for (const v of p.vertices) {
-            if (v.x < minX) minX = v.x; if (v.y < minY) minY = v.y;
-            if (v.x > maxX) maxX = v.x; if (v.y > maxY) maxY = v.y;
+            if (v.x < minX) minX = v.x;
+            if (v.x > maxX) maxX = v.x;
+            if (v.y < polyMinY) polyMinY = v.y;
+            if (v.y > polyMaxY) polyMaxY = v.y;
           }
         }
       }
 
-      const polyMinY = minY;
-      const polyMaxY = maxY;
+      if (useOutermost) {
+        // 2. Y方向の想定整形地用（全土地を含む）の最小/最大（Xが[minX, maxX]の範囲内に限る）
+        for (const p of paths) {
+          const verts = p.vertices;
+          for (let i = 0; i < verts.length; i++) {
+            const v1 = verts[i];
+            const v2 = verts[(i + 1) % verts.length];
+            
+            if (v1.x >= minX - 1e-6 && v1.x <= maxX + 1e-6) {
+              if (v1.y < minY) minY = v1.y;
+              if (v1.y > maxY) maxY = v1.y;
+            }
+            
+            if ((v1.x < minX && v2.x > minX) || (v1.x > minX && v2.x < minX)) {
+              const t = (minX - v1.x) / (v2.x - v1.x);
+              const y = v1.y + t * (v2.y - v1.y);
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+            
+            if ((v1.x < maxX && v2.x > maxX) || (v1.x > maxX && v2.x < maxX)) {
+              const t = (maxX - v1.x) / (v2.x - v1.x);
+              const y = v1.y + t * (v2.y - v1.y);
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+      } else {
+        minY = polyMinY;
+        maxY = polyMaxY;
+      }
+
       let edgeY = null;
 
       if (State.isRotated) {
@@ -2432,16 +2477,17 @@
     function getRoadConnectionPolygon(paths, edgeY, isLandBelowEdge, xLeft, w) {
       const numSamples = 500;
       const dx = w / numSamples;
-      const pts = [];
-      pts.push({ x: xLeft, y: edgeY });
+      const innerPts = [];
+      const outerPts = [];
 
       let hasHitAny = false;
 
       for (let i = 0; i <= numSamples; i++) {
         const x = xLeft + i * dx;
-        let closestY = isLandBelowEdge ? Infinity : -Infinity;
-        let hit = false;
-
+        
+        // 1. Find innerY (TARGET land boundary closest to road)
+        let innerY = isLandBelowEdge ? Infinity : -Infinity;
+        let innerHit = false;
         for (const p of paths) {
           if (p.isExcluded) continue;
           const verts = p.vertices;
@@ -2449,38 +2495,75 @@
             const p1 = verts[j], p2 = verts[(j + 1) % verts.length];
             const minX = Math.min(p1.x, p2.x);
             const maxX = Math.max(p1.x, p2.x);
-
             if (x >= minX - 1e-6 && x <= maxX + 1e-6) {
               if (Math.abs(p1.x - p2.x) < 1e-6) {
-                checkY(p1.y); checkY(p2.y);
+                checkInner(p1.y); checkInner(p2.y);
               } else {
                 const m = (p2.y - p1.y) / (p2.x - p1.x);
-                const b = p1.y - m * p1.x;
-                const y = m * x + b;
-                checkY(y);
-              }
-            }
-
-            function checkY(y) {
-              if (isLandBelowEdge) {
-                if (y >= edgeY - 1e-4 && y < closestY) { closestY = y; hit = true; }
-              } else {
-                if (y <= edgeY + 1e-4 && y > closestY) { closestY = y; hit = true; }
+                const y = m * x + (p1.y - m * p1.x);
+                checkInner(y);
               }
             }
           }
         }
+        function checkInner(y) {
+          if (isLandBelowEdge) {
+            if (y < innerY) { innerY = y; innerHit = true; }
+          } else {
+            if (y > innerY) { innerY = y; innerHit = true; }
+          }
+        }
 
-        if (hit) {
-          pts.push({ x: x, y: closestY });
+        const useOutermost = document.getElementById('chk-extend-outermost') ? document.getElementById('chk-extend-outermost').checked : true;
+
+        // 2. Find outerY (ALL lands boundary closest to road)
+        let outerY = isLandBelowEdge ? Infinity : -Infinity;
+        let outerHit = false;
+        
+        if (useOutermost) {
+          for (const p of paths) {
+            const verts = p.vertices;
+            for (let j = 0; j < verts.length; j++) {
+              const p1 = verts[j], p2 = verts[(j + 1) % verts.length];
+              const minX = Math.min(p1.x, p2.x);
+              const maxX = Math.max(p1.x, p2.x);
+              if (x >= minX - 1e-6 && x <= maxX + 1e-6) {
+                if (Math.abs(p1.x - p2.x) < 1e-6) {
+                  checkOuter(p1.y); checkOuter(p2.y);
+                } else {
+                  const m = (p2.y - p1.y) / (p2.x - p1.x);
+                  const y = m * x + (p1.y - m * p1.x);
+                  checkOuter(y);
+                }
+              }
+            }
+          }
+          function checkOuter(y) {
+            if (isLandBelowEdge) {
+              if (y < outerY) { outerY = y; outerHit = true; }
+            } else {
+              if (y > outerY) { outerY = y; outerHit = true; }
+            }
+          }
+        }
+
+        if (useOutermost && innerHit && outerHit) {
           hasHitAny = true;
-        } else {
-          pts.push({ x: x, y: edgeY });
+          innerPts.push({ x: x, y: innerY });
+          outerPts.push({ x: x, y: outerY });
+        } else if (innerHit) {
+          hasHitAny = true;
+          innerPts.push({ x: x, y: innerY });
+          outerPts.push({ x: x, y: useOutermost ? innerY : edgeY });
         }
       }
 
-      pts.push({ x: xLeft + w, y: edgeY });
       if (!hasHitAny) return null;
+
+      const pts = [];
+      for (let i = 0; i < innerPts.length; i++) pts.push(innerPts[i]);
+      for (let i = outerPts.length - 1; i >= 0; i--) pts.push(outerPts[i]);
+
       return pts;
     }
 
@@ -2570,11 +2653,25 @@
 
         const s0 = State.rcS0;
         const fs = 10 * s0, off = 8 * s0, tick = 5 * s0;
-        const yHitLeft = pts[1].y;
-        const yHitRight = pts[pts.length - 2].y;
-        const dir = isLandBelowEdge ? 1 : -1; // 内側（土地側）にずらすため符号を反転
+        
+        const N = pts.length / 2;
+        const yInnerLeft = pts[0].y;
+        const yOuterLeft = pts[pts.length - 1].y;
+        const yInnerRight = pts[N - 1].y;
+        const yOuterRight = pts[N].y;
 
-        const dimY = edgeY + dir * off;
+        let extremeOuterY = pts[N].y;
+        for (let i = N; i < pts.length; i++) {
+          if (isLandBelowEdge) {
+            if (pts[i].y < extremeOuterY) extremeOuterY = pts[i].y;
+          } else {
+            if (pts[i].y > extremeOuterY) extremeOuterY = pts[i].y;
+          }
+        }
+
+        const dir = isLandBelowEdge ? 1 : -1; // 内側（土地側）にずらすため符号を反転
+        const dimY = extremeOuterY + dir * off;
+        
         addDimLine(dimsGroup, xLeft, dimY, xLeft, dimY + dir * tick, s0);
         addDimLine(dimsGroup, xLeft + w, dimY, xLeft + w, dimY + dir * tick, s0);
         addDimLine(dimsGroup, xLeft, dimY + dir * tick / 2, xLeft + w, dimY + dir * tick / 2, s0);
@@ -2590,15 +2687,15 @@
         dimsGroup.appendChild(wText);
 
         const lDimX = xLeft - off;
-        const lLen = Math.abs(yHitLeft - edgeY);
+        const lLen = Math.abs(yInnerLeft - yOuterLeft);
         if (lLen > 0.01) {
-          addDimLine(dimsGroup, lDimX, edgeY, lDimX + tick, edgeY, s0);
-          addDimLine(dimsGroup, lDimX, yHitLeft, lDimX + tick, yHitLeft, s0);
-          addDimLine(dimsGroup, lDimX + tick / 2, edgeY, lDimX + tick / 2, yHitLeft, s0);
+          addDimLine(dimsGroup, lDimX, yOuterLeft, lDimX + tick, yOuterLeft, s0);
+          addDimLine(dimsGroup, lDimX, yInnerLeft, lDimX + tick, yInnerLeft, s0);
+          addDimLine(dimsGroup, lDimX + tick / 2, yOuterLeft, lDimX + tick / 2, yInnerLeft, s0);
 
           const lText = document.createElementNS(NS, 'text');
           lText.setAttribute('x', lDimX - fs * 0.5);
-          lText.setAttribute('y', (edgeY + yHitLeft) / 2);
+          lText.setAttribute('y', (yOuterLeft + yInnerLeft) / 2);
           lText.setAttribute('text-anchor', 'middle');
           lText.setAttribute('dominant-baseline', 'central');
           lText.setAttribute('class', 'dim-text');
@@ -2610,15 +2707,15 @@
         }
 
         const rDimX = xLeft + w + off;
-        const rLen = Math.abs(yHitRight - edgeY);
+        const rLen = Math.abs(yInnerRight - yOuterRight);
         if (rLen > 0.01) {
-          addDimLine(dimsGroup, rDimX, edgeY, rDimX - tick, edgeY, s0);
-          addDimLine(dimsGroup, rDimX, yHitRight, rDimX - tick, yHitRight, s0);
-          addDimLine(dimsGroup, rDimX - tick / 2, edgeY, rDimX - tick / 2, yHitRight, s0);
+          addDimLine(dimsGroup, rDimX, yOuterRight, rDimX - tick, yOuterRight, s0);
+          addDimLine(dimsGroup, rDimX, yInnerRight, rDimX - tick, yInnerRight, s0);
+          addDimLine(dimsGroup, rDimX - tick / 2, yOuterRight, rDimX - tick / 2, yInnerRight, s0);
 
           const rText = document.createElementNS(NS, 'text');
           rText.setAttribute('x', rDimX + fs * 1.5);
-          rText.setAttribute('y', (edgeY + yHitRight) / 2);
+          rText.setAttribute('y', (yOuterRight + yInnerRight) / 2);
           rText.setAttribute('text-anchor', 'middle');
           rText.setAttribute('dominant-baseline', 'central');
           rText.setAttribute('class', 'dim-text');
@@ -3617,6 +3714,13 @@
     document.getElementById('file-input').addEventListener('change', e => processFiles(Array.from(e.target.files)));
     document.getElementById('ctrl-road-pos').addEventListener('input', updateRoadConnection);
     document.getElementById('ctrl-road-width').addEventListener('input', updateRoadConnection);
+    document.getElementById('chk-extend-outermost').addEventListener('change', () => {
+      if (State.paths && State.paths.length > 0 && State.isRotated) {
+        clearAux();
+        drawBoundingAndDimensions(State.paths);
+        applyReverseTransform();
+      }
+    });
 
     /**
      * Auto-detect 縮尺分母 from GeoJSON properties and update scale selector.
