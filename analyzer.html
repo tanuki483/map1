@@ -1183,7 +1183,7 @@
         display: none !important
       }
 
-      /* A4 Fit Print (Default) */
+      /* A4 Fit Print */
       body.print-svg-mode:not(.print-mode-real) {
         margin: 0 !important;
         padding: 0 !important;
@@ -1217,7 +1217,7 @@
         display: block !important;
       }
 
-      /* Real Scale Print */
+      /* Real Scale Print ( Default ) */
       body.print-svg-mode.print-mode-real {
         margin: 0 !important;
         padding: 0 !important;
@@ -1436,7 +1436,7 @@
               角度維持オプションを選択したままリセットすると現在の角度を保ったまま辺の選択などがリセットされる。
             </li>
             <li>
-              表記上の距離ｍ㍍はGeoJsonファイルをそのまま返還したSVGファイル上の座標距離を採用している。
+              表記上の距離ｍ㍍はGeoJsonファイルをそのまま変換したSVGファイル上の座標距離を採用している。
               表記上の距離に違和感がある場合や実測距離と差がある場合は縮尺を手動で変更することができる。
             </li>
           </ol>
@@ -1581,8 +1581,8 @@
       </button>
       <div style="display:flex; align-items:center; gap:8px;">
         <select id="print-mode" class="scale-select" style="width: auto; padding-right: 28px; padding-left: 10px;">
-          <option value="a4">A4フィット印刷</option>
           <option value="real">等倍印刷</option>
+          <option value="a4">A4フィット印刷</option>
         </select>
         <div class="checkbox-wrapper" id="wrap-lbp441" style="display: none; margin-left: -4px;">
           <input type="checkbox" id="chk-lbp441" checked>
