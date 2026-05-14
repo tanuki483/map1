@@ -1696,7 +1696,7 @@
   <div id="map-banner" class="map-banner">
     <span id="map-banner-text">外部マップの埋め込み準備が完了しました</span>
     <button
-      onclick="window.loadMapIframes(); document.getElementById('map-integration-container').scrollIntoView({behavior:'smooth'}); document.getElementById('map-banner').classList.remove('show');">地図を見る</button>
+      onclick="document.getElementById('map-integration-container').scrollIntoView({behavior:'smooth'}); document.getElementById('map-banner').classList.remove('show');">地図を見る</button>
   </div>
 
   <script>
@@ -1708,15 +1708,17 @@
     const CHIKAMAP_OFFSET_Y = -0.00275;
 
 
-    window.loadMapIframes = function () {
-      document.querySelectorAll('#map-iframes iframe, #map-iframes .leaflet-wrapper').forEach(i => {
-        if (i.getAttribute('data-src')) {
-          i.src = i.getAttribute('data-src');
-        }
-        i.style.display = '';
-      });
-      const ph = document.getElementById('map-load-placeholder');
-      if (ph) ph.style.display = 'none';
+    window.loadMapIframes = function (onlyInitLeaflet = false) {
+      if (!onlyInitLeaflet) {
+        document.querySelectorAll('#map-iframes iframe, #map-iframes .leaflet-wrapper').forEach(i => {
+          if (i.getAttribute('data-src')) {
+            i.src = i.getAttribute('data-src');
+          }
+          i.style.display = '';
+        });
+        const ph = document.getElementById('mapple-load-placeholder');
+        if (ph) ph.style.display = 'none';
+      }
 
       if (State.wgs84GeoJSON && !window.lmap) {
         const ldiv = document.getElementById('leaflet-map');
@@ -3590,16 +3592,20 @@
       const reinfoUrl = `https://www.reinfolib.mlit.go.jp/map/?layers=publicNotices&layers=useAreaLayer&surveyYear=${currentYear}&x=${lat}&y=${lng}&zoom=16&publicNotices=00&publicNotices=03&publicNotices=05&publicNotices=07&publicNotices=09&publicNotices=10&publicNotices=13&publicNotices=20`;
       linksBox.appendChild(createLink('用途区域（不動産ライブラリ）', reinfoUrl, '#8b5cf6', gIcon));
 
-      const createIframe = (url) => {
+      const createIframe = (url, lazy = false) => {
         const ifm = document.createElement('iframe');
-        ifm.setAttribute('data-src', url);
+        if (lazy) {
+          ifm.setAttribute('data-src', url);
+          ifm.style.display = 'none';
+        } else {
+          ifm.src = url;
+        }
         ifm.sandbox = "allow-scripts allow-popups allow-forms allow-same-origin";
         ifm.style.border = '1px solid var(--border-primary)';
         ifm.style.borderRadius = 'var(--radius-sm)';
         ifm.style.height = '480px';
         ifm.style.flex = '1 1 calc(50% - 8px)';
         ifm.style.minWidth = '380px';
-        ifm.style.display = 'none';
         return ifm;
       };
 
@@ -3611,7 +3617,6 @@
       lWrapper.className = 'leaflet-wrapper';
       lWrapper.style.flex = '1 1 100%';
       lWrapper.style.minWidth = '380px';
-      lWrapper.style.display = 'none';
       lWrapper.innerHTML = `<div style="font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px; display:flex; align-items:center; gap:6px;"><span style="display:inline-block; width:12px; height:12px; background:#ef4444; border:1px solid #dc2626; border-radius:3px; opacity:0.8;"></span> 対象地（国土地理院タイルオーバーレイ）</div>
                         <div id="leaflet-map" style="height:480px; width:100%; border:1px solid var(--border-primary); border-radius:var(--radius-sm); z-index:1;"></div>`;
       framesBox.appendChild(lWrapper);
@@ -3619,25 +3624,31 @@
       // 2. Google Maps Embed
       framesBox.appendChild(createIframe(gMapsEmbed));
 
-      // 3. Mapple
-      framesBox.appendChild(createIframe(maplUrl));
+      // 3. Mapple (Lazy load to prevent auto-scrolling)
+      framesBox.appendChild(createIframe(maplUrl, true));
+      const ph = document.createElement('div');
+      ph.id = 'mapple-load-placeholder';
+      ph.style.height = '480px';
+      ph.style.flex = '1 1 calc(50% - 8px)';
+      ph.style.minWidth = '380px';
+      ph.style.display = 'flex';
+      ph.style.flexDirection = 'column';
+      ph.style.alignItems = 'center';
+      ph.style.justifyContent = 'center';
+      ph.style.background = 'var(--surface-glass)';
+      ph.style.border = '1px solid var(--border-primary)';
+      ph.style.borderRadius = 'var(--radius-sm)';
+      ph.innerHTML = `<p style="margin-bottom:12px; font-size:13px; color:var(--text-secondary); font-weight:600;">マップル法務局ビューア</p>
+                  <button style="background:var(--accent-cyan); color:#000; font-weight:700; font-size:12px; padding:8px 20px; border:none; border-radius:100px; cursor:pointer; outline:none;" onclick="window.loadMapIframes()">地図を読み込む</button>`;
+      framesBox.appendChild(ph);
 
       // 4. GSI standard map iframe
       const gsiIframe = createIframe(gsiUrl);
       gsiIframe.style.flex = '1 1 100%';
       framesBox.appendChild(gsiIframe);
 
-      const ph = document.createElement('div');
-      ph.id = 'map-load-placeholder';
-      ph.style.width = '100%';
-      ph.style.padding = '50px 20px';
-      ph.style.textAlign = 'center';
-      ph.style.background = 'var(--surface-glass)';
-      ph.style.border = '2px dashed var(--accent-cyan)';
-      ph.style.borderRadius = 'var(--radius-md)';
-      ph.innerHTML = `<p style="margin-bottom:20px; font-size:14px; color:var(--text-primary); font-weight:600;">地図プレビューはパフォーマンスおよび強制スクロール防止のため遅延ロードされています</p>
-                  <button style="background:var(--accent-cyan); color:#000; font-weight:800; font-size:15px; padding:12px 32px; border:none; border-radius:100px; cursor:pointer; box-shadow:0 4px 16px rgba(34,211,238,0.4); outline:none; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" onclick="window.loadMapIframes()">埋め込み地図を読み込む（プレビュー）</button>`;
-      framesBox.appendChild(ph);
+      // Initialize maps immediately (but skip lazy ones like Mapple)
+      window.loadMapIframes(true);
 
       // Show banner
       const banner = document.getElementById('map-banner');
