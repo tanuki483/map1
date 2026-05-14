@@ -1749,6 +1749,8 @@
     // =============================================================================
     const State = {
       geojson: null,
+      customFrontY: null,
+      dragFrontEdge: false,
       paths: [],             // [{pathIndex, vertices:[{x,y}]}]
       originalPaths: [],     // deep clone before rotation
       features: [],          // [{featureId, properties, outerRingPathIndices:[]}]
@@ -2389,7 +2391,20 @@
     function drawBoundingAndDimensions(paths) {
       const aux = getAux(); if (!aux) return;
       const s0 = sf(), bnd = computeBounds(paths);
-      const { minX, minY, maxX, maxY, polyMinY, polyMaxY, edgeY } = bnd;
+      let { minX, minY, maxX, maxY, polyMinY, polyMaxY, edgeY } = bnd;
+
+      const ccy = (minY + maxY) / 2;
+      const isLandBelowEdge = ccy > edgeY;
+
+      if (State.customFrontY !== null) {
+        if (isLandBelowEdge) {
+          minY = Math.min(State.customFrontY, maxY - 0.1);
+        } else {
+          maxY = Math.max(State.customFrontY, minY + 0.1);
+        }
+      }
+      State.rcFrontLimitY = isLandBelowEdge ? minY : maxY;
+
       const W = maxX - minX, H = maxY - minY;
 
       // ② Bounding rect (layer 2)
@@ -2399,6 +2414,36 @@
       rect.setAttribute('class', 'bounding-rect');
       rect.style.strokeWidth = `${s0}px`; rect.style.strokeDasharray = `${5 * s0} ${4 * s0}`;
       aux.appendChild(rect);
+
+      if (State.paths.some(p => p.isExcluded)) {
+        const frontLimitY = State.rcFrontLimitY;
+        const visibleHandle = document.createElementNS(NS, 'line');
+        visibleHandle.setAttribute('x1', minX);
+        visibleHandle.setAttribute('x2', maxX);
+        visibleHandle.setAttribute('y1', frontLimitY);
+        visibleHandle.setAttribute('y2', frontLimitY);
+        visibleHandle.setAttribute('stroke', '#0ea5e9');
+        visibleHandle.setAttribute('stroke-width', 3 * s0);
+        visibleHandle.setAttribute('stroke-dasharray', `${8 * s0} ${4 * s0}`);
+        visibleHandle.style.pointerEvents = 'none';
+        aux.appendChild(visibleHandle);
+
+        const dragHandle = document.createElementNS(NS, 'line');
+        dragHandle.setAttribute('x1', minX);
+        dragHandle.setAttribute('x2', maxX);
+        dragHandle.setAttribute('y1', frontLimitY);
+        dragHandle.setAttribute('y2', frontLimitY);
+        dragHandle.setAttribute('stroke', 'transparent');
+        dragHandle.setAttribute('stroke-width', 30 * s0);
+        dragHandle.style.cursor = 'ns-resize';
+        dragHandle.style.pointerEvents = 'all';
+        dragHandle.addEventListener('mousedown', e => {
+          State.dragFrontEdge = true;
+          e.preventDefault();
+          e.stopPropagation();
+        });
+        aux.appendChild(dragHandle);
+      }
 
       const fs = 10 * s0, off = 8 * s0, tick = 5 * s0;
       const wLabel = fmtDist(W), hLabel = fmtDist(H);
@@ -2476,7 +2521,7 @@
       updateKagechiRatio();
     }
 
-    function getRoadConnectionPolygon(paths, edgeY, isLandBelowEdge, xLeft, w) {
+    function getRoadConnectionPolygon(paths, edgeY, isLandBelowEdge, xLeft, w, frontLimitY) {
       const numSamples = 500;
       const dx = w / numSamples;
       const innerPts = [];
@@ -2546,6 +2591,14 @@
             } else {
               if (y > outerY) { outerY = y; outerHit = true; }
             }
+          }
+        }
+
+        if (frontLimitY !== undefined) {
+          if (isLandBelowEdge) {
+            if (outerY < frontLimitY) outerY = frontLimitY;
+          } else {
+            if (outerY > frontLimitY) outerY = frontLimitY;
           }
         }
 
@@ -2619,7 +2672,7 @@
       const polyMaxY = State.rcPolyMaxY;
 
       const isLandBelowEdge = ((polyMinY + polyMaxY) / 2) > edgeY;
-      const pts = getRoadConnectionPolygon(State.rcPaths, edgeY, isLandBelowEdge, xLeft, w);
+      const pts = getRoadConnectionPolygon(State.rcPaths, edgeY, isLandBelowEdge, xLeft, w, State.rcFrontLimitY);
 
       let aux = getAux();
       if (!aux) return;
@@ -2933,6 +2986,7 @@
       State.rotationAngle = (State.isRotated ? State.rotationAngle : 0) + theta;
       rotatePaths(State.paths, -theta);
       State.isRotated = true;
+      State.customFrontY = null;
 
       // Rotate selected edge/vertex coordinates by the same -theta to keep them in sync
       const cosN = Math.cos(-theta), sinN = Math.sin(-theta);
@@ -2954,6 +3008,34 @@
       State.rotationCenter = { cx: (rBounds.minX + rBounds.maxX) / 2, cy: (rBounds.minY + rBounds.maxY) / 2 };
 
       renderSVG(State.paths); drawBoundingAndDimensions(State.paths);
+
+      if (State.paths.some(p => p.isExcluded)) {
+        let msg = document.getElementById('drag-guide-msg');
+        if (!msg) {
+          msg = document.createElement('div');
+          msg.id = 'drag-guide-msg';
+          msg.style.position = 'absolute';
+          msg.style.top = '20px';
+          msg.style.left = '50%';
+          msg.style.transform = 'translateX(-50%)';
+          msg.style.background = 'rgba(14, 165, 233, 0.9)';
+          msg.style.color = '#fff';
+          msg.style.padding = '12px 24px';
+          msg.style.borderRadius = '8px';
+          msg.style.fontWeight = 'bold';
+          msg.style.fontSize = '14px';
+          msg.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+          msg.style.zIndex = '1000';
+          msg.style.pointerEvents = 'none';
+          msg.style.transition = 'opacity 0.5s';
+          document.getElementById('svg-canvas-wrapper').style.position = 'relative';
+          document.getElementById('svg-canvas-wrapper').appendChild(msg);
+        }
+        msg.textContent = '前面宅地が選択されています：想定整形地の前側の辺（青色点線）をドラッグして手前側の延長位置を調整できます';
+        msg.style.opacity = '1';
+        clearTimeout(msg._t);
+        msg._t = setTimeout(() => { msg.style.opacity = '0'; }, 6000);
+      }
 
       // Re-apply visual selection state after re-render
       restoreSelectionVisuals();
@@ -4041,6 +4123,23 @@
       btn.textContent = isWarm ? '❄ 寒色' : '☀ 暖色';
       btn.title = isWarm ? '寒色テーマに切替' : '暖色テーマに切替';
       applyThemeToSVG();
+    });
+
+    window.addEventListener('mousemove', e => {
+      if (!State.dragFrontEdge) return;
+      const auxG = document.getElementById('aux-group');
+      const svg = document.querySelector('#svg-container svg');
+      if (!auxG || !svg) return;
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX; pt.y = e.clientY;
+      const localPt = pt.matrixTransform(auxG.getScreenCTM().inverse());
+      State.customFrontY = localPt.y;
+      clearAux();
+      drawBoundingAndDimensions(State.paths);
+      applyReverseTransform();
+    });
+    window.addEventListener('mouseup', () => {
+      State.dragFrontEdge = false;
     });
 
     // Style panel toggle
