@@ -8,7 +8,8 @@
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$root = $PSScriptRoot
+if ([string]::IsNullOrEmpty($root)) { $root = (Get-Location).Path }
 
 # --- ディレクトリ作成 ---
 $dirs = @(
