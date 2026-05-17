@@ -1,3 +1,27 @@
+# ============================================================
+# setup_libs.ps1
+# 銀行明細OCRツール用ライブラリ一括ダウンロードスクリプト
+# ネットワーク接続がある環境で一度だけ実行してください。
+# Node.js / npm は不要です。
+# ============================================================
+
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+$ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# --- ディレクトリ作成 ---
+$dirs = @(
+    "$root\libs\pdfjs",
+    "$root\libs\tesseract\core",
+    "$root\libs\tessdata",
+    "$root\libs\xlsx"
+)
+foreach ($d in $dirs) {
+    if (!(Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
+}
+
+# --- ダウンロード関数 ---
 function Save-File($url, $dest) {
     $name = Split-Path $dest -Leaf
     if (Test-Path $dest) {
@@ -9,8 +33,7 @@ function Save-File($url, $dest) {
         Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
         $size = [math]::Round((Get-Item $dest).Length / 1KB, 1)
         Write-Host " OK (${size} KB)" -ForegroundColor Green
-    }
-    catch {
+    } catch {
         Write-Host " FAILED" -ForegroundColor Red
         Write-Host "         URL: $url" -ForegroundColor Yellow
         Write-Host "         Error: $_" -ForegroundColor Yellow
@@ -56,3 +79,11 @@ Save-File "https://tessdata.projectnaptha.com/4.0.0_best/eng.traineddata.gz" "$r
 # =========================
 Write-Host "`n=== SheetJS ===" -ForegroundColor Cyan
 Save-File "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" "$root\libs\xlsx\xlsx.full.min.js"
+
+# =========================
+# 完了
+# =========================
+Write-Host "`n============================================" -ForegroundColor Green
+Write-Host " All downloads complete!" -ForegroundColor Green
+Write-Host " Run serve.bat to start the local server." -ForegroundColor Green
+Write-Host "============================================`n" -ForegroundColor Green
