@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>銀行明細 OCR → Excel</title>
+  <meta name="description" content="オフライン対応の銀行取引明細OCRツール。PDFからExcelへ変換。">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body class="theme-warm">
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-title-group">
+        <div class="header-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="22" height="22"><path fill="currentColor" d="M124.3,102.6L101.9,3.3c-0.3-1.5-1.7-2.5-3.3-2.3c-0.7,0.1-1.3,0.4-1.7,0.9c-0.8,0.8-2.6,2.6-4,4 c-2.9,2.9-6.7,4.8-10.8,5c-4.7,0.3-9.2-1.4-12.5-4.7l-4.3-4.3c-0.5-0.5-1.1-0.8-1.7-0.9c-1.6-0.2-3,0.9-3.3,2.3L38,102.6 c-0.6,2.7-0.8,5.6-0.3,8.2l-2.9,1.3l-3.3-2.7l-15.1-3.5c-3.2-0.7-6.5,0-9.1,2.1c-2.7,2.2-4.2,5.5-4,9c0.3,5.7,5.3,10.1,11.1,10.1 h75.7c0.8,0,1.5-0.2,2.2-0.5l3-1.5l3.4,2h5.8c6,0,11.7-2.4,15.6-6.9C124.1,115.2,125.7,108.8,124.3,102.6z"/><path fill="#fff" d="M34.1 118.8c.5 1 1.6 1.6 2.7 1.6.5 0 .9-.1 1.4-.3 1.5-.8 2.1-2.6 1.3-4-.9-1.7-1.5-3.5-1.8-5.3l-6.2-1.4C31.7 112.7 32.6 115.8 34.1 118.8zM90 127h8.5c.3-.9.5-1.9.5-3 0-3.9-2.5-7.2-6-8.5L92.9 99c0-1.7-1.4-3-3-3-1.7 0-3 1.4-3 3l.1 18.6c0 .1 0 .2 0 .4 0 1.7 1.3 3 3 3s3 1.3 3 3S91.7 127 90 127zM72 120.4c-1.7 0-3-1.3-3-3L68.9 99c0-1.7 1.3-3 3-3l0 0c1.7 0 3 1.3 3 3l.1 18.4C75 119.1 73.7 120.4 72 120.4L72 120.4zM71 31A3 3 0 1 0 71 37 3 3 0 1 0 71 31zM91 31A3 3 0 1 0 91 37 3 3 0 1 0 91 31z"/></svg>
+        </div>
+        <div>
+          <h1>銀行明細 OCR → Excel</h1>
+          <p>スキャンPDFから取引明細データを抽出・Excel出力</p>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="theme-toggle" id="btn-theme">❄ 寒色に切替</button>
+        <span class="header-badge">v1.0.0</span>
+      </div>
+    </header>
+
+    <!-- Info -->
+    <details class="custom-details">
+      <summary class="custom-summary">使い方・注意事項</summary>
+      <div class="details-content">
+        <p><strong>① PDF読込:</strong> 銀行取引明細をスキャンしたPDFファイルをドラッグ＆ドロップまたはボタンで読み込みます。</p>
+        <p><strong>② 前処理調整:</strong> コントラスト・二値化などの設定でOCR精度を向上させます。解像度(スケール)を上げると精度が上がりますが処理が遅くなります。</p>
+        <p><strong>③ OCR実行:</strong> Tesseract.jsで文字認識を行います。日本語+英語に対応。</p>
+        <p><strong>④ 結果編集:</strong> テーブルのセルをクリックして手動修正できます。</p>
+        <p><strong>⑤ Excel出力:</strong> 編集後のデータをxlsx形式でダウンロードします。</p>
+        <hr style="border-color:var(--border-primary);margin:8px 0">
+        <p>⚠ OCR精度はスキャン品質に依存します。必ず結果を確認・修正してください。</p>
+        <p>🔒 このツールは完全オフラインで動作します。データは外部に送信されません。</p>
+      </div>
+    </details>
+
+    <!-- Controls -->
+    <div class="controls-grid">
+      <div class="control-card">
+        <div class="card-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          OCR設定
+        </div>
+        <div class="slider-row">
+          <label>解像度</label>
+          <input type="range" id="slider-scale" min="1" max="4" step="0.5" value="2">
+          <span class="val" id="val-scale">2</span>
+        </div>
+        <div class="check-row"><input type="checkbox" id="chk-grayscale" checked> グレースケール変換</div>
+      </div>
+
+      <div class="control-card">
+        <div class="card-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          前処理
+        </div>
+        <div class="slider-row">
+          <label>コントラスト</label>
+          <input type="range" id="slider-contrast" min="50" max="200" value="100">
+          <span class="val" id="val-contrast">100</span>
+        </div>
+        <div class="slider-row">
+          <label>明るさ</label>
+          <input type="range" id="slider-brightness" min="50" max="200" value="100">
+          <span class="val" id="val-brightness">100</span>
+        </div>
+        <div class="check-row"><input type="checkbox" id="chk-binarize"> 二値化</div>
+        <div class="slider-row">
+          <label>閾値</label>
+          <input type="range" id="slider-threshold" min="0" max="255" value="128">
+          <span class="val" id="val-threshold">128</span>
+        </div>
+      </div>
+
+      <div class="control-card">
+        <div class="card-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          ステータス
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="status-text" id="status-text">待機中</div>
+      </div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="action-bar">
+      <button class="btn btn-primary" id="btn-load">📂 PDF読込</button>
+      <input type="file" id="file-input" accept=".pdf" style="display:none">
+      <button class="btn btn-primary" id="btn-ocr" disabled>🔍 OCR実行</button>
+      <div style="flex-grow:1"></div>
+      <button class="btn btn-secondary" id="btn-reset">リセット</button>
+      <button class="btn btn-primary" id="btn-export" disabled>📊 Excelエクスポート</button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content-wrapper">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="preview">PDFプレビュー</button>
+        <button class="tab-btn" data-tab="ocrtext">OCRテキスト</button>
+        <button class="tab-btn" data-tab="table">テーブル</button>
+      </div>
+
+      <div class="tab-panel active" id="panel-preview">
+        <div class="drop-zone" id="drop-zone">
+          <div class="placeholder-icon" style="margin:0 auto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+          </div>
+          <p>PDFファイルをドラッグ＆ドロップ<br><small>またはクリックして選択</small></p>
+        </div>
+        <div class="page-grid" id="page-grid"></div>
+      </div>
+
+      <div class="tab-panel" id="panel-ocrtext">
+        <textarea class="ocr-text-area" id="ocr-textarea" placeholder="OCR結果がここに表示されます..." readonly></textarea>
+      </div>
+
+      <div class="tab-panel" id="panel-table">
+        <div class="table-actions">
+          <button class="btn btn-secondary" onclick="addRow()">＋ 行追加</button>
+        </div>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr>
+              <th>#</th><th>日付</th><th>摘要</th><th>お支払金額</th><th>お預り金額</th><th>残高</th><th></th>
+            </tr></thead>
+            <tbody id="table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Bar -->
+    <div class="info-bar">
+      <div class="info-chip"><span class="dot" style="background:var(--accent-green)"></span><span id="info-pages">PAGES: 0</span></div>
+      <div class="info-chip"><span class="dot" style="background:var(--accent-blue)"></span><span id="info-rows">ROWS: 0</span></div>
+      <div class="info-chip"><span class="dot" style="background:var(--accent-orange)"></span><span id="info-time">TIME: --</span></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- Libraries (downloaded by setup_libs.ps1) -->
+  <script src="libs/pdfjs/pdf.min.js"></script>
+  <script src="libs/tesseract/tesseract.min.js"></script>
+  <script src="libs/xlsx/xlsx.full.min.js"></script>
+  <script>
+    // Configure PDF.js worker
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'libs/pdfjs/pdf.worker.min.js';
+    }
+  </script>
+  <script src="app.js"></script>
+</body>
+</html>
