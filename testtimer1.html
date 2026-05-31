@@ -1455,7 +1455,8 @@
         <input type="file" id="file-input" accept=".geojson,.json" multiple>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:7px;">
           <div class="file-name-display" id="file-name" style="margin-top:0; flex:1;">ファイル未選択</div>
-          <a id="btn-kouzuviewer" href="#" target="_blank" class="btn btn-secondary" style="display:none; opacity:0.6; pointer-events:none; padding:4px 8px; font-size:11px; margin-left:8px; text-decoration:none;">KouzuViewerで探す...</a>
+          <a id="btn-kouzuviewer" href="#" target="_blank" class="btn btn-secondary"
+            style="display:none; opacity:0.6; pointer-events:none; padding:4px 8px; font-size:11px; margin-left:8px; text-decoration:none;">KouzuViewerで探す...</a>
         </div>
       </div>
       <!-- Mode -->
@@ -3913,169 +3914,181 @@
           if (p.x < printMinX) printMinX = p.x; if (p.y < printMinY) printMinY = p.y;
           if (p.x > printMaxX) printMaxX = p.x; if (p.y > printMaxY) printMaxY = p.y;
         }
-      } else {
-        printMinX = bnd.minX;
-        printMinY = bnd.minY - off * 2;
-        printMaxX = bnd.maxX + off + tick + fs * 3;
-        printMaxY = bnd.maxY + off + tick + fs * 3;
-      }
+        const GAS_PROXY_URL = 'YOUR_GAS_WEBAPP_URL_HERE'; // ★ここにデプロイしたGASのWebアプリURLを貼り付けます
 
-      const cW = printMaxX - printMinX;
-      const cH = printMaxY - printMinY;
-      // 余白をわずか2%（画面上の15%〜42%に対して大幅減）にして白紙の発生を防ぐ
-      const tightPad = Math.max(cW, cH) * 0.02;
+        const btn = document.getElementById('btn-kouzuviewer');
+        if (!btn) return;
 
-      const vbMinX = printMinX - tightPad;
-      const vbMinY = printMinY - tightPad;
-      const vbW = cW + tightPad * 2;
-      const vbH = cH + tightPad * 2;
-
-      const target = document.getElementById('print-target');
-      target.innerHTML = '';
-
-      if (printMode === 'real') {
-        // ---------------------------------------------------------
-        // 等倍印刷モード
-        // ---------------------------------------------------------
-        const demon = getScaleDenominator();
-        if (!demon) {
-          showToast('印刷エラー: 縮尺が未指定です。縮尺を選択してください。', 'error');
+        if (GAS_PROXY_URL === 'YOUR_GAS_WEBAPP_URL_HERE') {
+          btn.style.display = 'inline-flex';
+          btn.style.opacity = '1';
+          btn.style.pointerEvents = 'auto';
+          btn.textContent = '初期設定が必要です';
+          btn.onclick = (e) => {
+            e.preventDefault();
+            alert('KouzuViewerへリンクするには、GASプロキシのURLを設定する必要があります。\\ngas_proxy.gs をGoogle Apps Scriptにデプロイし、発行されたURLを analyzer.html 内の GAS_PROXY_URL に貼り付けてください。');
+          };
           return;
         }
 
-        // 1m = 3779.527px (since 1 inch = 96px, 1m = 1000/25.4 * 96)
-        // Scale on paper: real scale / denominator
-        const scale = 3779.527 / demon;
+        btn.style.display = 'inline-flex';
+        btn.style.opacity = '0.6';
+        btn.style.pointerEvents = 'none';
+        btn.textContent = 'KouzuViewerで探す...';
+        btn.href = '#';
+        btn.onclick = null; // Remove alert if it was set
 
-        // LBP441 correction (shrinkage in X direction by ~99%)
-        const useLBP = document.getElementById('chk-lbp441').checked;
-        const scaleX = useLBP ? scale / 0.99 : scale;
-        const scaleY = scale;
-
-        const fullW_px = vbW * scaleX;
-        const fullH_px = vbH * scaleY;
-
-        // ブラウザの強制縮小を回避しつつ、プリンターのハードウェア余白を考慮し
-        // 上下左右に各10mmの余白を設けた 190mm x 277mm のタイルで分割出力します。
-        const TILE_W_MM = 190;
-        const TILE_H_MM = 277;
-        const MARGIN_MM = 10;
-
-        // 1mm = 3.779527px
-        const TILE_W_PX = TILE_W_MM * 3.779527; // ~718px
-        const TILE_H_PX = TILE_H_MM * 3.779527; // ~1046.9px
-
-        const cols = Math.ceil(fullW_px / TILE_W_PX);
-        const rows = Math.ceil(fullH_px / TILE_H_PX);
-
-        // SVGタグ本体のサイズとviewBoxを調整
-        clone.setAttribute('viewBox', `${vbMinX * scaleX} ${vbMinY * scaleY} ${vbW * scaleX} ${vbH * scaleY}`);
-        clone.setAttribute('width', fullW_px + 'px');
-        clone.setAttribute('height', fullH_px + 'px');
-
-        // 中身を <g transform="..."> でラッピングしてスケール適用
-        const wrapperG = document.createElementNS(NS, 'g');
-        wrapperG.setAttribute('transform', `scale(${scaleX} ${scaleY})`);
-        while (clone.firstChild) wrapperG.appendChild(clone.firstChild);
-        clone.appendChild(wrapperG);
-        clone.removeAttribute('style');
-
-        // A4サイズごとにスライスして出力
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            // 大枠のA4用紙コンテナ
-            const pageDiv = document.createElement('div');
-            pageDiv.style.width = '210mm';
-            pageDiv.style.height = '297mm';
-            pageDiv.style.position = 'relative';
-            pageDiv.style.overflow = 'hidden';
-            pageDiv.style.pageBreakInside = 'avoid';
-            pageDiv.style.breakInside = 'avoid';
-            // 最後のページ以外は改ページ
-            if (!(r === rows - 1 && c === cols - 1)) {
-              pageDiv.style.pageBreakAfter = 'always';
-              pageDiv.style.breakAfter = 'page';
-            }
-
-            // 10mm余白を適用するための内側クリップウィンドウ
-            const clipWindow = document.createElement('div');
-            clipWindow.style.width = `${TILE_W_MM}mm`;
-            clipWindow.style.height = `${TILE_H_MM}mm`;
-            clipWindow.style.position = 'absolute';
-            clipWindow.style.left = `${MARGIN_MM}mm`;
-            clipWindow.style.top = `${MARGIN_MM}mm`;
-            clipWindow.style.overflow = 'hidden';
-
-            // SVGの該当タイル部分を絶対配置で切り抜き表示
-            const sliceSvg = clone.cloneNode(true);
-            sliceSvg.style.position = 'absolute';
-            sliceSvg.style.left = `-${c * TILE_W_PX}px`;
-            sliceSvg.style.top = `-${r * TILE_H_PX}px`;
-            sliceSvg.style.display = 'block';
-
-            clipWindow.appendChild(sliceSvg);
-            pageDiv.appendChild(clipWindow);
-            target.appendChild(pageDiv);
+        try {
+          const feats = geojson.features || (geojson.type === 'Feature' ? [geojson] : []);
+          if (feats.length === 0 || !feats[0].properties) {
+            throw new Error("GeoJSONにプロパティが存在しません");
           }
+
+          const props = feats[0].properties;
+          const cityName = props['市町村名'] || props['市区町村名'] || '';
+          const oazaName = props['大字名'] || '';
+          const chomeName = props['丁目名'] || '';
+          const koazaName = props['小字名'] || '';
+          const chibanName = props['地番'] || '';
+
+          if (!cityName || !chibanName) {
+            throw new Error(`必要なプロパティが不足しています (市町村名: ${cityName}, 地番: ${chibanName})`);
+          }
+
+          const address = cityName + oazaName + chomeName + koazaName + chibanName;
+          console.log("[KouzuViewer] 検索対象住所:", address);
+
+          // 1. Get prefecture from community-geocoder
+          const geocodeResult = await new Promise(resolve => {
+            if (window.getLatLng) {
+              try {
+                const res = window.getLatLng(address, (r) => resolve(r));
+                if (res && typeof res.then === 'function') {
+                  res.then(resolve).catch(() => resolve(null));
+                }
+              } catch (e) { resolve(null); }
+            } else {
+              console.error("[KouzuViewer] community-geocoder(getLatLng)がロードされていません");
+              resolve(null);
+            }
+          });
+
+          let prefCode = null;
+          if (geocodeResult && geocodeResult.pref) {
+            const prefs = ["北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県", "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県", "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県", "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県", "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県"];
+            const index = prefs.indexOf(geocodeResult.pref);
+            if (index !== -1) {
+              prefCode = String(index + 1).padStart(2, '0');
+            }
+          }
+          if (!prefCode) throw new Error(`都道府県の特定に失敗しました`);
+
+          // Helper function for GAS proxy fetch
+          const fetchViaGAS = async (targetUrl, method = 'GET', payload = null) => {
+            let gasUrl = `${GAS_PROXY_URL}?url=${encodeURIComponent(targetUrl)}&method=${method}`;
+            if (payload) {
+              gasUrl += `&payload=${encodeURIComponent(payload)}`;
+            }
+            const res = await fetch(gasUrl);
+            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+            return res;
+          };
+
+          // 2. Fetch citylist2026.js
+          const cityListUrl = `https://kouzuviewer.com/js/citylist2026.js`;
+          const cityListRes = await fetchViaGAS(cityListUrl);
+          const cityListText = await cityListRes.text();
+
+          const cityMatch = cityListText.match(new RegExp(`\\["(${prefCode}\\d{3})",\\s*"${cityName}"\\]`));
+          if (!cityMatch) throw new Error(`citylist2026.js内に ${cityName} が見つかりませんでした`);
+          const cityId = cityMatch[1];
+
+          // 3. Get chiban area list
+          const chibanAreaPayload = `city_id=${cityId}&data_year=2026`;
+          const chibanAreaUrl = `https://kouzuviewer.com/chiban/chibanarea.php`;
+          const chibanAreaRes = await fetchViaGAS(chibanAreaUrl, 'POST', chibanAreaPayload);
+
+          // GAS proxy returns JSON text directly.
+          const chibanAreaList = await chibanAreaRes.json();
+
+          const targetAreaName = oazaName + chomeName + koazaName;
+          let chibanAreaId = '';
+          let matchedAreaName = '';
+          for (const area of chibanAreaList) {
+            const areaId = area[0];
+            const areaName = area[1] || '';
+            if (areaName === targetAreaName || targetAreaName.includes(areaName) || areaName.includes(targetAreaName)) {
+              chibanAreaId = areaId;
+              matchedAreaName = areaName;
+              break;
+            }
+          }
+          if (!chibanAreaId) throw new Error(`地番区域が見つかりませんでした`);
+
+          // 4. Get file list for the chiban area
+          const chibanPayload = `city_id=${cityId}&data_year=2026&chiban_area_id=${chibanAreaId}`;
+          const chibanUrl = `https://kouzuviewer.com/chiban/chiban.php`;
+          const chibanRes = await fetchViaGAS(chibanUrl, 'POST', chibanPayload);
+          const chibanData = await chibanRes.json();
+
+          let targetFileName = '';
+          for (const dataRow of chibanData) {
+            const fileName = dataRow[0];
+            const chibanArray = dataRow[2];
+            if (chibanArray && chibanArray.includes(chibanName)) {
+              targetFileName = fileName;
+              break;
+            }
+          }
+
+          if (!targetFileName) throw new Error(`地番 ${chibanName} が見つかりませんでした`);
+
+          const fude = encodeURIComponent(matchedAreaName + chibanName);
+          const kouzuUrl = `https://kouzuviewer.com/viewer/?file=${targetFileName}&fude=${fude}&datayear=2026`;st outW = Math.floor(vbW * fitScale);
+          const outH = Math.floor(vbH * fitScale);
+
+          clone.setAttribute('width', outW + 'px');
+          clone.setAttribute('height', outH + 'px');
+          clone.removeAttribute('style');
+          clone.style.display = 'block';
+          clone.style.maxWidth = safeW + 'px';
+          clone.style.maxHeight = safeH + 'px';
+          clone.style.overflow = 'hidden';
+
+          target.appendChild(clone);
+          document.body.classList.remove('print-mode-real');
         }
-
-        document.body.classList.add('print-mode-real');
-
-      } else {
-        // ---------------------------------------------------------
-        // A4フィット印刷モード（既存）
-        // ---------------------------------------------------------
-        // A4 at 96dpi = 794 x 1123 px
-        // Horizontal: 25px each side (50px total)
-        // Vertical:   40px each side (80px total) — extra margin to prevent page overflow
-        const safeW = 794 - 50;
-        const safeH = 1123 - 80;
-        const fitScale = Math.min(safeW / vbW, safeH / vbH) * 0.98; // ×0.98 safety factor
-        const outW = Math.floor(vbW * fitScale);
-        const outH = Math.floor(vbH * fitScale);
-
-        clone.setAttribute('width', outW + 'px');
-        clone.setAttribute('height', outH + 'px');
-        clone.removeAttribute('style');
-        clone.style.display = 'block';
-        clone.style.maxWidth = safeW + 'px';
-        clone.style.maxHeight = safeH + 'px';
-        clone.style.overflow = 'hidden';
-
-        target.appendChild(clone);
-        document.body.classList.remove('print-mode-real');
-      }
 
       // Add info label at bottom-right if available
       const printLines = [];
-      if (State.lastRectArea != null) printLines.push(`想定整形地面積: ${State.lastRectArea.toFixed(2)} ㎡`);
-      if (State.lastPathArea != null) printLines.push(`不整形地面積合計: ${State.lastPathArea.toFixed(2)} ㎡（参考、自動計算）`);
-      if (State.lastKagechiRatio != null) printLines.push(`かげ地割合: ${State.lastKagechiRatio.toFixed(2)} %（参考、自動計算）`);
-      if (State.lastDepth != null) printLines.push(`平均奥行距離: ${State.lastDepth.toFixed(3)} ㎡（参考、自動計算）`);
-      if (State.lastRoadConnectArea != null && State.lastRoadConnectArea > 0) printLines.push(`接道義務土地面積（参考、自動計算）: ${State.lastRoadConnectArea.toFixed(2)} ㎡`);
-      if (State.geoMeta) {
-        if (State.geoMeta.地図種類) printLines.push(`地図種類: ${State.geoMeta.地図種類}`);
-        if (State.geoMeta.地図分類) printLines.push(`地図分類: ${State.geoMeta.地図分類}`);
-        if (State.geoMeta.精度区分) printLines.push(`精度区分: ${State.geoMeta.精度区分}`);
-        if (State.geoMeta.座標値種別) printLines.push(`座標値種別: ${State.geoMeta.座標値種別}`);
-      }
-      if (printLines.length > 0) {
-        const infoDiv = document.createElement('div');
-        infoDiv.style.cssText = 'position:absolute;bottom:20px;right:20px;font-family:Inter,sans-serif;font-size:11px;font-weight:500;color:#333;background:rgba(255,255,255,0.92);padding:8px 14px;border:1px solid #ccc;border-radius:4px;z-index:100000;line-height:1.6;';
-        infoDiv.innerHTML = printLines.join('<br>');
-        target.appendChild(infoDiv);
-      }
+        if (State.lastRectArea != null) printLines.push(`想定整形地面積: ${State.lastRectArea.toFixed(2)} ㎡`);
+        if (State.lastPathArea != null) printLines.push(`不整形地面積合計: ${State.lastPathArea.toFixed(2)} ㎡（参考、自動計算）`);
+        if (State.lastKagechiRatio != null) printLines.push(`かげ地割合: ${State.lastKagechiRatio.toFixed(2)} %（参考、自動計算）`);
+        if (State.lastDepth != null) printLines.push(`平均奥行距離: ${State.lastDepth.toFixed(3)} ㎡（参考、自動計算）`);
+        if (State.lastRoadConnectArea != null && State.lastRoadConnectArea > 0) printLines.push(`接道義務土地面積（参考、自動計算）: ${State.lastRoadConnectArea.toFixed(2)} ㎡`);
+        if (State.geoMeta) {
+          if (State.geoMeta.地図種類) printLines.push(`地図種類: ${State.geoMeta.地図種類}`);
+          if (State.geoMeta.地図分類) printLines.push(`地図分類: ${State.geoMeta.地図分類}`);
+          if (State.geoMeta.精度区分) printLines.push(`精度区分: ${State.geoMeta.精度区分}`);
+          if (State.geoMeta.座標値種別) printLines.push(`座標値種別: ${State.geoMeta.座標値種別}`);
+        }
+        if (printLines.length > 0) {
+          const infoDiv = document.createElement('div');
+          infoDiv.style.cssText = 'position:absolute;bottom:20px;right:20px;font-family:Inter,sans-serif;font-size:11px;font-weight:500;color:#333;background:rgba(255,255,255,0.92);padding:8px 14px;border:1px solid #ccc;border-radius:4px;z-index:100000;line-height:1.6;';
+          infoDiv.innerHTML = printLines.join('<br>');
+          target.appendChild(infoDiv);
+        }
 
-      document.body.classList.add('print-svg-mode');
-      setTimeout(() => {
-        window.print();
+        document.body.classList.add('print-svg-mode');
         setTimeout(() => {
-          target.innerHTML = '';
-          document.body.classList.remove('print-mode-real');
-          document.body.classList.remove('print-svg-mode');
-        }, 1000);
-      }, 50);
-    });
+          window.print();
+          setTimeout(() => {
+            target.innerHTML = '';
+            document.body.classList.remove('print-mode-real');
+            document.body.classList.remove('print-svg-mode');
+          }, 1000);
+        }, 50);
+      });
 
     // Print mode toggle UI
     document.getElementById('print-mode').addEventListener('change', e => {
@@ -4183,35 +4196,50 @@
         return; // ローカルHTMLアクセス時は非表示
       }
 
-      const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+      const GAS_PROXY_URL = 'https://script.google.com/macros/s/AKfycbxsmNS0HGUpLPUSyg2R_2vDcCT4-gSZAaGEKo83ZGVejmAHqlvrkfcBVY3qjTIcZDtC/exec'; // ★ここにデプロイしたGASのWebアプリURLを貼り付けます
+
       const btn = document.getElementById('btn-kouzuviewer');
       if (!btn) return;
+
+      if (GAS_PROXY_URL === 'YOUR_GAS_WEBAPP_URL_HERE') {
+        btn.style.display = 'inline-flex';
+        btn.style.opacity = '1';
+        btn.style.pointerEvents = 'auto';
+        btn.textContent = '初期設定が必要です';
+        btn.onclick = (e) => {
+          e.preventDefault();
+          alert('KouzuViewerへリンクするには、GASプロキシのURLを設定する必要があります。\\ngas_proxy.gs をGoogle Apps Scriptにデプロイし、発行されたURLを analyzer.html 内の GAS_PROXY_URL に貼り付けてください。');
+        };
+        return;
+      }
+
       btn.style.display = 'inline-flex';
       btn.style.opacity = '0.6';
       btn.style.pointerEvents = 'none';
       btn.textContent = 'KouzuViewerで探す...';
       btn.href = '#';
+      btn.onclick = null; // Remove alert if it was set
 
       try {
         const feats = geojson.features || (geojson.type === 'Feature' ? [geojson] : []);
         if (feats.length === 0 || !feats[0].properties) {
           throw new Error("GeoJSONにプロパティが存在しません");
         }
-        
+
         const props = feats[0].properties;
         const cityName = props['市町村名'] || props['市区町村名'] || '';
         const oazaName = props['大字名'] || '';
         const chomeName = props['丁目名'] || '';
         const koazaName = props['小字名'] || '';
         const chibanName = props['地番'] || '';
-        
+
         if (!cityName || !chibanName) {
           throw new Error(`必要なプロパティが不足しています (市町村名: ${cityName}, 地番: ${chibanName})`);
         }
-        
+
         const address = cityName + oazaName + chomeName + koazaName + chibanName;
         console.log("[KouzuViewer] 検索対象住所:", address);
-        
+
         // 1. Get prefecture from community-geocoder
         const geocodeResult = await new Promise(resolve => {
           if (window.getLatLng) {
@@ -4220,16 +4248,16 @@
               if (res && typeof res.then === 'function') {
                 res.then(resolve).catch(() => resolve(null));
               }
-            } catch(e) { resolve(null); }
+            } catch (e) { resolve(null); }
           } else {
             console.error("[KouzuViewer] community-geocoder(getLatLng)がロードされていません");
             resolve(null);
           }
         });
-        
+
         let prefCode = null;
         if (geocodeResult && geocodeResult.pref) {
-          const prefs = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県","新潟県","富山県","石川県","福井県","山梨県","長野県","岐阜県","静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県","鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"];
+          const prefs = ["北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県", "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県", "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県", "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県", "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県"];
           const index = prefs.indexOf(geocodeResult.pref);
           if (index !== -1) {
             prefCode = String(index + 1).padStart(2, '0');
@@ -4237,27 +4265,34 @@
         }
         if (!prefCode) throw new Error(`都道府県の特定に失敗しました`);
 
+        // Helper function for GAS proxy fetch
+        const fetchViaGAS = async (targetUrl, method = 'GET', payload = null) => {
+          let gasUrl = `${GAS_PROXY_URL}?url=${encodeURIComponent(targetUrl)}&method=${method}`;
+          if (payload) {
+            gasUrl += `&payload=${encodeURIComponent(payload)}`;
+          }
+          const res = await fetch(gasUrl);
+          if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+          return res;
+        };
+
         // 2. Fetch citylist2026.js
         const cityListUrl = `https://kouzuviewer.com/js/citylist2026.js`;
-        const cityListRes = await fetch(CORS_PROXY + encodeURIComponent(cityListUrl));
+        const cityListRes = await fetchViaGAS(cityListUrl);
         const cityListText = await cityListRes.text();
-        
+
         const cityMatch = cityListText.match(new RegExp(`\\["(${prefCode}\\d{3})",\\s*"${cityName}"\\]`));
         if (!cityMatch) throw new Error(`citylist2026.js内に ${cityName} が見つかりませんでした`);
         const cityId = cityMatch[1];
 
         // 3. Get chiban area list
-        const chibanAreaFormData = new URLSearchParams();
-        chibanAreaFormData.append('city_id', cityId);
-        chibanAreaFormData.append('data_year', '2026');
+        const chibanAreaPayload = `city_id=${cityId}&data_year=2026`;
+        const chibanAreaUrl = `https://kouzuviewer.com/chiban/chibanarea.php`;
+        const chibanAreaRes = await fetchViaGAS(chibanAreaUrl, 'POST', chibanAreaPayload);
 
-        const chibanAreaRes = await fetch(CORS_PROXY + encodeURIComponent('https://kouzuviewer.com/chiban/chibanarea.php'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: chibanAreaFormData.toString()
-        });
+        // GAS proxy returns JSON text directly.
         const chibanAreaList = await chibanAreaRes.json();
-        
+
         const targetAreaName = oazaName + chomeName + koazaName;
         let chibanAreaId = '';
         let matchedAreaName = '';
@@ -4273,16 +4308,9 @@
         if (!chibanAreaId) throw new Error(`地番区域が見つかりませんでした`);
 
         // 4. Get file list for the chiban area
-        const chibanFormData = new URLSearchParams();
-        chibanFormData.append('city_id', cityId);
-        chibanFormData.append('data_year', '2026');
-        chibanFormData.append('chiban_area_id', chibanAreaId);
-
-        const chibanRes = await fetch(CORS_PROXY + encodeURIComponent('https://kouzuviewer.com/chiban/chiban.php'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: chibanFormData.toString()
-        });
+        const chibanPayload = `city_id=${cityId}&data_year=2026&chiban_area_id=${chibanAreaId}`;
+        const chibanUrl = `https://kouzuviewer.com/chiban/chiban.php`;
+        const chibanRes = await fetchViaGAS(chibanUrl, 'POST', chibanPayload);
         const chibanData = await chibanRes.json();
 
         let targetFileName = '';
@@ -4294,7 +4322,7 @@
             break;
           }
         }
-        
+
         if (!targetFileName) throw new Error(`地番 ${chibanName} が見つかりませんでした`);
 
         const fude = encodeURIComponent(matchedAreaName + chibanName);
