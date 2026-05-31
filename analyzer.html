@@ -1,26 +1,5 @@
 <!DOCTYPE html>
-<!--
-  This application uses the following open-source library:
 
-  geojson2svg
-  Copyright (c) Gagan Bansal
-  Licensed under the MIT License
-  https://github.com/gagan-bansal/geojson2svg
-
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files (the "Software"), to deal
-  in the Software without restriction, including without limitation the rights
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
--->
 <html lang="ja">
 
 <head>
@@ -28,8 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="GeoJSON形式の測量データをSVGに変換し、回転・寸法表示を行うローカルツール">
   <title>想定整形地分析ツール（GeoJSON → SVG 加工ツール）</title>
-  <!-- geojson2svg: MIT License, Copyright (c) Gagan Bansal -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/geojson2svg/2.0.3/geojson2svg.js"></script>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.min.js"></script>
   <script src="https://cdn.geolonia.com/community-geocoder.js"></script>
   <!-- Leaflet -->
@@ -1306,13 +1284,13 @@
             私自身少しコードは書けますが、大部分は処理内容を私が考えた上でAIを使用して作成しています。動作原理を私が理解していないコードが何箇所かあります。特に面積計算。
           </li>
           <li>
-            使用しているライブラリはgeojson2svg,proj4.min,community-geocoder,leafletです。許諾不要で用途が縛られず無償利用可能なライセンスやMITライセンスのみで構成されていますのでライセンス上の問題はありません。
+            使用しているライブラリはproj4.min,community-geocoder,leafletです。許諾不要で用途が縛られず無償利用可能なライセンスやMITライセンスのみで構成されていますのでライセンス上の問題はありません。
           </li>
           <li>
             構造上、公図ビューアfor登記所備付地図という外部サイトが公開するgeojsonファイルに依存しており（それ以外でも分析できるようにはしていますが）、公図ビューアがデータの無償公開をやめる場合やそもそもサイトが存続しない場合は代替手段を用意する必要があります。というか大元の公図のXMLデータは法務省がG空間情報センターで公開しており、公図ビューアはこれをgeojsonファイルに加工して見やすいような形で公開しているだけなので、この部分は使用者数が一定以上の規模になる場合は内製化すべきだと思います。自己負担でサーバーをホストして実装してかつ元データが更新されるたびにデータ変換して更新しなければならないのが個人負担で行う場合には全く割に合わないので私は絶対やりません。私は自力で変換できるので困りませんし。
           </li>
           <li>
-            このツールは公図ビューアが公開するgeojsonファイルなど（JDG2000旧公共測地系かJDG2011現公共測地系かWGS84世界測地系であれば別に公図ビューアから公開されたgeojsonファイルじゃなくてもいい）を読み込んでgeojson2svgでsvgに変換し、これを加工したりこのデータから計算したりすることで様々な分析をしています。内部処理的には想定整形地の正面路線の基準線を基に基準線が平行になるまで一度回転させてBBoxの上下端と左右端を取り、想定整形地を生成したうえで元の角度に戻すという処理をしています（これ以外に処理が思いつかなかったため）。不整形地の面積計算と接道義務道路の面積計算は動作原理が謎です。
+            このツールは公図ビューアが公開するgeojsonファイルなど（JDG2000旧公共測地系かJDG2011現公共測地系かWGS84世界測地系であれば別に公図ビューアから公開されたgeojsonファイルじゃなくてもいい）を読み込んでsvgに変換し、これを加工したりこのデータから計算したりすることで様々な分析をしています。内部処理的には想定整形地の正面路線の基準線を基に基準線が平行になるまで一度回転させてBBoxの上下端と左右端を取り、想定整形地を生成したうえで元の角度に戻すという処理をしています（これ以外に処理が思いつかなかったため）。不整形地の面積計算と接道義務道路の面積計算は動作原理が謎です。
           </li>
           <li>
             各地図はgeojsonファイルに含まれている各測地系での位置をファイル内のEPSGと座標データを基にproj4minで緯度と経度に変換して、得られた緯度と経度で各地図のURLを補完してiframe要素で地図を埋め込むことで表示しています。全国地価マップは一番最初に表示される同意画面がどうしても突破できなかったのでiframe要素で埋め込むことを泣く泣く諦めました。あと全国地価マップだけなんか座標が僅かにずれているので私が直感で補正しています。不動産ライブラリはiframe要素での埋め込みを拒否されます（代替手段としてobject要素での埋め込みなども考えましたが無理でした。おとなしくAPIキー取得して別途自力実装しろということな気がしますが、github上に自分で取得したAPIキーは絶対置きたくないので実装しません）。一番上に表示されている地図だけはleafletと国土地理院地図タイルを使用して自力実装しています。
@@ -1474,7 +1452,9 @@
           GeoJSONファイルを選択（複数可・D&D対応）
         </label>
         <input type="file" id="file-input" accept=".geojson,.json" multiple>
-        <div class="file-name-display" id="file-name">ファイル未選択</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:7px;">
+          <div class="file-name-display" id="file-name" style="margin-top:0; flex:1;">ファイル未選択</div>
+        </div>
       </div>
       <!-- Mode -->
       <div class="control-card">
@@ -1590,6 +1570,14 @@
         </button>
       </div>
       <div class="action-divider"></div>
+      <a id="btn-kouzuviewer" href="#" target="_blank" class="btn btn-secondary"
+        style="display:none; opacity:0.6; pointer-events:none; padding:6px 12px; font-weight:600; text-decoration:none;">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:text-bottom;">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+        </svg>KouzuViewerで検索中...
+      </a>
+      <div class="action-divider"></div>
       <div class="checkbox-wrapper"><input type="checkbox" id="chk-fill" checked><label for="chk-fill">半透明塗り</label>
       </div>
       <div class="checkbox-wrapper"><input type="checkbox" id="chk-keep-rotation"><label
@@ -1612,7 +1600,8 @@
         </div>
         <div class="checkbox-wrapper" style="margin-left: auto;">
           <input type="checkbox" id="chk-extend-outermost" checked>
-          <label for="chk-extend-outermost" style="color:var(--accent-green); font-weight:600; white-space:nowrap;">全土地の外縁まで延長</label>
+          <label for="chk-extend-outermost"
+            style="color:var(--accent-green); font-weight:600; white-space:nowrap;">全土地の外縁まで延長</label>
         </div>
       </div>
     </div>
@@ -2017,19 +2006,19 @@
           for (let i = 0; i < verts.length; i++) {
             const v1 = verts[i];
             const v2 = verts[(i + 1) % verts.length];
-            
+
             if (v1.x >= minX - 1e-6 && v1.x <= maxX + 1e-6) {
               if (v1.y < minY) minY = v1.y;
               if (v1.y > maxY) maxY = v1.y;
             }
-            
+
             if ((v1.x < minX && v2.x > minX) || (v1.x > minX && v2.x < minX)) {
               const t = (minX - v1.x) / (v2.x - v1.x);
               const y = v1.y + t * (v2.y - v1.y);
               if (y < minY) minY = y;
               if (y > maxY) maxY = y;
             }
-            
+
             if ((v1.x < maxX && v2.x > maxX) || (v1.x > maxX && v2.x < maxX)) {
               const t = (maxX - v1.x) / (v2.x - v1.x);
               const y = v1.y + t * (v2.y - v1.y);
@@ -2524,7 +2513,7 @@
 
       for (let i = 0; i <= numSamples; i++) {
         const x = xLeft + i * dx;
-        
+
         // 1. Find innerY (TARGET land boundary closest to road)
         let innerY = isLandBelowEdge ? Infinity : -Infinity;
         let innerHit = false;
@@ -2559,7 +2548,7 @@
         // 2. Find outerY (ALL lands boundary closest to road)
         let outerY = isLandBelowEdge ? Infinity : -Infinity;
         let outerHit = false;
-        
+
         if (useOutermost) {
           for (const p of paths) {
             const verts = p.vertices;
@@ -2701,7 +2690,7 @@
 
         const s0 = State.rcS0;
         const fs = 10 * s0, off = 8 * s0, tick = 5 * s0;
-        
+
         const N = pts.length / 2;
         const yInnerLeft = pts[0].y;
         const yOuterLeft = pts[pts.length - 1].y;
@@ -2719,7 +2708,7 @@
 
         const dir = isLandBelowEdge ? 1 : -1; // 内側（土地側）にずらすため符号を反転
         const dimY = extremeOuterY + dir * off;
-        
+
         addDimLine(dimsGroup, xLeft, dimY, xLeft, dimY + dir * tick, s0);
         addDimLine(dimsGroup, xLeft + w, dimY, xLeft + w, dimY + dir * tick, s0);
         addDimLine(dimsGroup, xLeft, dimY + dir * tick / 2, xLeft + w, dimY + dir * tick / 2, s0);
@@ -3459,6 +3448,7 @@
         // Extract GeoJSON metadata from first feature
         extractGeoMeta(merged);
         processMapIntegration(merged);
+        setupKouzuViewerLink(merged);
 
         showToast(`読み込み完了: ${files.length}ファイル / ${State.paths.length}パス / ${State.allVertices.length}頂点`, 'success');
       } catch (err) {
@@ -3930,114 +3920,6 @@
           if (p.x > printMaxX) printMaxX = p.x; if (p.y > printMaxY) printMaxY = p.y;
         }
       } else {
-        printMinX = bnd.minX;
-        printMinY = bnd.minY - off * 2;
-        printMaxX = bnd.maxX + off + tick + fs * 3;
-        printMaxY = bnd.maxY + off + tick + fs * 3;
-      }
-
-      const cW = printMaxX - printMinX;
-      const cH = printMaxY - printMinY;
-      // 余白をわずか2%（画面上の15%〜42%に対して大幅減）にして白紙の発生を防ぐ
-      const tightPad = Math.max(cW, cH) * 0.02;
-
-      const vbMinX = printMinX - tightPad;
-      const vbMinY = printMinY - tightPad;
-      const vbW = cW + tightPad * 2;
-      const vbH = cH + tightPad * 2;
-
-      const target = document.getElementById('print-target');
-      target.innerHTML = '';
-
-      if (printMode === 'real') {
-        // ---------------------------------------------------------
-        // 等倍印刷モード
-        // ---------------------------------------------------------
-        const demon = getScaleDenominator();
-        if (!demon) {
-          showToast('印刷エラー: 縮尺が未指定です。縮尺を選択してください。', 'error');
-          return;
-        }
-
-        // 1m = 3779.527px (since 1 inch = 96px, 1m = 1000/25.4 * 96)
-        // Scale on paper: real scale / denominator
-        const scale = 3779.527 / demon;
-
-        // LBP441 correction (shrinkage in X direction by ~99%)
-        const useLBP = document.getElementById('chk-lbp441').checked;
-        const scaleX = useLBP ? scale / 0.99 : scale;
-        const scaleY = scale;
-
-        const fullW_px = vbW * scaleX;
-        const fullH_px = vbH * scaleY;
-
-        // ブラウザの強制縮小を回避しつつ、プリンターのハードウェア余白を考慮し
-        // 上下左右に各10mmの余白を設けた 190mm x 277mm のタイルで分割出力します。
-        const TILE_W_MM = 190;
-        const TILE_H_MM = 277;
-        const MARGIN_MM = 10;
-
-        // 1mm = 3.779527px
-        const TILE_W_PX = TILE_W_MM * 3.779527; // ~718px
-        const TILE_H_PX = TILE_H_MM * 3.779527; // ~1046.9px
-
-        const cols = Math.ceil(fullW_px / TILE_W_PX);
-        const rows = Math.ceil(fullH_px / TILE_H_PX);
-
-        // SVGタグ本体のサイズとviewBoxを調整
-        clone.setAttribute('viewBox', `${vbMinX * scaleX} ${vbMinY * scaleY} ${vbW * scaleX} ${vbH * scaleY}`);
-        clone.setAttribute('width', fullW_px + 'px');
-        clone.setAttribute('height', fullH_px + 'px');
-
-        // 中身を <g transform="..."> でラッピングしてスケール適用
-        const wrapperG = document.createElementNS(NS, 'g');
-        wrapperG.setAttribute('transform', `scale(${scaleX} ${scaleY})`);
-        while (clone.firstChild) wrapperG.appendChild(clone.firstChild);
-        clone.appendChild(wrapperG);
-        clone.removeAttribute('style');
-
-        // A4サイズごとにスライスして出力
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            // 大枠のA4用紙コンテナ
-            const pageDiv = document.createElement('div');
-            pageDiv.style.width = '210mm';
-            pageDiv.style.height = '297mm';
-            pageDiv.style.position = 'relative';
-            pageDiv.style.overflow = 'hidden';
-            pageDiv.style.pageBreakInside = 'avoid';
-            pageDiv.style.breakInside = 'avoid';
-            // 最後のページ以外は改ページ
-            if (!(r === rows - 1 && c === cols - 1)) {
-              pageDiv.style.pageBreakAfter = 'always';
-              pageDiv.style.breakAfter = 'page';
-            }
-
-            // 10mm余白を適用するための内側クリップウィンドウ
-            const clipWindow = document.createElement('div');
-            clipWindow.style.width = `${TILE_W_MM}mm`;
-            clipWindow.style.height = `${TILE_H_MM}mm`;
-            clipWindow.style.position = 'absolute';
-            clipWindow.style.left = `${MARGIN_MM}mm`;
-            clipWindow.style.top = `${MARGIN_MM}mm`;
-            clipWindow.style.overflow = 'hidden';
-
-            // SVGの該当タイル部分を絶対配置で切り抜き表示
-            const sliceSvg = clone.cloneNode(true);
-            sliceSvg.style.position = 'absolute';
-            sliceSvg.style.left = `-${c * TILE_W_PX}px`;
-            sliceSvg.style.top = `-${r * TILE_H_PX}px`;
-            sliceSvg.style.display = 'block';
-
-            clipWindow.appendChild(sliceSvg);
-            pageDiv.appendChild(clipWindow);
-            target.appendChild(pageDiv);
-          }
-        }
-
-        document.body.classList.add('print-mode-real');
-
-      } else {
         // ---------------------------------------------------------
         // A4フィット印刷モード（既存）
         // ---------------------------------------------------------
@@ -4048,50 +3930,50 @@
         const safeH = 1123 - 80;
         const fitScale = Math.min(safeW / vbW, safeH / vbH) * 0.98; // ×0.98 safety factor
         const outW = Math.floor(vbW * fitScale);
-        const outH = Math.floor(vbH * fitScale);
+          const outH = Math.floor(vbH * fitScale);
 
-        clone.setAttribute('width', outW + 'px');
-        clone.setAttribute('height', outH + 'px');
-        clone.removeAttribute('style');
-        clone.style.display = 'block';
-        clone.style.maxWidth = safeW + 'px';
-        clone.style.maxHeight = safeH + 'px';
-        clone.style.overflow = 'hidden';
+          clone.setAttribute('width', outW + 'px');
+          clone.setAttribute('height', outH + 'px');
+          clone.removeAttribute('style');
+          clone.style.display = 'block';
+          clone.style.maxWidth = safeW + 'px';
+          clone.style.maxHeight = safeH + 'px';
+          clone.style.overflow = 'hidden';
 
-        target.appendChild(clone);
-        document.body.classList.remove('print-mode-real');
-      }
+          target.appendChild(clone);
+          document.body.classList.remove('print-mode-real');
+        }
 
       // Add info label at bottom-right if available
       const printLines = [];
-      if (State.lastRectArea != null) printLines.push(`想定整形地面積: ${State.lastRectArea.toFixed(2)} ㎡`);
-      if (State.lastPathArea != null) printLines.push(`不整形地面積合計: ${State.lastPathArea.toFixed(2)} ㎡（参考、自動計算）`);
-      if (State.lastKagechiRatio != null) printLines.push(`かげ地割合: ${State.lastKagechiRatio.toFixed(2)} %（参考、自動計算）`);
-      if (State.lastDepth != null) printLines.push(`平均奥行距離: ${State.lastDepth.toFixed(3)} ㎡（参考、自動計算）`);
-      if (State.lastRoadConnectArea != null && State.lastRoadConnectArea > 0) printLines.push(`接道義務土地面積（参考、自動計算）: ${State.lastRoadConnectArea.toFixed(2)} ㎡`);
-      if (State.geoMeta) {
-        if (State.geoMeta.地図種類) printLines.push(`地図種類: ${State.geoMeta.地図種類}`);
-        if (State.geoMeta.地図分類) printLines.push(`地図分類: ${State.geoMeta.地図分類}`);
-        if (State.geoMeta.精度区分) printLines.push(`精度区分: ${State.geoMeta.精度区分}`);
-        if (State.geoMeta.座標値種別) printLines.push(`座標値種別: ${State.geoMeta.座標値種別}`);
-      }
-      if (printLines.length > 0) {
-        const infoDiv = document.createElement('div');
-        infoDiv.style.cssText = 'position:absolute;bottom:20px;right:20px;font-family:Inter,sans-serif;font-size:11px;font-weight:500;color:#333;background:rgba(255,255,255,0.92);padding:8px 14px;border:1px solid #ccc;border-radius:4px;z-index:100000;line-height:1.6;';
-        infoDiv.innerHTML = printLines.join('<br>');
-        target.appendChild(infoDiv);
-      }
+        if (State.lastRectArea != null) printLines.push(`想定整形地面積: ${State.lastRectArea.toFixed(2)} ㎡`);
+        if (State.lastPathArea != null) printLines.push(`不整形地面積合計: ${State.lastPathArea.toFixed(2)} ㎡（参考、自動計算）`);
+        if (State.lastKagechiRatio != null) printLines.push(`かげ地割合: ${State.lastKagechiRatio.toFixed(2)} %（参考、自動計算）`);
+        if (State.lastDepth != null) printLines.push(`平均奥行距離: ${State.lastDepth.toFixed(3)} ㎡（参考、自動計算）`);
+        if (State.lastRoadConnectArea != null && State.lastRoadConnectArea > 0) printLines.push(`接道義務土地面積（参考、自動計算）: ${State.lastRoadConnectArea.toFixed(2)} ㎡`);
+        if (State.geoMeta) {
+          if (State.geoMeta.地図種類) printLines.push(`地図種類: ${State.geoMeta.地図種類}`);
+          if (State.geoMeta.地図分類) printLines.push(`地図分類: ${State.geoMeta.地図分類}`);
+          if (State.geoMeta.精度区分) printLines.push(`精度区分: ${State.geoMeta.精度区分}`);
+          if (State.geoMeta.座標値種別) printLines.push(`座標値種別: ${State.geoMeta.座標値種別}`);
+        }
+        if (printLines.length > 0) {
+          const infoDiv = document.createElement('div');
+          infoDiv.style.cssText = 'position:absolute;bottom:20px;right:20px;font-family:Inter,sans-serif;font-size:11px;font-weight:500;color:#333;background:rgba(255,255,255,0.92);padding:8px 14px;border:1px solid #ccc;border-radius:4px;z-index:100000;line-height:1.6;';
+          infoDiv.innerHTML = printLines.join('<br>');
+          target.appendChild(infoDiv);
+        }
 
-      document.body.classList.add('print-svg-mode');
-      setTimeout(() => {
-        window.print();
+        document.body.classList.add('print-svg-mode');
         setTimeout(() => {
-          target.innerHTML = '';
-          document.body.classList.remove('print-mode-real');
-          document.body.classList.remove('print-svg-mode');
-        }, 1000);
-      }, 50);
-    });
+          window.print();
+          setTimeout(() => {
+            target.innerHTML = '';
+            document.body.classList.remove('print-mode-real');
+            document.body.classList.remove('print-svg-mode');
+          }, 1000);
+        }, 50);
+      });
 
     // Print mode toggle UI
     document.getElementById('print-mode').addEventListener('change', e => {
@@ -4187,6 +4069,131 @@
     // Register both drop zones
     setupDropZone(document.getElementById('svg-canvas-wrapper'));
     setupDropZone(document.getElementById('file-drop-card'));
+
+    // Init theme
+    applyTheme(true);
+
+    // =============================================================================
+    // KouzuViewer Link Integration
+    // =============================================================================
+    async function setupKouzuViewerLink(geojson) {
+      const GAS_PROXY_URL = 'https://script.google.com/macros/s/AKfycbxsmNS0HGUpLPUSyg2R_2vDcCT4-gSZAaGEKo83ZGVejmAHqlvrkfcBVY3qjTIcZDtC/exec'; // ★ここにデプロイしたGASのWebアプリURLを貼り付けます
+
+      const btn = document.getElementById('btn-kouzuviewer');
+      if (!btn) return;
+
+      if (GAS_PROXY_URL === 'YOUR_GAS_WEBAPP_URL_HERE') {
+        btn.style.display = 'inline-flex';
+        btn.style.opacity = '1';
+        btn.style.pointerEvents = 'auto';
+        btn.textContent = '初期設定が必要です';
+        btn.onclick = (e) => {
+          e.preventDefault();
+          alert('KouzuViewerへリンクするには、GASプロキシのURLを設定する必要があります。\\ngas_proxy.gs をGoogle Apps Scriptにデプロイし、発行されたURLを analyzer.html 内の GAS_PROXY_URL に貼り付けてください。');
+        };
+        return;
+      }
+
+      btn.style.display = 'inline-flex';
+      btn.className = 'btn btn-secondary'; // reset class just in case
+      btn.style.opacity = '0.6';
+      btn.style.pointerEvents = 'none';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:text-bottom;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>KouzuViewerで検索中...';
+      btn.href = '#';
+      btn.onclick = null; // Remove alert if it was set
+
+      try {
+        const feats = geojson.features || (geojson.type === 'Feature' ? [geojson] : []);
+        if (feats.length === 0 || !feats[0].properties) {
+          throw new Error("GeoJSONにプロパティが存在しません");
+        }
+
+        const props = feats[0].properties;
+        const oazaName = props['大字名'] || '';
+        const chomeName = props['丁目名'] || '';
+        const koazaName = props['小字名'] || '';
+        const yobiName = props['予備名'] || '';
+        const chibanName = props['地番'] || '';
+        const cityCode = props['市区町村コード'] || '';
+
+        if (!cityCode || !chibanName) {
+          throw new Error(`必要なプロパティが不足しています (市区町村コード: ${cityCode}, 地番: ${chibanName})`);
+        }
+
+        const cityId = cityCode;
+        const targetAreaName = [oazaName, chomeName, koazaName, yobiName].filter(Boolean).join('').trim();
+        console.log("[KouzuViewer] 検索対象: cityId=" + cityId + ", area=" + targetAreaName + ", chiban=" + chibanName);
+
+        // Helper function for GAS proxy fetch
+        const fetchViaGAS = async (targetUrl, method = 'GET', payload = null) => {
+          let gasUrl = `${GAS_PROXY_URL}?url=${encodeURIComponent(targetUrl)}&method=${method}`;
+          if (payload) {
+            gasUrl += `&payload=${encodeURIComponent(payload)}`;
+          }
+          const res = await fetch(gasUrl);
+          if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+          return res;
+        };
+
+        // 1. Get chiban area list
+        const chibanAreaPayload = `city_id=${cityId}&data_year=2026`;
+        const chibanAreaUrl = `https://kouzuviewer.com/chiban/chibanarea.php`;
+        const chibanAreaRes = await fetchViaGAS(chibanAreaUrl, 'POST', chibanAreaPayload);
+        
+        // GAS proxy returns JSON text directly.
+        const chibanAreaList = await chibanAreaRes.json();
+        let chibanAreaId = '';
+        let matchedAreaName = '';
+        for (const area of chibanAreaList) {
+          const areaId = area[0];
+          const areaName = (area[1] || '').trim();
+          if (areaName === targetAreaName || (targetAreaName && areaName && (targetAreaName.includes(areaName) || areaName.includes(targetAreaName)))) {
+            chibanAreaId = areaId;
+            matchedAreaName = areaName;
+            break;
+          }
+        }
+        if (!chibanAreaId) throw new Error(`地番区域（${targetAreaName || '指定なし'}）が見つかりませんでした`);
+
+        // 4. Get file list for the chiban area
+        const chibanPayload = `city_id=${cityId}&data_year=2026&chiban_area_id=${chibanAreaId}`;
+        const chibanUrl = `https://kouzuviewer.com/chiban/chiban.php`;
+        const chibanRes = await fetchViaGAS(chibanUrl, 'POST', chibanPayload);
+        const chibanData = await chibanRes.json();
+
+        let targetFileName = '';
+        // Normalize chiban for searching
+        const normalizedChiban = chibanName.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/番/g, '-');
+        
+        for (const dataRow of chibanData) {
+          const fileName = dataRow[0];
+          const chibanArray = dataRow[2];
+          if (chibanArray) {
+            // Check original and normalized
+            if (chibanArray.includes(chibanName) || chibanArray.includes(normalizedChiban)) {
+              targetFileName = fileName;
+              break;
+            }
+          }
+        }
+
+        if (!targetFileName) throw new Error(`地番 ${chibanName} が見つかりませんでした`);
+
+        const fude = encodeURIComponent(matchedAreaName + chibanName);
+        const kouzuUrl = `https://kouzuviewer.com/viewer/?file=${targetFileName}&fude=${fude}&datayear=2026`;
+        btn.href = kouzuUrl;
+        btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:text-bottom;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>KouzuViewerで開く';
+        btn.className = 'btn btn-success'; // Make it green
+        btn.style.opacity = '1';
+        btn.style.pointerEvents = 'auto';
+
+      } catch (err) {
+        console.error("[KouzuViewer] リンク抽出エラー:", err);
+        btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:text-bottom;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>リンク取得失敗';
+        btn.title = "詳細: " + err.message;
+      }
+    }
+
   </script>
 </body>
 
