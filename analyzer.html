@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 
 <html lang="ja">
@@ -1572,7 +1573,8 @@
       <div class="action-divider"></div>
       <a id="btn-kouzuviewer" href="#" target="_blank" class="btn btn-secondary"
         style="display:none; opacity:0.6; pointer-events:none; padding:6px 12px; font-weight:600; text-decoration:none;">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:text-bottom;">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+          style="margin-right:6px; vertical-align:text-bottom;">
           <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
         </svg>KouzuViewerで検索中...
@@ -3920,6 +3922,114 @@
           if (p.x > printMaxX) printMaxX = p.x; if (p.y > printMaxY) printMaxY = p.y;
         }
       } else {
+        printMinX = bnd.minX;
+        printMinY = bnd.minY - off * 2;
+        printMaxX = bnd.maxX + off + tick + fs * 3;
+        printMaxY = bnd.maxY + off + tick + fs * 3;
+      }
+
+      const cW = printMaxX - printMinX;
+      const cH = printMaxY - printMinY;
+      // 余白をわずか2%（画面上の15%〜42%に対して大幅減）にして白紙の発生を防ぐ
+      const tightPad = Math.max(cW, cH) * 0.02;
+
+      const vbMinX = printMinX - tightPad;
+      const vbMinY = printMinY - tightPad;
+      const vbW = cW + tightPad * 2;
+      const vbH = cH + tightPad * 2;
+
+      const target = document.getElementById('print-target');
+      target.innerHTML = '';
+
+      if (printMode === 'real') {
+        // ---------------------------------------------------------
+        // 等倍印刷モード
+        // ---------------------------------------------------------
+        const demon = getScaleDenominator();
+        if (!demon) {
+          showToast('印刷エラー: 縮尺が未指定です。縮尺を選択してください。', 'error');
+          return;
+        }
+
+        // 1m = 3779.527px (since 1 inch = 96px, 1m = 1000/25.4 * 96)
+        // Scale on paper: real scale / denominator
+        const scale = 3779.527 / demon;
+
+        // LBP441 correction (shrinkage in X direction by ~99%)
+        const useLBP = document.getElementById('chk-lbp441').checked;
+        const scaleX = useLBP ? scale / 0.99 : scale;
+        const scaleY = scale;
+
+        const fullW_px = vbW * scaleX;
+        const fullH_px = vbH * scaleY;
+
+        // ブラウザの強制縮小を回避しつつ、プリンターのハードウェア余白を考慮し
+        // 上下左右に各10mmの余白を設けた 190mm x 277mm のタイルで分割出力します。
+        const TILE_W_MM = 190;
+        const TILE_H_MM = 277;
+        const MARGIN_MM = 10;
+
+        // 1mm = 3.779527px
+        const TILE_W_PX = TILE_W_MM * 3.779527; // ~718px
+        const TILE_H_PX = TILE_H_MM * 3.779527; // ~1046.9px
+
+        const cols = Math.ceil(fullW_px / TILE_W_PX);
+        const rows = Math.ceil(fullH_px / TILE_H_PX);
+
+        // SVGタグ本体のサイズとviewBoxを調整
+        clone.setAttribute('viewBox', `${vbMinX * scaleX} ${vbMinY * scaleY} ${vbW * scaleX} ${vbH * scaleY}`);
+        clone.setAttribute('width', fullW_px + 'px');
+        clone.setAttribute('height', fullH_px + 'px');
+
+        // 中身を <g transform="..."> でラッピングしてスケール適用
+        const wrapperG = document.createElementNS(NS, 'g');
+        wrapperG.setAttribute('transform', `scale(${scaleX} ${scaleY})`);
+        while (clone.firstChild) wrapperG.appendChild(clone.firstChild);
+        clone.appendChild(wrapperG);
+        clone.removeAttribute('style');
+
+        // A4サイズごとにスライスして出力
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            // 大枠のA4用紙コンテナ
+            const pageDiv = document.createElement('div');
+            pageDiv.style.width = '210mm';
+            pageDiv.style.height = '297mm';
+            pageDiv.style.position = 'relative';
+            pageDiv.style.overflow = 'hidden';
+            pageDiv.style.pageBreakInside = 'avoid';
+            pageDiv.style.breakInside = 'avoid';
+            // 最後のページ以外は改ページ
+            if (!(r === rows - 1 && c === cols - 1)) {
+              pageDiv.style.pageBreakAfter = 'always';
+              pageDiv.style.breakAfter = 'page';
+            }
+
+            // 10mm余白を適用するための内側クリップウィンドウ
+            const clipWindow = document.createElement('div');
+            clipWindow.style.width = `${TILE_W_MM}mm`;
+            clipWindow.style.height = `${TILE_H_MM}mm`;
+            clipWindow.style.position = 'absolute';
+            clipWindow.style.left = `${MARGIN_MM}mm`;
+            clipWindow.style.top = `${MARGIN_MM}mm`;
+            clipWindow.style.overflow = 'hidden';
+
+            // SVGの該当タイル部分を絶対配置で切り抜き表示
+            const sliceSvg = clone.cloneNode(true);
+            sliceSvg.style.position = 'absolute';
+            sliceSvg.style.left = `-${c * TILE_W_PX}px`;
+            sliceSvg.style.top = `-${r * TILE_H_PX}px`;
+            sliceSvg.style.display = 'block';
+
+            clipWindow.appendChild(sliceSvg);
+            pageDiv.appendChild(clipWindow);
+            target.appendChild(pageDiv);
+          }
+        }
+
+        document.body.classList.add('print-mode-real');
+
+      } else {
         // ---------------------------------------------------------
         // A4フィット印刷モード（既存）
         // ---------------------------------------------------------
@@ -3930,50 +4040,50 @@
         const safeH = 1123 - 80;
         const fitScale = Math.min(safeW / vbW, safeH / vbH) * 0.98; // ×0.98 safety factor
         const outW = Math.floor(vbW * fitScale);
-          const outH = Math.floor(vbH * fitScale);
+        const outH = Math.floor(vbH * fitScale);
 
-          clone.setAttribute('width', outW + 'px');
-          clone.setAttribute('height', outH + 'px');
-          clone.removeAttribute('style');
-          clone.style.display = 'block';
-          clone.style.maxWidth = safeW + 'px';
-          clone.style.maxHeight = safeH + 'px';
-          clone.style.overflow = 'hidden';
+        clone.setAttribute('width', outW + 'px');
+        clone.setAttribute('height', outH + 'px');
+        clone.removeAttribute('style');
+        clone.style.display = 'block';
+        clone.style.maxWidth = safeW + 'px';
+        clone.style.maxHeight = safeH + 'px';
+        clone.style.overflow = 'hidden';
 
-          target.appendChild(clone);
-          document.body.classList.remove('print-mode-real');
-        }
+        target.appendChild(clone);
+        document.body.classList.remove('print-mode-real');
+      }
 
       // Add info label at bottom-right if available
       const printLines = [];
-        if (State.lastRectArea != null) printLines.push(`想定整形地面積: ${State.lastRectArea.toFixed(2)} ㎡`);
-        if (State.lastPathArea != null) printLines.push(`不整形地面積合計: ${State.lastPathArea.toFixed(2)} ㎡（参考、自動計算）`);
-        if (State.lastKagechiRatio != null) printLines.push(`かげ地割合: ${State.lastKagechiRatio.toFixed(2)} %（参考、自動計算）`);
-        if (State.lastDepth != null) printLines.push(`平均奥行距離: ${State.lastDepth.toFixed(3)} ㎡（参考、自動計算）`);
-        if (State.lastRoadConnectArea != null && State.lastRoadConnectArea > 0) printLines.push(`接道義務土地面積（参考、自動計算）: ${State.lastRoadConnectArea.toFixed(2)} ㎡`);
-        if (State.geoMeta) {
-          if (State.geoMeta.地図種類) printLines.push(`地図種類: ${State.geoMeta.地図種類}`);
-          if (State.geoMeta.地図分類) printLines.push(`地図分類: ${State.geoMeta.地図分類}`);
-          if (State.geoMeta.精度区分) printLines.push(`精度区分: ${State.geoMeta.精度区分}`);
-          if (State.geoMeta.座標値種別) printLines.push(`座標値種別: ${State.geoMeta.座標値種別}`);
-        }
-        if (printLines.length > 0) {
-          const infoDiv = document.createElement('div');
-          infoDiv.style.cssText = 'position:absolute;bottom:20px;right:20px;font-family:Inter,sans-serif;font-size:11px;font-weight:500;color:#333;background:rgba(255,255,255,0.92);padding:8px 14px;border:1px solid #ccc;border-radius:4px;z-index:100000;line-height:1.6;';
-          infoDiv.innerHTML = printLines.join('<br>');
-          target.appendChild(infoDiv);
-        }
+      if (State.lastRectArea != null) printLines.push(`想定整形地面積: ${State.lastRectArea.toFixed(2)} ㎡`);
+      if (State.lastPathArea != null) printLines.push(`不整形地面積合計: ${State.lastPathArea.toFixed(2)} ㎡（参考、自動計算）`);
+      if (State.lastKagechiRatio != null) printLines.push(`かげ地割合: ${State.lastKagechiRatio.toFixed(2)} %（参考、自動計算）`);
+      if (State.lastDepth != null) printLines.push(`平均奥行距離: ${State.lastDepth.toFixed(3)} ㎡（参考、自動計算）`);
+      if (State.lastRoadConnectArea != null && State.lastRoadConnectArea > 0) printLines.push(`接道義務土地面積（参考、自動計算）: ${State.lastRoadConnectArea.toFixed(2)} ㎡`);
+      if (State.geoMeta) {
+        if (State.geoMeta.地図種類) printLines.push(`地図種類: ${State.geoMeta.地図種類}`);
+        if (State.geoMeta.地図分類) printLines.push(`地図分類: ${State.geoMeta.地図分類}`);
+        if (State.geoMeta.精度区分) printLines.push(`精度区分: ${State.geoMeta.精度区分}`);
+        if (State.geoMeta.座標値種別) printLines.push(`座標値種別: ${State.geoMeta.座標値種別}`);
+      }
+      if (printLines.length > 0) {
+        const infoDiv = document.createElement('div');
+        infoDiv.style.cssText = 'position:absolute;bottom:20px;right:20px;font-family:Inter,sans-serif;font-size:11px;font-weight:500;color:#333;background:rgba(255,255,255,0.92);padding:8px 14px;border:1px solid #ccc;border-radius:4px;z-index:100000;line-height:1.6;';
+        infoDiv.innerHTML = printLines.join('<br>');
+        target.appendChild(infoDiv);
+      }
 
-        document.body.classList.add('print-svg-mode');
+      document.body.classList.add('print-svg-mode');
+      setTimeout(() => {
+        window.print();
         setTimeout(() => {
-          window.print();
-          setTimeout(() => {
-            target.innerHTML = '';
-            document.body.classList.remove('print-mode-real');
-            document.body.classList.remove('print-svg-mode');
-          }, 1000);
-        }, 50);
-      });
+          target.innerHTML = '';
+          document.body.classList.remove('print-mode-real');
+          document.body.classList.remove('print-svg-mode');
+        }, 1000);
+      }, 50);
+    });
 
     // Print mode toggle UI
     document.getElementById('print-mode').addEventListener('change', e => {
@@ -4139,7 +4249,7 @@
         const chibanAreaPayload = `city_id=${cityId}&data_year=2026`;
         const chibanAreaUrl = `https://kouzuviewer.com/chiban/chibanarea.php`;
         const chibanAreaRes = await fetchViaGAS(chibanAreaUrl, 'POST', chibanAreaPayload);
-        
+
         // GAS proxy returns JSON text directly.
         const chibanAreaList = await chibanAreaRes.json();
         let chibanAreaId = '';
@@ -4164,7 +4274,7 @@
         let targetFileName = '';
         // Normalize chiban for searching
         const normalizedChiban = chibanName.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/番/g, '-');
-        
+
         for (const dataRow of chibanData) {
           const fileName = dataRow[0];
           const chibanArray = dataRow[2];
