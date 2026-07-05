@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="光学式CSV転送システム - 送信側。QRコードでCSVファイルをネットワーク不要で転送。">
+  <title>光学式CSV転送 - 送信側</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-card: rgba(22, 27, 34, 0.85);
+      --bg-tertiary: #21262d;
+      --border: #30363d;
+      --border-accent: rgba(0, 180, 216, 0.3);
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-tertiary: #6e7681;
+      --accent-1: #00b4d8;
+      --accent-2: #0077b6;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 15% 50%, rgba(0, 180, 216, 0.07) 0%, transparent 60%),
+        radial-gradient(ellipse at 85% 20%, rgba(0, 119, 182, 0.07) 0%, transparent 60%),
+        radial-gradient(ellipse at 50% 90%, rgba(63, 185, 80, 0.04) 0%, transparent 40%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    /* ===== Header ===== */
+    .header {
+      background: rgba(13, 17, 23, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .header h1 span {
+      color: var(--text-secondary);
+      font-weight: 400;
+      margin-left: 8px;
+      font-size: 14px;
+    }
+
+    .header-badge {
+      margin-left: auto;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--text-tertiary);
+      background: var(--bg-tertiary);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+
+    /* ===== Main Layout ===== */
+    .main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      min-height: calc(100vh - 69px);
+    }
+
+    @media (max-width: 860px) {
+      .main { grid-template-columns: 1fr; }
+    }
+
+    .panel { display: flex; flex-direction: column; gap: 20px; }
+
+    /* ===== Card ===== */
+    .card {
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      transition: border-color 0.3s ease;
+    }
+
+    .card:hover { border-color: var(--border-accent); }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title .icon { font-size: 16px; }
+
+    /* ===== Drop Zone ===== */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .drop-zone::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(0, 180, 216, 0.03), rgba(0, 119, 182, 0.03));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .drop-zone:hover::before, .drop-zone.dragover::before { opacity: 1; }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent-1);
+      transform: translateY(-2px);
+    }
+
+    .drop-zone-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      display: block;
+      animation: floatIcon 3s ease-in-out infinite;
+    }
+
+    @keyframes floatIcon {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
+    .drop-zone-text {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .drop-zone-text strong { color: var(--accent-1); }
+
+    .drop-zone input[type="file"] { display: none; }
+
+    /* ===== File Info ===== */
+    .file-info { display: none; }
+    .file-info.visible { display: block; }
+
+    .file-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .meta-item {
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+    }
+
+    .meta-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-tertiary);
+      margin-bottom: 4px;
+    }
+
+    .meta-value {
+      font-size: 16px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .meta-value.accent { color: var(--accent-1); }
+    .meta-value.success { color: var(--success); }
+
+    /* ===== Settings ===== */
+    .settings-grid { display: flex; flex-direction: column; gap: 18px; }
+
+    .setting-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .setting-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .setting-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .setting-value {
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      color: var(--accent-1);
+      background: rgba(0, 180, 216, 0.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: var(--bg-tertiary);
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px; height: 20px;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 180, 216, 0.4);
+      transition: transform 0.15s ease;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 20px; height: 20px;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 180, 216, 0.4);
+    }
+
+    select {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    select:focus { border-color: var(--accent-1); }
+
+    /* ===== Buttons ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      text-decoration: none;
+      user-select: none;
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(0, 180, 216, 0.25);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(0, 180, 216, 0.35);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--border);
+      transform: translateY(-1px);
+    }
+
+    .btn-danger {
+      background: rgba(248, 81, 73, 0.15);
+      color: var(--danger);
+      border: 1px solid rgba(248, 81, 73, 0.3);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(248, 81, 73, 0.25);
+    }
+
+    .btn-success {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn-group .btn { flex: 1; min-width: 120px; }
+
+    /* ===== QR Display ===== */
+    .qr-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 380px;
+      background: var(--bg-tertiary);
+      border-radius: var(--radius);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .qr-placeholder {
+      text-align: center;
+      color: var(--text-tertiary);
+    }
+
+    .qr-placeholder .icon { font-size: 64px; display: block; margin-bottom: 12px; opacity: 0.5; }
+
+    #qr-display {
+      display: none;
+      background: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .qr-frame-label {
+      display: none;
+      margin-top: 12px;
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: var(--bg-secondary);
+      padding: 6px 16px;
+      border-radius: 20px;
+    }
+
+    /* ===== Progress ===== */
+    .progress-section { display: none; }
+    .progress-section.visible { display: block; }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 8px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 12px 0;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--accent-1), var(--accent-2), var(--accent-1));
+      background-size: 200% 100%;
+      animation: progressShimmer 2s linear infinite;
+      transition: width 0.2s ease;
+      width: 0%;
+    }
+
+    @keyframes progressShimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .progress-stats {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .progress-stats span { font-family: var(--font-mono); }
+
+    /* ===== Status Bar ===== */
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+    }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--text-tertiary);
+      flex-shrink: 0;
+    }
+
+    .status-dot.idle { background: var(--text-tertiary); }
+    .status-dot.active { background: var(--success); animation: pulse 1.5s ease infinite; }
+    .status-dot.generating { background: var(--warning); animation: pulse 1s ease infinite; }
+    .status-dot.complete { background: var(--accent-1); }
+    .status-dot.error { background: var(--danger); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.3); }
+    }
+
+    .status-text { font-size: 13px; color: var(--text-secondary); }
+
+    /* ===== Retransmit ===== */
+    .retransmit-section { display: none; }
+    .retransmit-section.visible { display: block; }
+
+    textarea {
+      width: 100%;
+      min-height: 80px;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus { border-color: var(--accent-1); }
+
+    textarea::placeholder { color: var(--text-tertiary); }
+
+    /* ===== Fullscreen ===== */
+    .fullscreen-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #ffffff;
+      z-index: 9999;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .fullscreen-overlay.active { display: flex; }
+
+    .fullscreen-overlay canvas {
+      max-width: 90vmin;
+      max-height: 85vmin;
+    }
+
+    .fullscreen-info {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #fff;
+      font-size: 14px;
+      font-family: var(--font-mono);
+    }
+
+    .fullscreen-info .progress-mini {
+      width: 200px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .fullscreen-info .progress-mini-fill {
+      height: 100%;
+      background: var(--accent-1);
+      border-radius: 2px;
+      transition: width 0.15s;
+    }
+
+    .fullscreen-close {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 10000;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 40px; height: 40px;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .fullscreen-close:hover { background: rgba(0, 0, 0, 0.9); }
+
+    /* ===== Generation Overlay ===== */
+    .gen-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(13, 17, 23, 0.92);
+      backdrop-filter: blur(8px);
+      border-radius: var(--radius);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 10;
+    }
+
+    .gen-overlay.active { display: flex; }
+
+    .gen-spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent-1);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .gen-text {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .gen-progress {
+      width: 160px;
+      height: 4px;
+      background: var(--bg-tertiary);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .gen-progress-fill {
+      height: 100%;
+      background: var(--accent-1);
+      border-radius: 2px;
+      transition: width 0.1s;
+      width: 0%;
+    }
+
+    /* ===== Utility ===== */
+    .hidden { display: none !important; }
+
+    .fade-in {
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Header ===== -->
+  <header class="header">
+    <div class="header-icon">📡</div>
+    <h1>光学式CSV転送<span>送信側</span></h1>
+    <div class="header-badge">Protocol v1.0</div>
+  </header>
+
+  <!-- ===== Main Content ===== -->
+  <main class="main">
+
+    <!-- Left Panel -->
+    <div class="panel">
+
+      <!-- File Selection -->
+      <div class="card" id="file-card">
+        <div class="card-title"><span class="icon">📁</span> ファイル選択</div>
+        <div class="drop-zone" id="drop-zone">
+          <span class="drop-zone-icon">📄</span>
+          <div class="drop-zone-text">
+            CSVファイルを<strong>ドラッグ＆ドロップ</strong><br>
+            またはクリックして選択
+          </div>
+          <input type="file" id="file-input" accept=".csv,.txt">
+        </div>
+      </div>
+
+      <!-- File Info -->
+      <div class="card file-info" id="file-info-card">
+        <div class="card-title"><span class="icon">📊</span> ファイル情報</div>
+        <div class="file-meta">
+          <div class="meta-item">
+            <div class="meta-label">ファイル名</div>
+            <div class="meta-value" id="info-name">—</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">元サイズ</div>
+            <div class="meta-value" id="info-original-size">—</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">圧縮後</div>
+            <div class="meta-value accent" id="info-compressed-size">—</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">フレーム数</div>
+            <div class="meta-value success" id="info-frames">—</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Transfer ID</div>
+            <div class="meta-value accent" id="info-transfer-id">—</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">推定時間</div>
+            <div class="meta-value" id="info-est-time">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="card">
+        <div class="card-title"><span class="icon">⚙️</span> 送信設定</div>
+        <div class="settings-grid">
+          <div class="setting-row">
+            <div class="setting-header">
+              <span class="setting-label">表示速度 (FPS)</span>
+              <span class="setting-value" id="fps-value">8</span>
+            </div>
+            <input type="range" id="fps-slider" min="3" max="15" value="8" step="1">
+          </div>
+          <div class="setting-row">
+            <div class="setting-header">
+              <span class="setting-label">ペイロードサイズ (bytes)</span>
+              <span class="setting-value" id="payload-value">1000</span>
+            </div>
+            <input type="range" id="payload-slider" min="200" max="2000" value="1000" step="50">
+          </div>
+          <div class="setting-row">
+            <div class="setting-header">
+              <span class="setting-label">エラー訂正レベル</span>
+            </div>
+            <select id="ecc-select">
+              <option value="L">L — 低 (7% 復元)</option>
+              <option value="M" selected>M — 中 (15% 復元)</option>
+              <option value="Q">Q — 高 (25% 復元)</option>
+              <option value="H">H — 最高 (30% 復元)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="card">
+        <div class="card-title"><span class="icon">▶️</span> 送信制御</div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="btn-start" disabled>
+            ▶ 送信開始
+          </button>
+          <button class="btn btn-danger hidden" id="btn-stop">
+            ⏹ 停止
+          </button>
+          <button class="btn btn-secondary" id="btn-fullscreen" disabled>
+            ⛶ 全画面
+          </button>
+        </div>
+        <div class="status-indicator" style="margin-top: 12px;">
+          <div class="status-dot" id="status-dot"></div>
+          <span class="status-text" id="status-text">ファイルを選択してください</span>
+        </div>
+      </div>
+
+      <!-- Retransmit -->
+      <div class="card retransmit-section" id="retransmit-section">
+        <div class="card-title"><span class="icon">🔄</span> 再送</div>
+        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">
+          受信側で表示された不足フレーム番号を入力してください（カンマまたは改行区切り）
+        </p>
+        <textarea id="retransmit-input" placeholder="例: 3, 12, 27, 45&#10;または&#10;3&#10;12&#10;27"></textarea>
+        <div class="btn-group" style="margin-top: 12px;">
+          <button class="btn btn-primary" id="btn-retransmit">🔄 再送開始</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="panel">
+
+      <!-- QR Display -->
+      <div class="card" style="flex: 1;">
+        <div class="card-title"><span class="icon">◻️</span> QRコード表示</div>
+        <div class="qr-container" id="qr-container">
+          <div class="qr-placeholder" id="qr-placeholder">
+            <span class="icon">◻️</span>
+            <div>QRコードがここに表示されます</div>
+          </div>
+          <canvas id="qr-display"></canvas>
+          <div class="qr-frame-label" id="qr-frame-label">Frame 0 / 0</div>
+          <!-- Generation overlay -->
+          <div class="gen-overlay" id="gen-overlay">
+            <div class="gen-spinner"></div>
+            <div class="gen-text" id="gen-text">QRコード生成中...</div>
+            <div class="gen-progress">
+              <div class="gen-progress-fill" id="gen-progress-fill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div class="card progress-section" id="progress-section">
+        <div class="card-title"><span class="icon">📈</span> 送信進捗</div>
+        <div class="progress-bar-container">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+        <div class="progress-stats">
+          <span id="progress-frame">Frame 0 / 0</span>
+          <span id="progress-cycle">サイクル: 0</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ===== Fullscreen Overlay ===== -->
+  <div class="fullscreen-overlay" id="fullscreen-overlay">
+    <button class="fullscreen-close" id="btn-fs-close" title="閉じる (ESC)">✕</button>
+    <canvas id="fs-canvas"></canvas>
+    <div class="fullscreen-info">
+      <span id="fs-frame-label">Frame 0 / 0</span>
+      <div class="progress-mini">
+        <div class="progress-mini-fill" id="fs-progress-fill"></div>
+      </div>
+      <span id="fs-cycle-label">Cycle 0</span>
+    </div>
+  </div>
+
+  <script>
+    // ========================================
+    // Utility Functions
+    // ========================================
+
+    /** CRC32 lookup table (pre-computed) */
+    const CRC32_TABLE = (() => {
+      const table = new Uint32Array(256);
+      for (let i = 0; i < 256; i++) {
+        let c = i;
+        for (let j = 0; j < 8; j++) {
+          c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        }
+        table[i] = c;
+      }
+      return table;
+    })();
+
+    /** Calculate CRC32 of Uint8Array */
+    function crc32(data) {
+      let crc = 0xFFFFFFFF;
+      for (let i = 0; i < data.length; i++) {
+        crc = CRC32_TABLE[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
+      }
+      return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+
+    /** Encode Uint8Array to Base64 (handles large arrays) */
+    function uint8ArrayToBase64(bytes) {
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+        binary += String.fromCharCode.apply(null, chunk);
+      }
+      return btoa(binary);
+    }
+
+    /** Format bytes to human-readable string */
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    // ========================================
+    // State Management
+    // ========================================
+
+    let state = 'idle'; // idle | loaded | generating | transmitting | complete | retransmitting
+    let fileName = '';
+    let fileData = null;       // Uint8Array - original file
+    let compressedData = null; // Uint8Array - gzip compressed
+    let base64Data = '';       // String - Base64 encoded compressed data
+    let transferId = '';       // 4-char hex
+    let fileCRC = 0;           // CRC32 of compressed data
+    let frames = [];           // Array of frame objects
+    let qrCanvases = [];       // Array of pre-rendered canvas elements
+    let activeFrameIndices = []; // Indices of frames to display
+    let currentFrameIdx = 0;  // Current index within activeFrameIndices
+    let cycleCount = 0;       // Number of complete display cycles
+    let animationTimer = null; // setInterval ID
+    let isFullscreen = false;
+
+    // Settings
+    let fps = 8;
+    let payloadSize = 1000;
+    let eccLevel = 'M';
+
+    // ========================================
+    // DOM References
+    // ========================================
+
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const fileInfoCard = document.getElementById('file-info-card');
+    const btnStart = document.getElementById('btn-start');
+    const btnStop = document.getElementById('btn-stop');
+    const btnFullscreen = document.getElementById('btn-fullscreen');
+    const btnFsClose = document.getElementById('btn-fs-close');
+    const btnRetransmit = document.getElementById('btn-retransmit');
+    const qrDisplay = document.getElementById('qr-display');
+    const qrPlaceholder = document.getElementById('qr-placeholder');
+    const qrFrameLabel = document.getElementById('qr-frame-label');
+    const qrContainer = document.getElementById('qr-container');
+    const genOverlay = document.getElementById('gen-overlay');
+    const genText = document.getElementById('gen-text');
+    const genProgressFill = document.getElementById('gen-progress-fill');
+    const progressSection = document.getElementById('progress-section');
+    const progressFill = document.getElementById('progress-fill');
+    const progressFrame = document.getElementById('progress-frame');
+    const progressCycle = document.getElementById('progress-cycle');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const retransmitSection = document.getElementById('retransmit-section');
+    const retransmitInput = document.getElementById('retransmit-input');
+    const fullscreenOverlay = document.getElementById('fullscreen-overlay');
+    const fsCanvas = document.getElementById('fs-canvas');
+    const fsFrameLabel = document.getElementById('fs-frame-label');
+    const fsProgressFill = document.getElementById('fs-progress-fill');
+    const fsCycleLabel = document.getElementById('fs-cycle-label');
+    const fpsSlider = document.getElementById('fps-slider');
+    const fpsValue = document.getElementById('fps-value');
+    const payloadSlider = document.getElementById('payload-slider');
+    const payloadValue = document.getElementById('payload-value');
+    const eccSelect = document.getElementById('ecc-select');
+
+    // ========================================
+    // File Handling
+    // ========================================
+
+    // Drag and drop
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+      }
+    });
+
+    async function handleFile(file) {
+      stopTransmission();
+      setStatus('processing', '読み込み中...');
+
+      fileName = file.name;
+      const arrayBuffer = await file.arrayBuffer();
+      fileData = new Uint8Array(arrayBuffer);
+
+      // Compress with gzip
+      setStatus('processing', 'gzip圧縮中...');
+      try {
+        compressedData = pako.gzip(fileData);
+      } catch (e) {
+        setStatus('error', '圧縮エラー: ' + e.message);
+        return;
+      }
+
+      // CRC32 of compressed data
+      fileCRC = crc32(compressedData);
+
+      // Base64 encode
+      base64Data = uint8ArrayToBase64(compressedData);
+
+      // Transfer ID
+      transferId = Math.floor(Math.random() * 0xFFFF).toString(16).padStart(4, '0');
+
+      // Generate frames
+      generateFrames();
+
+      // Update file info display
+      updateFileInfo(file.size);
+
+      state = 'loaded';
+      setStatus('idle', '送信準備完了');
+      btnStart.disabled = false;
+    }
+
+    function generateFrames() {
+      frames = [];
+      const totalChunks = Math.max(1, Math.ceil(base64Data.length / payloadSize));
+
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = base64Data.substring(i * payloadSize, (i + 1) * payloadSize);
+        const frame = {
+          v: 1,
+          id: transferId,
+          t: totalChunks,
+          n: i,
+          d: chunk
+        };
+
+        // CRC and filename in frame 0
+        if (i === 0) {
+          frame.c = fileCRC;
+          frame.f = fileName;
+        }
+
+        frames.push(frame);
+      }
+    }
+
+    function updateFileInfo(originalSize) {
+      fileInfoCard.classList.add('visible');
+      fileInfoCard.classList.add('fade-in');
+      document.getElementById('info-name').textContent = fileName;
+      document.getElementById('info-original-size').textContent = formatBytes(originalSize);
+      document.getElementById('info-compressed-size').textContent = formatBytes(compressedData.length);
+      document.getElementById('info-frames').textContent = frames.length + ' 枚';
+      document.getElementById('info-transfer-id').textContent = transferId.toUpperCase();
+
+      const estSeconds = frames.length / fps;
+      const minutes = Math.floor(estSeconds / 60);
+      const seconds = Math.ceil(estSeconds % 60);
+      document.getElementById('info-est-time').textContent =
+        minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`;
+    }
+
+    // ========================================
+    // QR Code Generation
+    // ========================================
+
+    /** Render a single QR object to an offscreen canvas */
+    function renderQRToCanvas(qrObj) {
+      const moduleCount = qrObj.getModuleCount();
+      const cellSize = 4;
+      const quietZone = 4;
+      const totalModules = moduleCount + quietZone * 2;
+      const size = totalModules * cellSize;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      // White background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+
+      // Dark modules
+      ctx.fillStyle = '#000000';
+      const offset = quietZone * cellSize;
+      for (let r = 0; r < moduleCount; r++) {
+        for (let c = 0; c < moduleCount; c++) {
+          if (qrObj.isDark(r, c)) {
+            ctx.fillRect(offset + c * cellSize, offset + r * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+
+      return canvas;
+    }
+
+    /** Pre-generate QR code canvases for all frames */
+    async function preGenerateQRCodes() {
+      qrCanvases = [];
+      genOverlay.classList.add('active');
+
+      for (let i = 0; i < frames.length; i++) {
+        const jsonStr = JSON.stringify(frames[i]);
+
+        try {
+          const qr = qrcode(0, eccLevel);
+          qr.addData(jsonStr, 'Byte');
+          qr.make();
+          qrCanvases.push(renderQRToCanvas(qr));
+        } catch (e) {
+          genOverlay.classList.remove('active');
+          setStatus('error', `QR生成エラー (フレーム${i}): データが大きすぎます`);
+          alert(`フレーム${i}のQRコード生成に失敗しました。\nペイロードサイズを小さくするか、エラー訂正レベルを下げてください。\n\n詳細: ${e.message}`);
+          return false;
+        }
+
+        // Update progress
+        const pct = ((i + 1) / frames.length * 100).toFixed(0);
+        genText.textContent = `QRコード生成中... ${pct}%`;
+        genProgressFill.style.width = pct + '%';
+
+        // Yield to UI thread every 5 frames
+        if (i % 5 === 0) {
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+
+      genOverlay.classList.remove('active');
+      return true;
+    }
+
+    // ========================================
+    // Transmission
+    // ========================================
+
+    async function startTransmission() {
+      if (frames.length === 0) return;
+
+      state = 'generating';
+      setStatus('generating', 'QRコード生成中...');
+      btnStart.disabled = true;
+
+      const success = await preGenerateQRCodes();
+      if (!success) {
+        state = 'loaded';
+        btnStart.disabled = false;
+        return;
+      }
+
+      state = 'transmitting';
+      activeFrameIndices = frames.map((_, i) => i);
+      currentFrameIdx = 0;
+      cycleCount = 0;
+
+      // Show UI elements
+      qrPlaceholder.style.display = 'none';
+      qrDisplay.style.display = 'block';
+      qrFrameLabel.style.display = 'block';
+      progressSection.classList.add('visible');
+      btnStart.classList.add('hidden');
+      btnStop.classList.remove('hidden');
+      btnFullscreen.disabled = false;
+      retransmitSection.classList.remove('visible');
+
+      setStatus('active', '送信中...');
+
+      // Start animation
+      animationTimer = setInterval(displayNextFrame, 1000 / fps);
+    }
+
+    function stopTransmission() {
+      if (animationTimer) {
+        clearInterval(animationTimer);
+        animationTimer = null;
+      }
+
+      if (state === 'transmitting' || state === 'retransmitting') {
+        state = 'complete';
+        setStatus('complete', '送信完了');
+        retransmitSection.classList.add('visible');
+        retransmitSection.classList.add('fade-in');
+      }
+
+      btnStart.classList.remove('hidden');
+      btnStop.classList.add('hidden');
+      btnStart.disabled = (frames.length === 0);
+      exitFullscreen();
+    }
+
+    function displayNextFrame() {
+      if (activeFrameIndices.length === 0) return;
+
+      const frameIdx = activeFrameIndices[currentFrameIdx];
+      const qrCanvas = qrCanvases[frameIdx];
+
+      // Draw to inline display
+      const displaySize = Math.min(qrContainer.clientWidth - 32, 500);
+      qrDisplay.width = displaySize;
+      qrDisplay.height = displaySize;
+      const ctx = qrDisplay.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(qrCanvas, 0, 0, displaySize, displaySize);
+
+      // Draw to fullscreen canvas if active
+      if (isFullscreen) {
+        const w = window.innerWidth;
+        const h = window.innerHeight - 52;
+        const fsSize = Math.min(w * 0.92, h * 0.92);
+        fsCanvas.width = fsSize;
+        fsCanvas.height = fsSize;
+        const fsCtx = fsCanvas.getContext('2d');
+        fsCtx.imageSmoothingEnabled = false;
+        fsCtx.drawImage(qrCanvas, 0, 0, fsSize, fsSize);
+
+        // Update fullscreen info
+        fsFrameLabel.textContent = `Frame ${frameIdx} / ${frames.length}`;
+        const pct = ((currentFrameIdx + 1) / activeFrameIndices.length * 100);
+        fsProgressFill.style.width = pct + '%';
+        fsCycleLabel.textContent = `Cycle ${cycleCount}`;
+      }
+
+      // Update inline UI
+      qrFrameLabel.textContent = `Frame ${frameIdx + 1} / ${frames.length}`;
+      const progress = ((currentFrameIdx + 1) / activeFrameIndices.length * 100);
+      progressFill.style.width = progress + '%';
+      progressFrame.textContent = `Frame ${frameIdx + 1} / ${frames.length}`;
+      progressCycle.textContent = `サイクル: ${cycleCount}`;
+
+      // Advance
+      currentFrameIdx++;
+      if (currentFrameIdx >= activeFrameIndices.length) {
+        currentFrameIdx = 0;
+        cycleCount++;
+      }
+    }
+
+    // ========================================
+    // Fullscreen
+    // ========================================
+
+    function enterFullscreen() {
+      isFullscreen = true;
+      fullscreenOverlay.classList.add('active');
+      // Try native fullscreen
+      fullscreenOverlay.requestFullscreen?.().catch(() => {});
+    }
+
+    function exitFullscreen() {
+      isFullscreen = false;
+      fullscreenOverlay.classList.remove('active');
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+      }
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && isFullscreen) {
+        isFullscreen = false;
+        fullscreenOverlay.classList.remove('active');
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        exitFullscreen();
+      }
+    });
+
+    // ========================================
+    // Retransmission
+    // ========================================
+
+    function startRetransmission() {
+      const input = retransmitInput.value.trim();
+      if (!input) {
+        alert('不足フレーム番号を入力してください。');
+        return;
+      }
+
+      // Parse frame numbers (comma, space, or newline separated)
+      const numbers = input
+        .split(/[\s,]+/)
+        .map(s => parseInt(s.trim(), 10))
+        .filter(n => !isNaN(n) && n >= 0 && n < frames.length);
+
+      if (numbers.length === 0) {
+        alert('有効なフレーム番号がありません。');
+        return;
+      }
+
+      // Remove duplicates and sort
+      activeFrameIndices = [...new Set(numbers)].sort((a, b) => a - b);
+      currentFrameIdx = 0;
+      cycleCount = 0;
+      state = 'retransmitting';
+
+      // Show UI
+      qrPlaceholder.style.display = 'none';
+      qrDisplay.style.display = 'block';
+      qrFrameLabel.style.display = 'block';
+      progressSection.classList.add('visible');
+      btnStart.classList.add('hidden');
+      btnStop.classList.remove('hidden');
+      btnFullscreen.disabled = false;
+
+      setStatus('active', `再送中 (${activeFrameIndices.length}フレーム)...`);
+
+      // Start animation
+      if (animationTimer) clearInterval(animationTimer);
+      animationTimer = setInterval(displayNextFrame, 1000 / fps);
+    }
+
+    // ========================================
+    // Status Updates
+    // ========================================
+
+    function setStatus(type, text) {
+      statusDot.className = 'status-dot ' + type;
+      statusText.textContent = text;
+    }
+
+    // ========================================
+    // Settings Change Handlers
+    // ========================================
+
+    fpsSlider.addEventListener('input', (e) => {
+      fps = parseInt(e.target.value, 10);
+      fpsValue.textContent = fps;
+
+      // Update estimated time
+      if (frames.length > 0) {
+        const estSeconds = frames.length / fps;
+        const minutes = Math.floor(estSeconds / 60);
+        const seconds = Math.ceil(estSeconds % 60);
+        document.getElementById('info-est-time').textContent =
+          minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`;
+      }
+
+      // If currently transmitting, restart with new FPS
+      if (animationTimer) {
+        clearInterval(animationTimer);
+        animationTimer = setInterval(displayNextFrame, 1000 / fps);
+      }
+    });
+
+    payloadSlider.addEventListener('input', (e) => {
+      payloadSize = parseInt(e.target.value, 10);
+      payloadValue.textContent = payloadSize;
+    });
+
+    // When payload or ECC changes and file is loaded, regenerate frames
+    payloadSlider.addEventListener('change', () => {
+      if (state === 'loaded' || state === 'complete') {
+        regenerateFrames();
+      }
+    });
+
+    eccSelect.addEventListener('change', (e) => {
+      eccLevel = e.target.value;
+      if (state === 'loaded' || state === 'complete') {
+        regenerateFrames();
+      }
+    });
+
+    function regenerateFrames() {
+      if (!base64Data) return;
+      stopTransmission();
+      generateFrames();
+      updateFileInfo(fileData.length);
+      qrCanvases = [];
+      state = 'loaded';
+      setStatus('idle', '送信準備完了（設定変更済み）');
+      btnStart.disabled = false;
+    }
+
+    // ========================================
+    // Event Listeners
+    // ========================================
+
+    btnStart.addEventListener('click', startTransmission);
+    btnStop.addEventListener('click', stopTransmission);
+    btnFullscreen.addEventListener('click', enterFullscreen);
+    btnFsClose.addEventListener('click', exitFullscreen);
+    btnRetransmit.addEventListener('click', startRetransmission);
+
+  </script>
+</body>
+</html>
