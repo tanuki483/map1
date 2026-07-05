@@ -620,6 +620,30 @@
       <button class="btn btn-success" id="btn-download">💾 CSVをダウンロード</button>
     </div>
 
+    <!-- Debug Info -->
+    <div class="card" id="debug-section">
+      <div class="card-title"><span class="icon">🔍</span> デバッグ</div>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">QRスキャン</div>
+          <div class="info-value" id="debug-scan-count">0</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">JSON成功</div>
+          <div class="info-value" id="debug-json-count">0</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">受理</div>
+          <div class="info-value success" id="debug-accept-count">0</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">最新フレーム</div>
+          <div class="info-value accent" id="debug-last-frame">—</div>
+        </div>
+      </div>
+      <div style="margin-top: 8px; font-size: 11px; color: var(--text-tertiary); font-family: var(--font-mono); word-break: break-all; max-height: 60px; overflow-y: auto;" id="debug-last-reason"></div>
+    </div>
+
     <!-- Reset -->
     <div class="reset-section">
       <button class="btn btn-secondary" id="btn-reset">🔄 リセット</button>
@@ -683,6 +707,11 @@
     let scanActive = false;
     let lastScanTime = 0;
     let detectionTimeout = null;
+
+    // Debug counters
+    let debugScanCount = 0;
+    let debugJsonCount = 0;
+    let debugAcceptCount = 0;
 
     const SCAN_INTERVAL = 1000 / 20; // Max 20fps scan rate
 
@@ -815,20 +844,31 @@
     // ========================================
 
     function processQRData(data) {
+      // Debug: count scans
+      debugScanCount++;
+      document.getElementById('debug-scan-count').textContent = debugScanCount;
+
       let frame;
       try {
         frame = JSON.parse(data);
       } catch (e) {
+        document.getElementById('debug-last-reason').textContent = 'JSON parse error: ' + e.message;
         return; // Not our QR code
       }
+
+      // Debug: JSON parsed successfully
+      debugJsonCount++;
+      document.getElementById('debug-json-count').textContent = debugJsonCount;
 
       // Validate frame structure
       if (frame.v !== 1 || !frame.id || typeof frame.t !== 'number' ||
           typeof frame.n !== 'number' || typeof frame.d !== 'string') {
+        document.getElementById('debug-last-reason').textContent =
+          'Invalid structure: v=' + frame.v + ' id=' + frame.id + ' t=' + typeof frame.t + ' n=' + typeof frame.n + ' d=' + typeof frame.d;
         return;
       }
 
-      // First frame - initialize transfer
+      // First frame received - initialize transfer
       if (transferId === null) {
         transferId = frame.id;
         totalFrames = frame.t;
@@ -842,18 +882,27 @@
       }
 
       // Check Transfer ID
-      if (frame.id !== transferId) return;
+      if (frame.id !== transferId) {
+        document.getElementById('debug-last-reason').textContent =
+          'Transfer ID mismatch: expected=' + transferId + ' got=' + frame.id;
+        return;
+      }
 
       // Check duplicate
-      if (receivedFrames.has(frame.n)) return;
+      if (receivedFrames.has(frame.n)) {
+        document.getElementById('debug-last-frame').textContent = frame.n + ' (dup)';
+        return;
+      }
 
       // Store frame
       receivedFrames.set(frame.n, frame.d);
 
-      // Extract metadata from frame 0
-      if (frame.n === 0 && frame.c !== undefined) {
+      // Extract CRC and filename from any frame that has them
+      if (frame.c !== undefined && expectedCRC === 0) {
         expectedCRC = frame.c;
-        originalFileName = frame.f || 'download.csv';
+      }
+      if (frame.f && originalFileName === 'download.csv') {
+        originalFileName = frame.f;
         document.getElementById('info-filename').textContent = originalFileName;
       }
 
@@ -1111,6 +1160,16 @@
       resultSection.classList.remove('visible');
       btnSave.classList.add('hidden');
       btnSave.disabled = true;
+
+      // Reset debug counters
+      debugScanCount = 0;
+      debugJsonCount = 0;
+      debugAcceptCount = 0;
+      document.getElementById('debug-scan-count').textContent = '0';
+      document.getElementById('debug-json-count').textContent = '0';
+      document.getElementById('debug-accept-count').textContent = '0';
+      document.getElementById('debug-last-frame').textContent = '—';
+      document.getElementById('debug-last-reason').textContent = '';
     }
 
     // ========================================
