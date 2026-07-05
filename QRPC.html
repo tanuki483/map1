@@ -3153,6 +3153,13 @@ var qrcode = function() {
       return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
     }
 
+    /** JSON.stringify that escapes all non-ASCII characters to \uXXXX */
+    function asciiSafeStringify(obj) {
+      return JSON.stringify(obj).replace(/[\u0080-\uffff]/g, function(ch) {
+        return '\\u' + ('0000' + ch.charCodeAt(0).toString(16)).slice(-4);
+      });
+    }
+
     // ========================================
     // State Management
     // ========================================
@@ -3284,24 +3291,30 @@ var qrcode = function() {
 
     function generateFrames() {
       frames = [];
-      const totalChunks = Math.max(1, Math.ceil(base64Data.length / payloadSize));
+
+      // Calculate JSON overhead with c and f included in every frame
+      // to ensure all frames produce QR codes of uniform density
+      const sampleFrame = asciiSafeStringify({
+        v: 1, id: transferId, t: 9999, n: 9999, d: "", c: fileCRC, f: fileName
+      });
+      const jsonOverhead = sampleFrame.length;
+
+      // Effective payload = user's payload setting minus the JSON structure overhead
+      // This ensures the total QR data size stays within the intended limit
+      const effectivePayload = Math.max(100, payloadSize);
+      const totalChunks = Math.max(1, Math.ceil(base64Data.length / effectivePayload));
 
       for (let i = 0; i < totalChunks; i++) {
-        const chunk = base64Data.substring(i * payloadSize, (i + 1) * payloadSize);
+        const chunk = base64Data.substring(i * effectivePayload, (i + 1) * effectivePayload);
         const frame = {
           v: 1,
           id: transferId,
           t: totalChunks,
           n: i,
-          d: chunk
+          d: chunk,
+          c: fileCRC,
+          f: fileName
         };
-
-        // CRC and filename in frame 0
-        if (i === 0) {
-          frame.c = fileCRC;
-          frame.f = fileName;
-        }
-
         frames.push(frame);
       }
     }
@@ -3363,7 +3376,7 @@ var qrcode = function() {
       genOverlay.classList.add('active');
 
       for (let i = 0; i < frames.length; i++) {
-        const jsonStr = JSON.stringify(frames[i]);
+        const jsonStr = asciiSafeStringify(frames[i]);
 
         try {
           const qr = qrcode(0, eccLevel);
