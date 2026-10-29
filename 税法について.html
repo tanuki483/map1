@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<!--
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  法律解説ページ テンプレート（tanuki483.github.io/-/ デザイン踏襲版）                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+■ デザインの特徴（過去資料 -.html / babel071016.html を踏襲）
+  - 背景色：#E0FFFF（薄水色）／ヘッダー・フッター：#ADD8E6（水色）
+  - 目次・解答枠：#F0F8FF（アリスブルー）／判例枠：#E0E8EF（水色グレー）
+  - 見出しh1：下付き二重線（border-bottom: 5px double #000）
+  - 見出しh2：破線囲み（border: 2px dashed #000; background: #F0F8FF）
+  - 表（.c-matrix）：緑枠（border: 3px solid #1b7c26）＋ヘッダー緑（#90e099）＋破線セル
+  - マーカー（mark）：黄色下線（linear-gradient(transparent 40%, yellow 40%)）
+  - 重要語（.important）：赤文字強調
+  - 文字色：すべて純黒（#000000）ではっきり読める設定
+
+■ 主要クラス一覧
+  ┌──────────────┬─────────────────────────────────────────────────────┐
+  │ .innyou      │ 指示① 引用ボックス。2px破線囲み＋背景色。入れ子にするたびに    │
+  │              │ 背景色が変わる（アリスブルー→グレー→薄緑→薄黄の循環）。     │
+  │              │ data-title="民法" でタイトルラベルを表示。                    │
+  │ .joubun      │ 指示② 条文インデント。全体を1字右へ、2行目以降は2字右へ。      │
+  │              │ → 号（一、二、三…）やイ・ロ・ハに使用（明朝体）。             │
+  │ .joubun0     │ 指示③ 上記②の「全体を1字ずらさない版」。1行目0字・2行目以降1字。│
+  │              │ → 条・項（第○条、２、３…）に使用（明朝体）。                │
+  │ .hitomozi    │ 指示④ 背景なしで全体を単純に1字右へずらす。                    │
+  │              │ → 条の見出し（（定義）等）に使用。                           │
+  │ 左カラム目次  │ 指示⑤ #content 内の h1〜h3 から目次を自動生成。                │
+  │ ＋ハンバーガー│ クリックで任意の見出しへジャンプ。PC折りたたみ・スマホドロワー対応。│
+  ├──────────────┼─────────────────────────────────────────────────────┤
+  │ .hanrei      │ 判例ボックス（破線囲み＋#E0E8EF背景＋明朝体）。                 │
+  │ .answer      │ 解答・解説ボックス（破線囲み＋#F0F8FF背景）。                  │
+  │ .c-matrix    │ 過去資料準拠の緑枠テーブル（外枠緑＋th緑＋td破線）。            │
+  │ .mondai      │ 過去問・演習問題（クリックで正誤判定＋解答解説トグル）。         │
+  └──────────────┴─────────────────────────────────────────────────────┘
+-->
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="過去資料のデザイン（薄水色背景・破線囲み・二重線見出し・緑枠表）を踏襲した法律解説・過去問検討テンプレート">
+  <title>税法について</title>
+  <link rel="icon" id="favicon" href="data:,">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Noto+Serif+JP:wght@400;600;700&display=swap');
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       COLOR & TOKENS（過去資料 -.html / babel071016.html 踏襲）
+       ═════════════════════════════════════════════════════════════════════ */
+    :root {
+      --bg-page: #E0FFFF;          /* 全体背景：薄水色 */
+      --bg-header: #ADD8E6;        /* ヘッダー・フッター：水色 */
+      --bg-box-1: #F0F8FF;         /* 目次・解答枠・引用1段目：アリスブルー */
+      --bg-box-2: #E0E8EF;         /* 判例枠・引用2段目：水色グレー */
+      --bg-box-3: #E8F8F0;         /* 引用3段目：淡いミントグリーン */
+      --bg-box-4: #FFFDE8;         /* 引用4段目：淡いアイボリーイエロー */
+      --border-color: #000000;     /* 破線・二重線の枠線色：黒 */
+      --text-main: #000000;        /* 文字色はすべて純黒（薄くしない） */
+      --text-link: #0000EE;        /* リンク色：標準の濃い青 */
+      --color-important: #FF0000;  /* 重要部分：赤 */
+      --color-matrix: #1b7c26;     /* 表（c-matrix）の深緑 */
+      --color-matrix-th: #90e099;  /* 表（c-matrix）の見出し背景 */
+      --accent-blue: #0284c7;      /* ヘッダーアイコン・アクセント色 */
+      --font-sans: Arial, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
+      --font-serif: 'Noto Serif JP', 'Yu Mincho', 'Hiragino Mincho ProN', serif;
+      --font-mono: 'JetBrains Mono', Consolas, monospace;
+      --header-offset: 80px;
+    }
+
+    /* 寒色ダークテーマ（切替ボタンで利用可能） */
+    body.theme-dark {
+      --bg-page: #0f172a;
+      --bg-header: #1e293b;
+      --bg-box-1: #1e293b;
+      --bg-box-2: #162032;
+      --bg-box-3: #132a22;
+      --bg-box-4: #2b2816;
+      --border-color: #64748b;
+      --text-main: #ffffff;
+      --text-link: #38bdf8;
+      --color-important: #f87171;
+      --color-matrix: #22c55e;
+      --color-matrix-th: #14532d;
+      --accent-blue: #38bdf8;
+    }
+
+    /* ── 基本設定 ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--text-main);
+      background-color: var(--bg-page);
+      margin: 0;
+      padding: 0;
+    }
+    @media only screen and (max-width: 600px) {
+      body { font-size: 85%; }
+    }
+    a { color: var(--text-link); }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       ヘッダー（ai_design_reference.html のアイコン要件を満たす水色ヘッダー）
+       ═════════════════════════════════════════════════════════════════════ */
+    header {
+      background-color: var(--bg-header);
+      color: var(--text-main);
+      padding: 10px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 2px solid rgba(0, 0, 0, 0.15);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    .header-inner {
+      max-width: 1300px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .hamburger {
+      width: 38px;
+      height: 38px;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      background: #ffffff;
+      border: 2px solid var(--border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    body.theme-dark .hamburger { background: #334155; }
+    .hamburger span {
+      display: block;
+      width: 20px;
+      height: 2.5px;
+      background: var(--text-main);
+      border-radius: 2px;
+      transition: all 0.25s ease;
+    }
+    .hamburger[aria-expanded="true"] span:nth-child(1) { transform: translateY(7.5px) rotate(45deg); }
+    .hamburger[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+    .hamburger[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7.5px) rotate(-45deg); }
+
+    /* ヘッダーアイコン（ai_design_reference.html 準拠） */
+    .header-icon {
+      width: 38px;
+      height: 38px;
+      flex-shrink: 0;
+      background: #ffffff;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    body.theme-dark .header-icon { background: #334155; }
+    .header-icon svg { width: 22px; height: 22px; color: var(--accent-blue); }
+
+    header h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      line-height: 1.3;
+      margin: 0;
+      color: var(--text-main);
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .btn-header {
+      padding: 5px 12px;
+      background: #ffffff;
+      border: 1.5px solid var(--border-color);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      color: var(--text-main);
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    body.theme-dark .btn-header { background: #334155; }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       ⑤ レイアウト ＆ 左カラム自動目次（.toc）
+       ═════════════════════════════════════════════════════════════════════ */
+    .layout-container {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem 3rem;
+      display: grid;
+      grid-template-columns: 290px minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
+      transition: grid-template-columns 0.25s ease, gap 0.25s ease;
+    }
+
+    /* 左カラム目次（過去資料の .toc スタイルを踏襲） */
+    .toc-sidebar {
+      position: sticky;
+      top: var(--header-offset);
+      max-height: calc(100vh - var(--header-offset) - 20px);
+      overflow-y: auto;
+      background-color: var(--bg-box-1);
+      border: 2px dashed var(--border-color);
+      padding: 1rem;
+      margin-bottom: 2rem;
+    }
+    .toc-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.3rem;
+      border-bottom: 2px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .toc-desc {
+      font-size: 12px;
+      margin-bottom: 0.8rem;
+    }
+    .toc-filter-input {
+      width: 100%;
+      padding: 6px 8px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      border: 1px solid var(--border-color);
+      background: #ffffff;
+      color: var(--text-main);
+    }
+    body.theme-dark .toc-filter-input { background: #0f172a; }
+    .toc-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .toc-list li {
+      margin: 0.35rem 0;
+      font-size: 13.5px;
+      line-height: 1.45;
+    }
+    .toc-list li a {
+      color: var(--text-main);
+      text-decoration: underline;
+      display: block;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+    .toc-list li a:hover {
+      background-color: rgba(0, 0, 0, 0.08);
+    }
+    .toc-list li a.is-active {
+      font-weight: 700;
+      background-color: #ADD8E6;
+      color: #000000;
+    }
+    .toc-list li.lv1 { font-weight: 700; margin-top: 8px; }
+    .toc-list li.lv2 { padding-left: 12px; }
+    .toc-list li.lv3 { padding-left: 24px; font-size: 12.5px; }
+
+    /* PC折りたたみ時の動作 */
+    @media (min-width: 901px) {
+      body.sidebar-collapsed .layout-container {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+      }
+      body.sidebar-collapsed .toc-sidebar {
+        display: none;
+      }
+    }
+    /* スマホ対応 */
+    .sidebar-overlay { display: none; }
+    @media (max-width: 900px) {
+      .layout-container { grid-template-columns: minmax(0, 1fr); }
+      .toc-sidebar {
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        z-index: 200;
+        width: 82vw;
+        max-width: 320px;
+        max-height: none;
+        background-color: var(--bg-box-1);
+        border-right: 3px solid var(--border-color);
+        border-top: none; border-bottom: none; border-left: none;
+        transform: translateX(-105%);
+        transition: transform 0.3s ease;
+        padding-top: 1.5rem;
+        box-shadow: 4px 0 16px rgba(0,0,0,0.2);
+      }
+      body.sidebar-open .toc-sidebar { transform: none; }
+      .sidebar-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 150;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s;
+      }
+      body.sidebar-open .sidebar-overlay { opacity: 1; pointer-events: auto; }
+      body.sidebar-open { overflow: hidden; }
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       メインコンテンツ ＆ 見出し（過去資料 -.html 踏襲）
+       ═════════════════════════════════════════════════════════════════════ */
+    main {
+      min-width: 0;
+    }
+    main :is(h1, h2, h3, h4) {
+      scroll-margin-top: calc(var(--header-offset) + 10px);
+    }
+
+    /* section h1：下付き二重線で装飾 */
+    section h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      border-bottom: 5px double var(--border-color);
+      padding-bottom: 0.5rem;
+      margin: 2rem 0 1rem;
+      color: var(--text-main);
+    }
+    section h1:first-child { margin-top: 0; }
+
+    /* section h2：中見出し（破線囲みを解除しすっきりした見出しに） */
+    section h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin: 2rem 0 0.8rem;
+      color: var(--text-main);
+    }
+
+    /* 判例名・タイトルを破線ボックスで囲む場合（必要時に使用可能） */
+    .hanrei,
+    .title-box {
+      border: 2px dashed var(--border-color);
+      background-color: var(--bg-box-2);
+      padding: 0.4rem 0.8rem;
+      display: inline-block;
+      margin: 0.5rem 0;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    /* h3：小見出し */
+    section h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 1.2rem 0 0.4rem;
+      color: var(--text-main);
+    }
+
+    p { margin: 0.8rem 0; line-height: 1.8; }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       指示① 引用ボックス（.innyou）
+       ・破線で囲まれ、背景に色がついたdiv
+       ・同じdivで囲むたびに色が変わる（循環）
+       ═════════════════════════════════════════════════════════════════════ */
+    .innyou {
+      --q-bg: var(--bg-box-1);
+      border: 2px dashed var(--border-color);
+      background-color: var(--q-bg);
+      padding: 1rem 1.2rem;
+      margin: 1rem 0;
+      font-family: var(--font-serif);
+      color: var(--text-main);
+      line-height: 1.85;
+    }
+    /* 入れ子で背景色を循環切り替え */
+    .innyou .innyou { --q-bg: var(--bg-box-2); margin: 0.8rem 0; }
+    .innyou .innyou .innyou { --q-bg: var(--bg-box-3); }
+    .innyou .innyou .innyou .innyou { --q-bg: var(--bg-box-4); }
+    .innyou .innyou .innyou .innyou .innyou { --q-bg: var(--bg-box-1); }
+
+    /* タイトルラベル指定（data-title="..."） */
+    .innyou[data-title]::before {
+      content: attr(data-title);
+      display: inline-block;
+      font-family: var(--font-sans);
+      font-size: 11.5px;
+      font-weight: bold;
+      background: var(--border-color);
+      color: #ffffff;
+      padding: 1px 8px;
+      margin-bottom: 8px;
+      border-radius: 3px;
+    }
+    body.theme-dark .innyou[data-title]::before {
+      background: #38bdf8;
+      color: #000000;
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       指示②③④ 条文インデント（.joubun / .joubun0 / .hitomozi）
+       ═════════════════════════════════════════════════════════════════════ */
+    /* 指示② joubun：全体を1字右へ、2行目以降は2字右へ（号の表示） */
+    .joubun {
+      padding-left: 2em;
+      text-indent: -1em;
+      font-family: var(--font-serif);
+      margin: 0.25rem 0;
+    }
+    /* 指示③ joubun0：全体を1字ずらさない版（1行目0字、2行目以降1字・条項の表示） */
+    .joubun0 {
+      padding-left: 1em;
+      text-indent: -1em;
+      font-family: var(--font-serif);
+      margin: 0.35rem 0;
+    }
+    /* 指示④ hitomozi：全体を単純に1字右へずらす（条の見出し等） */
+    .hitomozi {
+      padding-left: 1em;
+      text-indent: 0;
+      font-family: var(--font-serif);
+      margin: 0.2rem 0;
+    }
+    /* 入れ子でさらに1字ずつ深くする（イ・ロ・ハ等） */
+    :is(.joubun, .joubun0) > :is(.joubun, .joubun0) {
+      margin-left: -1em;
+    }
+    .jou { font-weight: 700; }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       過去資料スタイル（.answer / .hanrei / .c-matrix / mark / .important）
+       ═════════════════════════════════════════════════════════════════════ */
+    /* 解答・解説ボックス */
+    .answer {
+      border: 2px dashed var(--border-color);
+      background-color: var(--bg-box-1);
+      padding: 1rem;
+      margin-bottom: 2rem;
+    }
+    /* 判例ボックス */
+    .hanrei {
+      border: 2px dashed var(--border-color);
+      background-color: var(--bg-box-2);
+      padding: 1rem;
+      margin: 1rem 0;
+      font-family: var(--font-serif);
+    }
+    /* 重要赤字強調 */
+    .important {
+      color: var(--color-important);
+      font-weight: bold;
+    }
+    /* 黄色マーカー */
+    mark {
+      background: linear-gradient(transparent 40%, #ffff00 40%);
+      color: #000000;
+      padding: 0 2px;
+    }
+    body.theme-dark mark {
+      background: linear-gradient(transparent 40%, #ca8a04 40%);
+      color: #ffffff;
+    }
+
+    /* 緑枠テーブル（.c-matrix：過去資料 -.html 踏襲） */
+    .c-matrix {
+      margin: 1.2rem 0;
+    }
+    .c-matrix table {
+      border-collapse: collapse;
+      border: solid 3px var(--color-matrix);
+      width: 100%;
+      background: #ffffff;
+      color: #000000;
+    }
+    body.theme-dark .c-matrix table { background: #1e293b; color: #ffffff; }
+    .c-matrix th, .c-matrix td {
+      padding: 8px 10px;
+      font-size: 14px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .c-matrix th {
+      border: solid 1px var(--color-matrix);
+      background-color: var(--color-matrix-th);
+      font-weight: 700;
+    }
+    .c-matrix td {
+      border: dashed 1px var(--color-matrix);
+    }
+    @media only screen and (max-width: 600px) {
+      .c-matrix {
+        white-space: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       マルチメディア：SVG図 ＆ 過去問演習（.mondai）
+       ═════════════════════════════════════════════════════════════════════ */
+    .zu {
+      margin: 1.5rem 0;
+      padding: 1rem;
+      border: 2px dashed var(--border-color);
+      background: var(--bg-box-1);
+      text-align: center;
+    }
+    .zu svg {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+      font-family: var(--font-sans);
+    }
+    .zu figcaption {
+      margin-top: 8px;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    /* 過去問演習ボックス */
+    .mondai {
+      border: 2px dashed var(--border-color);
+      background-color: var(--bg-box-1);
+      padding: 1.2rem;
+      margin: 1.5rem 0;
+    }
+    .mondai-title {
+      font-size: 1.1rem;
+      font-weight: bold;
+      margin-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 4px;
+    }
+    .sentakushi {
+      list-style: none;
+      margin: 1rem 0;
+    }
+    .sentakushi li {
+      padding: 8px 12px;
+      margin: 6px 0;
+      border: 1px solid var(--border-color);
+      background: #ffffff;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    body.theme-dark .sentakushi li { background: #334155; }
+    .sentakushi li:hover { background: #e0f2fe; }
+    .sentakushi li.is-correct {
+      border: 2px solid #16a34a;
+      background: #dcfce7 !important;
+      font-weight: bold;
+      color: #15803d;
+    }
+    .sentakushi li.is-wrong {
+      border: 2px solid #dc2626;
+      background: #fee2e2 !important;
+      color: #b91c1c;
+    }
+    .kaitou-toggle {
+      cursor: pointer;
+      font-weight: bold;
+      color: var(--text-link);
+      margin-top: 8px;
+    }
+    .kaitou-content {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border: 1px dashed var(--border-color);
+      background: var(--bg-box-2);
+    }
+
+    /* フッター */
+    footer {
+      background-color: var(--bg-header);
+      color: var(--text-main);
+      text-align: center;
+      padding: 1.5rem 1rem;
+      border-top: 2px solid rgba(0, 0, 0, 0.15);
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═════════════ HEADER（ai_design_reference.html のSVGアイコン組み込み） ═════════════ -->
+  <header>
+    <div class="header-inner">
+      <div class="header-left">
+        <button class="hamburger" id="btn-menu" type="button" aria-label="目次を開閉" aria-expanded="true">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="header-icon">
+          <!-- ▼▼▼ BEGIN HEADER ICON（design_reference_header_icon.svg／インライン埋め込み） ▼▼▼ -->
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><path fill="currentColor" d="M124.3,102.6L101.9,3.3c-0.3-1.5-1.7-2.5-3.3-2.3c-0.7,0.1-1.3,0.4-1.7,0.9c-0.8,0.8-2.6,2.6-4,4 c-2.9,2.9-6.7,4.8-10.8,5c-4.7,0.3-9.2-1.4-12.5-4.7l-4.3-4.3c-0.5-0.5-1.1-0.8-1.7-0.9c-1.6-0.2-3,0.9-3.3,2.3L38,102.6 c-0.6,2.7-0.8,5.6-0.3,8.2l-2.9,1.3l-3.3-2.7l-15.1-3.5c-3.2-0.7-6.5,0-9.1,2.1c-2.7,2.2-4.2,5.5-4,9c0.3,5.7,5.3,10.1,11.1,10.1 h75.7c0.8,0,1.5-0.2,2.2-0.5l3-1.5l3.4,2h5.8c6,0,11.7-2.4,15.6-6.9C124.1,115.2,125.7,108.8,124.3,102.6z"/><path fill="#fff" d="M34.1 118.8c.5 1 1.6 1.6 2.7 1.6.5 0 .9-.1 1.4-.3 1.5-.8 2.1-2.6 1.3-4-.9-1.7-1.5-3.5-1.8-5.3l-6.2-1.4C31.7 112.7 32.6 115.8 34.1 118.8zM90 127h8.5c.3-.9.5-1.9.5-3 0-3.9-2.5-7.2-6-8.5L92.9 99c0-1.7-1.4-3-3-3-1.7 0-3 1.4-3 3l.1 18.6c0 .1 0 .2 0 .4 0 1.7 1.3 3 3 3s3 1.3 3 3S91.7 127 90 127zM72 120.4c-1.7 0-3-1.3-3-3L68.9 99c0-1.7 1.3-3 3-3l0 0c1.7 0 3 1.3 3 3l.1 18.4C75 119.1 73.7 120.4 72 120.4L72 120.4zM71 31A3 3 0 1 0 71 37 3 3 0 1 0 71 31zM91 31A3 3 0 1 0 91 37 3 3 0 1 0 91 31z"/></svg>
+          <!-- ▲▲▲ END HEADER ICON ▲▲▲ -->
+        </div>
+        <h1>法律解説・過去問検討ノート</h1>
+      </div>
+      <div class="header-right">
+        <button class="btn-header" id="btn-theme" type="button">🌓 ダーク切替</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═════════════ メインレイアウト（左カラム目次 ＋ 記事本文） ═════════════ -->
+  <div class="layout-container">
+
+    <!-- ⑤ 左カラム目次（hタグから自動生成） -->
+    <aside class="toc-sidebar" id="toc-sidebar">
+      <div class="toc-title">
+        <span>目次 / INDEX</span>
+      </div>
+      <div class="toc-desc">見出しをクリックして該当箇所へ移動できます。</div>
+      <input type="search" class="toc-filter-input" id="toc-filter" placeholder="目次を絞り込み…" aria-label="目次を検索">
+      <ul class="toc-list" id="toc-list">
+        <!-- JavaScriptで自動挿入されます -->
+      </ul>
+    </aside>
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- 記事本文 -->
+    <main id="content">
+
+
+
+      <!-- ────────── セクション1：税法の読み方 ────────── -->
+      <section>
+        <h1>税法の読み方（課税関係を検討するに当たって）</h1>
+        <p>　課税関係を検討する際に参照するものは、法律、政令、省令、告示、条約、通達、通知、判例、裁判例、裁決事例、学説、立法担当者解説、国会答弁など様々あると思います。<br>
+　備忘として、全ての課税関係の係争が最終的に裁判に行き着くと仮定して、課税関係を検討する際に何をどの程度重視して考えるべきなのかをここに書き残しておきたいと思います。なんか色々分からなくなってきた時に見ます。</p>
+        <h2>法律</h2>
+        <p>　税法は財産に対する侵害規範であり、同じく侵害規範である刑法が罪刑法定主義を原則としているのと同様に、税法は租税法律主義を原則としています。これは日本国憲法第84条に明記されています。</p>
+        <div class="innyou">
+         <b>日本国憲法<br>第84条</b><br>
+         　あらたに租税を課し、又は現行の租税を変更するには、法律又は法律の定める条件によることを必要とする。
+         <br><b>第98条</b>
+         <br>　この憲法は、国の最高法規であつて、その条規に反する法律、命令、詔勅及び国務に関するその他の行為の全部または一部は、その効力を有しない。
+         <div class="joubun0">②　日本国が締結した条約及び確立された国際法規は、これを誠実に順守することを必要とする。
+         </div>
+        </div>
+        <p>　法律は日本においては立法府である国会において議決されたものであり、基本的には衆参両院で出席議員数の過半数の賛成で可決されます。また、両議院は憲法において次のように定められています。
+        </p>
+        <div class="innyou">
+         <b>日本国憲法<br>第41条</b>
+         <br>　国会は、国権の最高機関であつて、国の唯一の立法機関である。
+         <br><b>第42条</b>
+         <br>　国会は、衆議院及び参議院の両議院でこれを構成する。
+         <br><b>第43条</b>
+         <br>　両議院は、全国民を代表する選挙された議員でこれを組織する。
+        </div>
+        <p>　つまり、国民が選んだ、「全国民を代表する選挙された議員」である国会議員の過半数を以て法案が議決されているので、どの法律も間接的には全国民の過半数の同意を以て制定されている、という建前があります。国民は間接的に法律の制定に同意している形になり、自分が同意した法律については従わなければならない、ということのようです（生まれる前に制定された法律等には同意してないのに従う必要があるのかといった議論はここでは省きます。）。これらの建前や前述した租税法律主義により、課税関係を検討する際には法律に規定されていることが全てです。
+        </p>
+        <h2>政令・省令（施行令・施行規則）</h2>
+        <p>　しかし、「法律に書いてあること以外課税できない」と憲法に書いてあるのになぜ法律以外の政令や省令、通達、判例などを確認する必要があるのでしょうか？
+        <br>　それは、法律には様々な理由ですべてのことを書き込むことができないからです。
+        <br>　例えば、「果物所有税法」という架空の税法を基に、りんごを持っている人に対する課税関係を考えてみます。
+        </p>
+        <div class="innyou">
+          <b>果物所有税法<br>第３条（果物所有税の納税義務者）</b>
+          <br>　１月１日にりんご、みかん、その他果物を所有する者はこの法律により果物所有税を納税する義務を負う。
+        </div>
+        <p>　第３条に課税時期や課税標準などを規定しているのは、恐らく第１条が趣旨で第２条が定義だからなのでしょう。条文を作る時間がないので省いていますが、多分この果物所有税は直接税で申告納税制度を採用している税金です。
+        <br>　しかし、一つのりんごを二人で所有していたら、税務署にはどのように申告したらよいのでしょうか？二人の納税地が二つの税務署の管轄地域をまたいでいたら？申告書には具体的に何を記入すればよいのでしょうか？名前？生年月日？個人番号？りんごの所在地まで書く必要がありますか？添付書類は何をつければいいでしょうか？りんごの写真とか？
+        <br>　法律ですべてを決めなければいけないとしたら条文に規定しなければならないことは余りにも膨大です。課税標準がりんごの個数なのか重さなのかなど重要な部分は法律で決めなければならないでしょうが、記載事項などは逐一法律に盛り込んでいたら国会の審議が終わらなくなるでしょうし、具体的な法律の手続や運用方法などの細かい部分、毎年変わる部分などは法律に盛り込んでしまうと改正にとても時間と負担がかかります。
+        <br>　細かい部分は法律が政令や省令、告示などに委任することで立法時の負担を軽減しつつ、柔軟な対応を可能にしているのです。
+        <br>　なお、政令と省令の違いですが、政令は内閣が閣議決定を経て制定し（「果物所有税法施行令」など）、省令は各省の大臣が制定します（財務省令である「果物所有税法施行規則」など）。税法の実務では、施行令（政令）で重要事項の基準や範囲を定め、施行規則（省令）で申告書の書式や添付書類などの手続細目を定める、という役割分担が一般的です。
+        </p>
+        <div class="innyou">
+          <b>日本国憲法<br>第73条</b><br>
+          　内閣は、他の一般行政事務の外、左の事務を行ふ。
+          <div class="joubun">六　この憲法及び法律の規定を実施するために、政令を制定すること。但し、政令には、特にその法律の委任がある場合を除いては、罰則を設けることができない。</div>
+        </div>
+        <div class="innyou">
+          <b>内閣法<br>第11条</b><br>
+          　政令には、法律の委任がなければ、義務を課し、又は権利を制限する規定を設けることができない。
+        </div>
+        <div class="innyou">
+          <b>国家行政組織法<br>第12条</b><br>
+          　各省大臣は、主任の行政事務について、法律若しくは政令を施行するため、又は法律若しくは政令の特別の委任に基づいて、それぞれその機関の命令として省令を発することができる。
+          <div class="joubun0">③　省令には、法律の委任がなければ、罰則を設け、又は義務を課し、若しくは国民の権利を制限する規定を設けることができない。</div>
+        </div>
+        <p>　憲法や法律に明記されているとおり、政令や省令が国民に義務を課す（＝税金を課す）ためには、<mark>必ず法律の具体的な委任が必要</mark>です。法律の委任を受けて作られるものを「委任命令」、手続の細目を定めるものを「執行命令」と呼びます。
+        <br>　また、委任があれば何でも勝手に決めてよいわけではなく、「課税要件は政令で適当に決める」といった白紙委任は租税法律主義に反して無効とされます（課税要件法定主義）。法律の委任の範囲を逸脱した政省令は違法・無効になります。
+        <br>　果物所有税法で言えば、施行令（政令）で「共有りんごの持分判定」を定め、施行規則（財務省令）で「申告書の記載事項やりんごの写真の添付方法」を定める、という形になります。
+        <br>　<span class="important">課税関係を検討する際に政令や省令を見るときは、必ず「法律のどの条文の委任に基づいているのか」を確認し、委任の範囲を逸脱していないかをチェックすることが大切です。</span>
+        </p>
+
+        <h2>告示</h2>
+        <p>　告示は、各省の大臣などが決定した事項を広く一般に知らせる（公示する）ための公の形式です。官報に掲載されます。
+        </p>
+        <div class="innyou">
+          <b>国家行政組織法<br>第14条</b><br>
+          　各省大臣、各委員会及び各庁の長官は、その機関の所掌事務について、公示を必要とする場合においては、告示を発することができる。
+        </div>
+        <p>　告示は単なる「お知らせ」にすぎない場合もありますが、税法においては<mark>法律の委任を受けて課税要件そのものを補充し、実質的に法令と同じ効力を持つ告示</mark>が多数存在します。
+        <br>　例えば、所得税の寄附金控除や法人税の損金算入の対象となる「指定寄附金」（所得税法第78条第2項第2号、法人税法第37条第3項第2号）は「財務大臣が指定したもの」と規定されており、具体的にどの法人が対象になるかは財務省告示で定められます。
+        <br>　果物所有税法第３条が仮に「りんご、みかん、その他財務大臣が告示で指定する果物」となっていたら、財務大臣が告示でスイカを指定していれば課税、指定していなければ非課税、ということになります。当然、告示への委任であっても白紙委任は許されず、法律の委任の枠内に拘束されます。
+        </p>
+
+        <h2>条約（租税条約）</h2>
+        <p>　日本国憲法第98条第2項にあるとおり、日本が締結した条約は誠実に遵守しなければなりません。条約は内閣が締結し、国会の承認を経る必要があります（憲法第73条第3号）。憲法と条約の優劣については学説上の議論がありますが、<mark>条約は国内の法律より上位にある（優先する）</mark>というのが通説的な理解です。
+        <br>　税法の世界で問題となる条約の代表例が「租税条約」です。二重課税の排除（同じ所得に対して日本と外国の両方から二重に課税されることを防ぐ）や、脱税防止のための国際的な情報交換などを定めています。所得税法第162条や法人税法第139条でも、租税条約に国内法と異なる定めがあるときは条約の定めによることが明記されています。
+        <br>　課税関係を検討する上で極めて重要な注意点は、<span class="important">租税条約は基本的に国内法による課税を減免・制限する方向にのみ働くものであり、条約によって国内法に存在しない新しい課税を生じさせることはできない</span>という点です。課税権の発生根拠はあくまで国内の法律であり、その課税権が租税条約によって制限されるかどうかを後から検討する、という順番になります。
+        <br>　もし外国の農園から輸入したスイカや、日本に住んでいない外国人（非居住者）が日本国内に所有しているスイカについて果物所有税を検討するなら、国内法に加えて相手国との租税条約を確認しなければなりません。
+        </p>
+
+        <h2>通達</h2>
+        <p>　架空の法律である果物所有税法について改めて考えてみます。
+        </p>
+        <div class="innyou">
+          <b>果物所有税法<br>第３条（果物所有税の納税義務者）</b>
+          <br>　１月１日にりんご、みかん、その他果物を所有する者はこの法律により果物所有税を納税する義務を負う。
+        </div>
+        <p>　この法律を基にスイカを所有する人が課税されるかどうかを検討すると、結論はどうなるでしょうか。
+        <br>　租税法律主義により、法令に規定されていない課税標準に対して課税することは許されませんので、「その他果物」にスイカが含まれるかどうかが問題となってきます。そこで国税庁は下級の行政機関である国税局や税務署に対して、税法をこのように解釈せよという命令又は示達するために通達を発することがあります。例えば、次のような通達が国税庁長官から発せられていたとします。
+        </p>
+        <div class="innyou">
+          <b>果物所有税法基本通達<br>３－１（果物の範囲）</b>
+          <br>　果物所有税法第３条に規定する「その他果物」には、農林水産省の作況調査において果実的野菜に分類される野菜を含む。
+        </div>
+        <p>　農林水産省の作況調査の分類では、果実的野菜は「いちご、メロン（温室メロン（アールスフェボリット系）を含む。）、すいか」とされていますので、これによると国税庁は果物所有税法第３条の課税対象にスイカを含むと解釈していることが分かります。
+        <br>　当然、税務職員は法令により通達に拘束されます。なぜ拘束されるのかというと、国家行政組織法第14条第2項で各庁の長官に通達の発出権限が認められており、かつ国家公務員法第98条第1項で「職員は、その職務を遂行するについて、法令に従ひ、且つ、上司の職務上の命令に忠実に従はなければならない」と定められているからです。つまり、通達は行政組織内部における上司から部下への職務上の命令（業務命令）なのです。そのため、税務署の調査官は「通達に書いてあるからスイカも果物所有税の対象です」と強く主張してきます。
+        <br>　しかし、通達は当然、国税庁が勝手に言っているだけ（行政組織内部の命令）なので、一般の国民や裁判所に対する法的な拘束力はありません。この点は最高裁判所も明確に判示しています。
+        </p>
+        <div class="hanrei">
+          <b>最判昭和43年12月24日（墓地埋葬通達事件）抜粋</b><br>
+          　通達は、原則として、法規の性質をもつものではなく、上級行政機関が関係下級行政機関および職員に対してその職務権限の行使を指揮し、職務に関して命令するために発するものであり、このような通達は右機関および職員に対する行政組織内部における命令にすぎないから、これらのものがその通達に拘束されることはあつても、一般の国民は直接これに拘束されるものではなく、……裁判所がこれらの通達に拘束されることのないことはもちろんで、裁判所は、法令の解釈適用にあたつては、通達に示された法令の解釈とは異なる独自の解釈をすることができ……
+        </div>
+        <p>　では、裁判になったら通達によるスイカへの課税はすべて取り消されるのかというと、そうとも限りません。パチンコ球遊器が通達の発令をきっかけに物品税の対象とされた事件で、最高裁は次のように判断しています。
+        </p>
+        <div class="hanrei">
+          <b>最判昭和33年3月28日（パチンコ球遊器事件）抜粋</b><br>
+          　本件の課税がたまたま所論通達を機縁として行われたものであつても、通達の内容が法の正しい解釈に合致するものである以上、本件課税処分は法の根拠に基く処分と解するに妨げがなく……
+        </div>
+        <p>　つまり、裁判所は「通達があるからスイカ課税は適法」とは絶対に言ってくれませんが、<mark>「法律の条文（果物所有税法第３条）の客観的で正しい解釈として、スイカが『果物』に含まれるか」を裁判所自身がゼロから判断し、もし裁判所も含まれると解釈したならば、課税は適法として維持される</mark>ということです。
+        <br>　したがって、通達を検討する際には「通達に書いてあるかどうか」だけで満足せず、「その通達の解釈は、法律の条文の文言や趣旨からして裁判所でも通用する正しい解釈といえるのか？」を常に考える必要があります。
+        <br>　一方で、実務上の観点から言えば、通達の存在感は圧倒的です。税務署の職員は通達に絶対に従いますので、通達どおりに申告・納税していれば税務調査で否認されるリスクは極めて低いです。逆に、通達に反する申告をすると税務署の段階では100%否認されるため、どうしても通達の解釈を覆したい場合は、国税不服審判所や裁判所まで争う長期戦を覚悟しなければなりません。
+        <br>　なお、相続税のマンション節税事件（最判令和4年4月19日）のように、「通達の定めた計算方法どおりに申告したのに、著しく不公平な特段の事情があるとして税務署に否認され、最高裁もそれを認めた」という例外的な事例もありますので、通達の文言に従っていれば何があっても100%安全、とまでは言い切れないのが恐ろしいところです。
+        </p>
+
+        <h2>通知</h2>
+        <p>　税法の世界で「通知」という言葉が出てきたときは、文脈によって意味が異なるので注意が必要です。
+        <br>　一つは、税務署長から納税者に対して行われる「更正通知書」「決定通知書」（国税通則法第28条）などの行政処分そのものの通知です。これは課税関係を具体的に確定させる行為ですので、解釈の基準となる資料の話とは別次元のものです。
+        <br>　もう一つは、上級の行政機関から下級機関や地方自治体に対して送られる公文書としての通知です。特に地方税の分野では、総務省自治税務局から各都道府県知事や市区町村長宛てに「地方税法の施行に関する取扱いについて」などの通知が発出されています。
+        <br>　地方自治法第245条の4第1項において、国から地方自治体への通知は原則として「技術的な助言」と位置付けられており、通達のような法的な指揮命令権はありません。したがって、<mark>地方自治体も裁判所も国民も、通知には法的に拘束されません</mark>。
+        <br>　しかし実務上は、地方自治体の税務担当者は総務省通知に準拠して事務を処理していることがほとんどですので、地方税の課税実務の運用実態を知る上では極めて有力な資料となります。
+        </p>
+
+        <h2>判例（最高裁）</h2>
+        <p>　日常会話では裁判所の判決全般を「判例」と呼んでしまいがちですが、法律の世界では厳密に区別されます。<mark>「判例」とは原則として最高裁判所（戦前は大審院）の判断（特に判決の主文を導くために必要な法律上の判断）</mark>を指し、下級審（地裁や高裁）の判決は後述のとおり「裁判例」と呼びます。
+        <br>　実は、日本は英米法のような厳格な「判例拘束性の原則」を採用していないため、条文上は裁判官は判例に法的に拘束されるとは書かれていません。
+        </p>
+        <div class="innyou">
+          <b>日本国憲法<br>第76条</b>
+          <div class="joubun0">③　すべて裁判官は、その良心に従ひ独立してその職権を行ひ、この憲法及び法律にのみ拘束される。</div>
+        </div>
+        <div class="innyou">
+          <b>裁判所法<br>第4条</b><br>
+          　上級審の裁判所の裁判における判断は、その事件について下級審の裁判所を拘束する。
+        </div>
+        <p>　しかし、最高裁の判例と異なる判決を下級審が出した場合、それは上告受理申立ての正当な理由になりますし（民事訴訟法第318条第1項）、最高裁自身がこれまでの判例を変更するためには裁判官全員が揃う大法廷で審理しなければなりません（裁判所法第10条第3号）。
+        <br>　そのため、判例には<mark>事実上の絶対的な拘束力</mark>が存在します。下級審の裁判官が最高裁の判例に逆らうことは実務上まずあり得ません。
+        <br>　冒頭に置いた「全ての係争が最終的に裁判に行き着くと仮定して」という前提に立つならば、最終審である最高裁判所の判断（判例）は、<span class="important">憲法・法律・政省令などの法令に次いで最も重視すべき存在</span>となります。通達と最高裁の判例が矛盾していたら、100%判例の勝ちです。
+        <br>　税法の解釈において最高裁が繰り返し示している大原則が、「文理解釈の原則」です。
+        </p>
+        <div class="hanrei">
+          <b>最判平成22年3月2日（ホステス報酬源泉徴収事件）抜粋</b><br>
+          　租税法規はみだりに規定の文言を離れて解釈すべきものではなく……
+        </div>
+        <p>　租税法律主義の下では、「立法趣旨がこうだから」「課税の公平から言えばこうあるべきだから」といって、条文の自然な日本語の文言から離れて拡大解釈や類推解釈をしてはならない、ということです。
+        <br>　果物所有税法のスイカ問題で言えば、最高裁が「日常用語においてスイカは果物と認識されているから法第３条の『果物』に含まれる」と判決を出した瞬間に、その解釈が事実上の最終決定となります。
+        <br>　ちなみにアメリカの最高裁では、関税法上の「野菜」にトマトが含まれるかどうかが争われ、「植物学上は果実（果物）であっても、食卓でデザートではなく食事として消費されている日常用語の観点からは野菜である」としてトマトを野菜と認定した超有名判例（Nix v. Hedden, 1893年）があります。裁判所が法律の言葉を解釈する際、学術的な定義よりも「社会通念（日常用語としての使われ方）」を優先した好例です。日本の裁判所がスイカをどう捉えるかも、まさに社会通念が勝負の分かれ目になります。
+        </p>
+
+        <h2>裁判例（下級審）</h2>
+        <p>　地方裁判所や高等裁判所の判決である「裁判例」は、その特定の事件の当事者と関係行政庁を拘束するだけで、他の事件に対する法的な拘束力はゼロです。同じ税法の同じ条文であっても、東京地裁で納税者が勝ち、大阪地裁では課税庁が勝つ、というような判断の分裂は日常茶飯事です。
+        <br>　しかし、世の中のすべての税務論点について最高裁の判例が存在するわけではありません。むしろ最高裁まで行かずに地裁や高裁で確定する事件の方が圧倒的多数です。そのため、最高裁判例が存在しない論点については、<mark>「裁判官が条文をどう読み、どのような証拠や主張を重視するのか」という判断の傾向を予測する上で、裁判例は現実的に最も有力な資料</mark>になります。
+        <br>　裁判例を読む際には、次の点に注意する必要があります。
+        </p>
+        <div class="answer">
+          <div class="joubun0">１　<b>確定しているか（上級審で覆されていないか）：</b>地裁で画期的な納税者勝訴の判決が出ていても、高裁で逆転敗訴していればその地裁判決の価値は暴落します。控訴・上告の有無を必ず確認する必要があります。</div>
+          <div class="joubun0">２　<b>前提となる事実関係の固有性：</b>裁判は具体的な事実認定に基づいて行われます。「その会社の特殊な事情」があって勝てた判決を、自分のクライアントの事案に一般化して適用できると思い込むのは極めて危険です。</div>
+          <div class="joubun0">３　<b>法改正の影響：</b>古い裁判例で納税者が勝った後に、その穴を塞ぐために法律や政令が改正されていることが非常によくあります（いわゆる「いたちごっこ」）。現在の条文と判決当時の条文を照らし合わせる必要があります。</div>
+        </div>
+
+        <h2>裁決事例（国税不服審判所）</h2>
+        <p>　税務署長から受けた更正処分や決定処分に不服がある納税者は、裁判所に訴訟を起こす前に、まず「国税不服審判所」に対して審査請求を行う必要があります（不服申立前置、国税通則法第115条第1項）。国税不服審判所が下す判断のことを「裁決」と呼びます。
+        </p>
+        <div class="innyou">
+          <b>国税通則法<br>第102条</b><br>
+          　裁決は、関係行政庁を拘束する。
+        </div>
+        <p>　この条文が極めて重要です。<mark>裁決で納税者の主張が認められて処分が取り消された場合、税務署長はその裁決に法的に拘束されます</mark>。税務署長は「納得いかないから裁判所に訴える」ということはできません。つまり、納税者が審判所で勝てば、その時点で勝ちが確定します（逆に納税者が負けた場合は、納得できなければ裁判所に取消訴訟を提起できます）。
+        <br>　ただし、この拘束力もその事件限りのものですので、他の事件の納税者や裁判所を拘束する力はありません。
+        <br>　裁決事例の頼もしいところは、国税不服審判所は国税庁の内部組織でありながら、国税通則法第99条の規定により「国税庁長官の通達の解釈にとらわれず、法の正しい趣旨に基づいて通達と異なる裁決を出すことができる」という点にあります。公表裁決事例を調べることで、通達の文言の形式的な適用に苦しんでいるときの突破口が見つかることがあります。
+        </p>
+
+        <h2>学説</h2>
+        <p>　租税法学者や実務家による体系書、論文、判例評釈などの見解です。代表的なものとして金子宏先生の『租税法』（弘文堂）などがあります。
+        <br>　学説それ自体は裁判の基準となる「法源」ではありませんので、裁判所を法的に拘束することは一切ありません。しかし、条文の解釈が分かれている論点や、新しい経済取引（暗号資産や複雑な金融取引など）で法令の規定が追いついていない分野では、裁判官も判決を書く際に学説を大いに参考にしています。
+        <br>　特に、税法固有の概念ではなく民法や会社法から引っ張ってきた言葉（「配当」「売買」「住所」など）をどう解釈すべきかという「借用概念」の論点などでは、学説の議論（統一説・目的適合説など）が判例の理論的バックボーンになっています（例えば、相続税法上の「住所」を民法と同様に生活の本拠と解釈した最判平成23年2月18日武富士事件など）。
+        <br>　ただし、実務上の注意点として、<span class="important">税務調査の現場で調査官に向かって「大学教授の学説ではこう書いてある！」と主張しても、調査官には全く響きません</span>（通達に拘束されている調査官からすれば無視して終わりです）。また裁判でも、通説ならともかく、特定の学者しか唱えていない少数説に頼って訴訟を戦うのは敗色濃厚と言わざるを得ません。学説を見るときは、それが学界の「通説」なのか「少数説」なのかを冷静に見極める必要があります。
+        </p>
+
+        <h2>立法担当者解説</h2>
+        <p>　まだ果物所有税法が施行されてから間もないころ、裁判例の集積もほとんどない場合には法律の適用に当たって立法趣旨が判断材料に用いられる場合があります。例えば担当者が次のように立法経緯を説明している資料が見つかったとします。</p>
+        <div class="innyou">
+          <br>　果物所有税は日常的に消費される野菜とは一線を画す、嗜好品である果実類を対象として課税することにより、果物ばかり食べていることで国民が不健康になることを抑止するための法律である。
+        </div>
+        <p>　この解説による立法趣旨を鑑みると、スイカは課税すべきという印象を与えられます。
+        <br>　税制改正があると、その法案の立案に携わった財務省主税局や国税庁の担当官が、改正の背景や条文の趣旨を詳しく解説した書籍や記事を公表します。毎年出版される『改正税法のすべて』（大蔵財務協会）や財務省ウェブサイトの「税制改正の解説」、税務雑誌の記事などがこれに当たります。
+        <br>　これらは<mark>「その条文がなぜ作られたのか（立法趣旨）」を知るための第一級の資料</mark>であり、文言の意味が曖昧で複数の解釈が成り立つときに、立法趣旨に適合した解釈を導き出すための強力な手がかりになります。裁判所も判決文の中で立法趣旨を認定する際にしばしば参照しています。
+        <br>　ただし、これもあくまで「担当者個人の解説」であって法令そのものではありません。前述のホステス報酬事件で示されたとおり、租税法規は文理解釈が原則ですので、「立法担当者解説にはこう書いてあるから」と言って、条文の文言を無視したり文言から離れた解釈を正当化することはできません。
+        </p>
+
+        <h2>国会答弁</h2>
+        <p>　国会答弁で次のような一幕があったとします。
+        </p>
+        <div class="innyou">
+          <b>Ａ議員</b>
+          <br>　「『１月１日にりんご、みかん、その他果物』という条文にはスイカは含まれるのですか？」
+          <br><b>Ｂ政府参考人</b>
+          <br>　「含まれます。」
+        </div>
+        <p>　この答弁を参考とすると、スイカは課税すべきという印象がかなり強いです。当然、国会の審議内容よりも法律の条文が全てですので、結果議決された果物所有税法に「スイカを除く」という一文があればもちろん課税されません。
+        <br>　法律案が国会で審議される際の大臣や政府参考人（主税局長など）の答弁は、国立国会図書館の「国会会議録検索システム」で誰でもキーワード検索できます。立法者が審議の場でどういう認識を持っていたかを示す生々しい証拠ですので、立法趣旨を探る有力な材料にはなります。
+        <br>　しかし、法律は国会で成立・公布された瞬間から「立法者の主観的な意図」を離れ、条文の文言として客観的に一人歩きして解釈されるべきものと解されています。国会で大臣がどんなに威勢のいい答弁をしていようと、それが成立した条文の日本語の文言と整合しないのであれば、裁判所は文言の方を優先します。国会答弁はあくまで文言解釈の背中を押す補助資料にすぎないと心得るべきです。
+        </p>
+
+        <h2>慣例法</h2>
+        <p>　日本には慣例法（慣習法）は殆どありませんが、一部あります。財産評価基本通達などは、その合理性と定着度から実質的には慣例法のような機能も果たしており、裁判でも根拠とされることが多いです。
+        <br>　法の適用に関する通則法第3条では「公の秩序又は善良の風俗に反しない慣習は、法令の規定により認められたもの又は法令に規定されていない事項に関するものに限り、法律と同一の効力を有する」とされています。
+        <br>　しかし、税法の世界には憲法第84条の「租税法律主義」という巨大な壁がありますので、<mark>「昔からこうしてきたから」という慣習法を根拠にして、法律の根拠なく国民に新たな課税を課すことは絶対に許されません</mark>。
+        <br>　一方で、「課税庁が長年にわたって非課税扱いを続けてきた慣行」がある場合に、納税者の信頼を保護するために課税処分を取り消すことができるか（信義則・禁反言の法理）という問題があります。これについて最高裁は極めて厳しいハードルを設定しています。
+        </p>
+        <div class="hanrei">
+          <b>最判昭和62年10月30日 抜粋</b><br>
+          　租税法規に適合する課税処分について、法の一般原理である信義則の法理の適用により、右課税処分を違法なものとして取り消すことができる場合があるとしても、法律による行政の原理なかんずく租税法律主義の原則が貫かれるべき租税法律関係においては、右法理の適用については慎重でなければならず、租税法規の適用における納税者間の平等、公平という要請を犠牲にしてもなお当該課税処分に係る課税を免れしめて納税者の信頼を保護しなければ正義に反するといえるような特別の事情が存する場合に、初めて右法理の適用の是非を考えるべきものである。
+        </div>
+        <p>　つまり、税務署の窓口で担当者が口頭で「スイカは非課税ですよ」と案内したのを信じてスイカを大量に仕入れたとしても、後から「やっぱり税法上課税対象でした」と課税された場合、信義則で勝てる見込みは万に一つもありません。租税法律主義の前には、生半可な慣習や口頭の指導などは吹き飛んでしまうということです。
+        </p>
+
+        <h2>条例（地方税）</h2>
+        <p>　国税ではなく、住民税、事業税、固定資産税などの「地方税」を検討する際には、法律だけでなく各地方自治体の「条例（税条例）」が主役になります。
+        </p>
+        <div class="innyou">
+          <b>日本国憲法<br>第94条</b><br>
+          　地方公共団体は、その財産を管理し、事務を処理し、及び行政を執行する権能を有し、法律の範囲内で条例を制定することができる。
+        </div>
+        <div class="innyou">
+          <b>地方税法<br>第2条（地方団体の課税権）</b><br>
+          　地方団体は、この法律の定めるところによつて、地方税を賦課徴収することができる。
+          <br><b>第3条（地方税の賦課徴収に関する規定の形式）</b><br>
+          　地方団体は、その地方税の税目、課税客体、課税標準、税率その他賦課徴収について定をするには、当該地方団体の条例によらなければならない。
+        </div>
+        <p>　憲法第84条の租税法律主義を受け、地方税の世界では「租税条例主義」がとられています。国の法律である地方税法は大枠（税目や標準税率、課税標準の計算方法など）を定め、具体的な税率や納期限、減免措置などは各地方自治体が議会の議決を経て制定する「条例」に委任しています（法定外普通税や法定外目的税のように、自治体が独自に新税を作ることもできます）。
+        <br>　したがって、地方税の課税関係を検討する際は、<mark>地方税法だけでなく、当該自治体の税条例（及び施行規則）を必ず確認する</mark>必要があります。自治体によって超過課税（標準税率を上回る税率）を導入していたり、独自の軽減措置を設けていたりするからです。
+        <br>　なお、条例は憲法第94条のとおり「法律の範囲内」でしか制定できませんので、国の地方税法の趣旨に反する条例は違法・無効になります。神奈川県が独自に新設した「臨時特例企業税」について、国の地方税法が定めた欠損金の繰越控除の趣旨を骨抜きにするものとして最高裁が無効判決を下した事件（最判平成25年3月21日）が非常に有名です。
+        </p>
+
+        <h2>公示</h2>
+        <p>　行政機関が特定の事実や決定事項を公に広く知らせる行為全般を「公示」といいます。前述の告示も公示の代表的な形式の一つです。
+        <br>　課税関係の検討において特に重要になる公示が、地価公示法に基づいて国土交通省土地鑑定委員会が毎年公表する「公示地価（公示価格）」です。
+        <br>　相続税や贈与税の土地評価に用いられる「路線価」は公示地価の8割程度を目安に国税局長が定めて公開（公示）しており、固定資産税評価額は公示地価の7割を目安に市町村長が登録・公示（縦覧）しています。公示された価格そのものは法律ではありませんが、通達や条例の仕組みを通じて、実質的に課税標準（税額の計算根拠）にダイレクトな影響を及ぼしています。
+        <br>　なお、国税通則法第14条の「公示送達」（住所不明の納税者に対して書類を送達したとみなす手続）も公示の一種ですが、これは手続的な規定です。
+        </p>
+
+        <h2>訓令</h2>
+        <p>　国家行政組織法第14条第2項に基づき、上級の行政機関が下級の行政機関や職員に対して、その権限の行使を指揮命令するために発する命令を「訓令」といいます。
+        <br>　本質的には通達と同じく「行政組織内部の業務命令」ですので、<mark>職員は職務上拘束されますが、外部の納税者や裁判所を法的に拘束する力はありません</mark>。
+        <br>　税法の世界では、法令の具体的な解釈基準は「通達」の形式で出されることが多いため、課税要件の検討で訓令を直接読む機会はそれほど多くありません。ただし、税務署の内部組織の役割分担や、税務調査の進め方・管理手順などの内部規律を定めている文書として存在しています。
+        </p>
+
+        <h2>まとめ（課税関係を検討する際に何をどの程度重視すべきか）</h2>
+        <p>　ここまで確認してきた各種の法令・資料について、「最終的に裁判所で白黒つける」という前提に立って、それぞれの性質と重視すべき度合いを図と表に整理しておきます。迷ったときはこの序列に立ち戻って考えるようにします。
+        </p>
+
+        <!-- 法令ピラミッドと解釈資料の関係図（SVG） -->
+        <figure class="zu">
+          <svg viewBox="0 0 720 440" width="720" height="440" role="img" aria-label="法令の階層構造と解釈資料の位置付け">
+            <!-- ピラミッド（法源の階層） -->
+            <polygon points="260,20 304,76 216,76" fill="#1e3a8a" stroke="#000" stroke-width="1.5"/>
+            <text x="260" y="66" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">憲法</text>
+            <polygon points="216,76 304,76 348,132 172,132" fill="#2563eb" stroke="#000" stroke-width="1.5"/>
+            <text x="260" y="110" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff">条約（租税条約）</text>
+            <polygon points="172,132 348,132 392,188 128,188" fill="#60a5fa" stroke="#000" stroke-width="1.5"/>
+            <text x="260" y="166" text-anchor="middle" font-size="16" font-weight="bold" fill="#000">法律（国会が制定・全ての根拠）</text>
+            <polygon points="128,188 392,188 436,244 84,244" fill="#93c5fd" stroke="#000" stroke-width="1.5"/>
+            <text x="260" y="222" text-anchor="middle" font-size="15" font-weight="bold" fill="#000">政令（施行令・内閣）</text>
+            <polygon points="84,244 436,244 480,300 40,300" fill="#dbeafe" stroke="#000" stroke-width="1.5"/>
+            <text x="260" y="270" text-anchor="middle" font-size="14" font-weight="bold" fill="#000">省令（施行規則・財務大臣等）</text>
+            <text x="260" y="290" text-anchor="middle" font-size="12" fill="#000">法律の委任を受けた告示</text>
+
+            <!-- 委任の矢印 -->
+            <path d="M40,150 L40,280" stroke="#000" stroke-width="2" fill="none" marker-end="url(#arrow-down)"/>
+            <defs>
+              <marker id="arrow-down" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#000"/>
+              </marker>
+            </defs>
+            <text x="30" y="140" text-anchor="middle" font-size="12" font-weight="bold">委任</text>
+
+            <!-- 条例（地方税） -->
+            <line x1="392" y1="170" x2="520" y2="170" stroke="#000" stroke-width="2" stroke-dasharray="5 4"/>
+            <rect x="520" y="120" width="180" height="110" rx="6" fill="#fff" stroke="#000" stroke-width="2"/>
+            <text x="610" y="148" text-anchor="middle" font-size="15" font-weight="bold">条例（地方自治体）</text>
+            <text x="610" y="172" text-anchor="middle" font-size="12">地方税法に基づく委任</text>
+            <text x="610" y="192" text-anchor="middle" font-size="12">法律の範囲内で制定</text>
+            <text x="610" y="210" text-anchor="middle" font-size="12">（租税条例主義）</text>
+
+            <!-- 法令ではないが、裁判や実務に影響する資料 -->
+            <text x="360" y="330" text-anchor="middle" font-size="13" font-weight="bold">▼ 法令ではないが、解釈・実務を左右する重要資料</text>
+            <rect x="20" y="342" width="215" height="88" rx="6" fill="#fef3c7" stroke="#b45309" stroke-width="2" stroke-dasharray="6 4"/>
+            <text x="127" y="368" text-anchor="middle" font-size="14" font-weight="bold">判例（最高裁）</text>
+            <text x="127" y="392" text-anchor="middle" font-size="12">事実上の絶対的拘束力</text>
+            <text x="127" y="412" text-anchor="middle" font-size="12">裁判での最終的な答え</text>
+            <rect x="252" y="342" width="215" height="88" rx="6" fill="#dcfce7" stroke="#15803d" stroke-width="2" stroke-dasharray="6 4"/>
+            <text x="359" y="368" text-anchor="middle" font-size="14" font-weight="bold">通達・訓令・通知</text>
+            <text x="359" y="392" text-anchor="middle" font-size="12">行政組織内部のみ拘束</text>
+            <text x="359" y="412" text-anchor="middle" font-size="12">（実務上の影響力は絶大）</text>
+            <rect x="484" y="342" width="216" height="88" rx="6" fill="#f3f4f6" stroke="#4b5563" stroke-width="2" stroke-dasharray="6 4"/>
+            <text x="592" y="364" text-anchor="middle" font-size="14" font-weight="bold">解釈の参考資料</text>
+            <text x="592" y="386" text-anchor="middle" font-size="12">裁判例・裁決事例・学説</text>
+            <text x="592" y="404" text-anchor="middle" font-size="12">立法担当者解説・国会答弁</text>
+            <text x="592" y="422" text-anchor="middle" font-size="12">公示された指標（路線価等）</text>
+          </svg>
+          <figcaption>【図】課税関係を規律する規範の階層構造と解釈資料の位置付け</figcaption>
+        </figure>
+
+        <!-- 拘束力・重要度比較表（.c-matrix） -->
+        <div class="c-matrix">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 17%;">参照するもの</th>
+                <th style="width: 15%;">制定機関等</th>
+                <th style="width: 12%;">裁判所</th>
+                <th style="width: 12%;">税務職員</th>
+                <th style="width: 12%;">納税者</th>
+                <th>検討時の重要度・メモ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>憲法</b></td>
+                <td>国民（最高法規）</td>
+                <td>○ 拘束</td>
+                <td>○ 拘束</td>
+                <td>○ 拘束</td>
+                <td>租税法律主義（84条）。すべての税法の原点。</td>
+              </tr>
+              <tr>
+                <td><b>条約（租税条約）</b></td>
+                <td>内閣（国会承認）</td>
+                <td>○ 拘束</td>
+                <td>○ 拘束</td>
+                <td>○ 拘束</td>
+                <td>法律より上位。課税を減免・制限する（新課税は不可）。</td>
+              </tr>
+              <tr>
+                <td><b>法律</b></td>
+                <td>国会（立法府）</td>
+                <td>○ 拘束</td>
+                <td>○ 拘束</td>
+                <td>○ 拘束</td>
+                <td><b>【最重要】</b>課税の根拠はすべて法律にあり。文理解釈が原則。</td>
+              </tr>
+              <tr>
+                <td><b>政令・省令</b></td>
+                <td>内閣・各省大臣</td>
+                <td>○ 拘束</td>
+                <td>○ 拘束</td>
+                <td>○ 拘束</td>
+                <td>法律の委任の枠内でのみ有効。白紙委任や逸脱は無効。</td>
+              </tr>
+              <tr>
+                <td><b>告示</b></td>
+                <td>各省大臣等</td>
+                <td>△ 要件次第</td>
+                <td>○ 拘束</td>
+                <td>△ 要件次第</td>
+                <td>法律の委任を受けて課税要件を補充するものは法令と同様。</td>
+              </tr>
+              <tr>
+                <td><b>条例（地方税）</b></td>
+                <td>地方議会</td>
+                <td>○ 拘束</td>
+                <td>○ 拘束</td>
+                <td>○ 拘束</td>
+                <td>地方税の具体的要件。国の法律の範囲内に限られる。</td>
+              </tr>
+              <tr>
+                <td><b>判例（最高裁）</b></td>
+                <td>最高裁判所</td>
+                <td>◎ 事実上拘束</td>
+                <td>◎ 事実上拘束</td>
+                <td>◎ 事実上拘束</td>
+                <td><b>【裁判前提なら最重要】</b>裁判官は逆らえない。最終結論。</td>
+              </tr>
+              <tr>
+                <td><b>通達・訓令</b></td>
+                <td>国税庁長官等</td>
+                <td>× 拘束なし</td>
+                <td>○ 拘束（業務命令）</td>
+                <td>× 拘束なし</td>
+                <td>裁判所は無視できる。ただし税務調査の現場では神の掟。</td>
+              </tr>
+              <tr>
+                <td><b>通知</b></td>
+                <td>総務省等</td>
+                <td>× 拘束なし</td>
+                <td>× 拘束なし（助言）</td>
+                <td>× 拘束なし</td>
+                <td>地方自治体に対する技術的助言。実務上は広く採用。</td>
+              </tr>
+              <tr>
+                <td><b>裁判例（下級審）</b></td>
+                <td>地裁・高裁</td>
+                <td>× 拘束なし</td>
+                <td>× 拘束なし</td>
+                <td>× 拘束なし</td>
+                <td>その事件限り。ただし最高裁判例がない論点では最良の予測材料。</td>
+              </tr>
+              <tr>
+                <td><b>裁決事例</b></td>
+                <td>国税不服審判所</td>
+                <td>× 拘束なし</td>
+                <td>○ 当該事件で拘束</td>
+                <td>× 拘束なし</td>
+                <td>納税者が勝てば税務署は従う義務。通達と異なる解釈も可能。</td>
+              </tr>
+              <tr>
+                <td><b>学説</b></td>
+                <td>学者・租税法学会</td>
+                <td>× 拘束なし</td>
+                <td>× 拘束なし</td>
+                <td>× 拘束なし</td>
+                <td>法源ではないが裁判官も参照。通説か少数説かを見極める。</td>
+              </tr>
+              <tr>
+                <td><b>立法担当者解説</b></td>
+                <td>財務省主税局等</td>
+                <td>× 拘束なし</td>
+                <td>× 拘束なし</td>
+                <td>× 拘束なし</td>
+                <td>立法趣旨を知る最強資料。ただし条文の文言を超えられない。</td>
+              </tr>
+              <tr>
+                <td><b>国会答弁</b></td>
+                <td>政府・国会議員</td>
+                <td>× 拘束なし</td>
+                <td>× 拘束なし</td>
+                <td>× 拘束なし</td>
+                <td>当時の理解を示す補助資料。条文の客観的文言が優先。</td>
+              </tr>
+              <tr>
+                <td><b>慣習・先例</b></td>
+                <td>社会・行政の慣行</td>
+                <td>× 拘束なし</td>
+                <td>× 拘束なし</td>
+                <td>× 拘束なし</td>
+                <td>慣習による課税は不可。信義則による納税者保護も極めて稀。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 自分用の検討手順ボックス（.answer） -->
+        <div class="answer">
+          <h3>課税関係の検討手順（迷ったときの思考フロー）</h3>
+          <div class="joubun0"><b>Step 1【法律を読む】：</b>まずは法律の条文（本法）を素直な日本語として文理解釈する。定義規定と、末尾の「政令で定める」「財務省令で定める」などの委任文言を見落とさない。</div>
+          <div class="joubun0"><b>Step 2【委任先（政令・省令・告示）を確認する】：</b>委任規定があれば施行令・施行規則・告示を辿り、それが法律の委任の枠内にあるかを確認する。</div>
+          <div class="joubun0"><b>Step 3【特別法・条約・条例の有無】：</b>租税特別措置法による特例、国外取引なら租税条約、地方税なら地方税法と自治体の税条例を確認する。</div>
+          <div class="joubun0"><b>Step 4【通達で課税庁のスタンスを把握する】：</b>国税庁が通達でどう解釈しているかを確認する。通達どおりなら調査で揉めるリスクは低いが、通達の解釈が条文の文言として無理がないかも点検しておく。</div>
+          <div class="joubun0"><b>Step 5【最高裁の判例を調べる】：</b>同種論点についての最高裁判例（特に文理解釈を重んじる判例）がないか確認する。判例があればそれが最終的な答え。</div>
+          <div class="joubun0"><b>Step 6【裁判例・裁決事例で傾向を掴む】：</b>判例がなければ、地裁・高裁の裁判例や審判所の公表裁決を検索し、裁判官や審判官がどう判断したかを予測する（確定しているか要確認）。</div>
+          <div class="joubun0"><b>Step 7【立法趣旨・学説で補強する】：</b>条文の文言の多義性で迷ったら、立法担当者解説や国会答弁で「そもそも何のために作った規定か」を調べ、金子宏『租税法』などの通説的学説で理論武装する。</div>
+          <p><span class="important">★ 鉄則：どれだけ通達や解説を読み込んでも、最後に立ち戻るべきは「法律の文言」である。文言から離れた解釈に逃げないこと。</span></p>
+        </div>
+      </section>
+
+
+      <!-- ────────── セクション1：行政法・比例原則 ────────── -->
+      <section>
+        <h1 id="sec-hirei">授業レジュメ：比例原則と処分取消し</h1>
+        <p>過去の講義資料・試験対策レジュメのフォーマットを再現したサンプル解説です。</p>
+
+        <h2 id="hirei-gennsoku">01　比例原則の意義と構造</h2>
+        <div class="answer">
+          <h3>比例原則の意義</h3>
+          <p>「行政活動にあっては、その目的と手段の間に合理的な比例関係のあることが求められる、とする原則をいう。」（<i>授業レジュメ参照</i>）</p>
+          <div class="joubun0"><b>１　適合性原則：</b>手段は目的に適合すべきである。</div>
+          <div class="joubun0"><b>２　必要性原則：</b>手段は目的達成に必要不可欠な最小限度のものであるべきである。</div>
+          <div class="joubun0"><b>３　均衡原則（狭義の比例原則）：</b>特定の手段選択によって得られる利益と不利益とを比較衡量し、不利益が利益を上回る場合には当該手段を断念すべきである。</div>
+          <p><span class="important">※ 比例原則は上記3つの原則から構成される点と、各内容を押さえる必要があります。</span></p>
+        </div>
+
+        <h3 id="hirei-hanrei">重要判例：富山パトカー追跡事件</h3>
+        <!-- 指示① 引用（innyou）：破線囲み＋背景色、入れ子で色が変わる -->
+        <div class="innyou" data-title="最高裁判例（最判昭61.2.27）">
+          <div class="hitomozi">【判例要旨：富山パトカー追跡事件】</div>
+          <div class="joubun0"><span class="jou">〔要件〕</span>　警察官が交通法規違反車両をパトカーで追跡する職務執行中、第三者が損害を被った場合において、<mark>右追跡行為が違法であるというためには、追跡が当該職務目的を遂行する上で不必要であるか、又は逃走車両の逃走の態様及び道路交通状況等から予測される被害発生の具体的危険性の有無及び内容に照らし、追跡の開始・継続若しくは追跡の方法が不相当であることを要する</mark>。</div>
+          
+          <!-- 入れ子引用（自動的に色が変わる） -->
+          <div class="innyou" data-title="警察官職務執行法（根拠条文）">
+            <div class="hitomozi">（質問）</div>
+            <div class="joubun0"><span class="jou">第二条</span>　警察官は、異常な挙動その他周囲の事情から合理的に判断して何らかの犯罪を犯し、若しくは犯そうとしていると疑うに足りる相当な理由のある者……を停止させて質問することができる。</div>
+            <div class="joubun">一　当該職務目的を遂行するために必要な限度において、これを停止させることができる。</div>
+            <div class="joubun">二　相手方の意に反して連行し、又は答弁を強要することはできない。</div>
+          </div>
+        </div>
+
+        <!-- マルチメディア：SVG図 -->
+        <figure class="zu">
+          <svg viewBox="0 0 700 180" width="700" height="180">
+            <rect x="30" y="40" width="180" height="80" rx="8" fill="#fff" stroke="#000" stroke-width="2"/>
+            <text x="120" y="75" text-anchor="middle" font-size="16" font-weight="bold">パトカー（警察官）</text>
+            <text x="120" y="100" text-anchor="middle" font-size="12">職務執行・追跡</text>
+
+            <line x1="210" y1="80" x2="290" y2="80" stroke="#000" stroke-width="2" stroke-dasharray="4"/>
+            <text x="250" y="70" text-anchor="middle" font-size="12">追跡</text>
+
+            <rect x="290" y="40" width="160" height="80" rx="8" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+            <text x="370" y="75" text-anchor="middle" font-size="16" font-weight="bold" fill="#dc2626">逃走車両</text>
+            <text x="370" y="100" text-anchor="middle" font-size="12">赤信号無視</text>
+
+            <line x1="450" y1="80" x2="520" y2="80" stroke="#dc2626" stroke-width="3"/>
+            <text x="485" y="70" text-anchor="middle" font-size="12" fill="#dc2626">衝突！</text>
+
+            <rect x="520" y="40" width="150" height="80" rx="8" fill="#fff" stroke="#000" stroke-width="2"/>
+            <text x="595" y="75" text-anchor="middle" font-size="16" font-weight="bold">第三者車両（X）</text>
+            <text x="595" y="100" text-anchor="middle" font-size="12">青信号進行・被害</text>
+          </svg>
+          <figcaption>【図1】富山パトカー追跡事件の当事者関係図（比例原則における不相当性の検討）</figcaption>
+        </figure>
+
+        <!-- 表（.c-matrix：過去資料スタイル） -->
+        <h3 id="hirei-matrix">比例原則の3段階審査（整理表）</h3>
+        <div class="c-matrix">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 25%;">原則</th>
+                <th style="width: 45%;">内容</th>
+                <th style="width: 30%;">判断基準</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>① 適合性原則</b></td>
+                <td>とられた手段が、法令の目的を達成するのに適していること。</td>
+                <td>目的達成への貢献度</td>
+              </tr>
+              <tr>
+                <td><b>② 必要性原則</b></td>
+                <td>同じ目的を達成できる複数の手段の中で、相手方への制約が最も少ないものを選ぶこと。</td>
+                <td>より制約的でない代替手段の有無</td>
+              </tr>
+              <tr>
+                <td><b>③ 均衡原則（狭義）</b></td>
+                <td>達成される公益と、侵害される私益との間にバランスが保たれていること。</td>
+                <td>比較衡量（不利益が過大でないか）</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ────────── セクション2：条文インデントの型見本 ────────── -->
+      <section>
+        <h1 id="sec-joubun">条文インデント（joubun / joubun0 / hitomozi）の活用</h1>
+        <p>法律条文を忠実に表現するための4つのクラス（<code>innyou</code>, <code>joubun</code>, <code>joubun0</code>, <code>hitomozi</code>）の使用例です。</p>
+
+        <h2 id="joubun-sample">02　条文表記の完全見本</h2>
+        <div class="innyou" data-title="行政手続法（抜粋サンプル）">
+          <!-- 指示④ hitomozi：条の見出し（全体を1字右へ） -->
+          <div class="hitomozi">（不利益処分をしようとする場合の手続）</div>
+          <!-- 指示③ joubun0：第○条（1行目は左端基準、2行目以降は1字下げ） -->
+          <div class="joubun0"><span class="jou">第十三条</span>　行政庁は、不利益処分をしようとする場合には、次の各号の区分に従い、この章の定めるところにより、当該不利益処分の名あて人となるべき者について、当該各号に定める意見陳述のための手続を執らなければならない。</div>
+          <!-- 指示② joubun：号（全体を1字下げ、2行目以降は2字下げ） -->
+          <div class="joubun">一　次のいずれかに該当するとき　聴聞
+            <!-- 号の中のイ・ロ・ハ（入れ子の joubun でさらに階層が下がる） -->
+            <div class="joubun">イ　許認可等を取り消す不利益処分をしようとするとき。</div>
+            <div class="joubun">ロ　イに規定するもののほか、名あて人の資格又は地位を直接にはく奪する不利益処分をしようとするとき。</div>
+            <div class="joubun">ハ　名あて人が法人である場合において、その役員の解任を命ずる不利益処分等をしようとするとき。</div>
+          </div>
+          <div class="joubun">二　前号イからハまでのいずれにも該当しないとき　弁明の機会の付与</div>
+          <!-- 第2項（joubun0） -->
+          <div class="joubun0"><span class="jou">２</span>　次の各号のいずれかに該当するときは、前項の規定は、適用しない。</div>
+          <div class="joubun">一　公益上、緊急に不利益処分をする必要があるため、前項に規定する意見陳述のための手続を執ることができないことが明白であるとき。</div>
+          <div class="joubun">二　施設若しくは業務の基準に適合しなくなった場合等において、その基準に適合させるための命令をしようとするとき。</div>
+        </div>
+
+        <div class="answer">
+          <h3>インデントの使い分けまとめ</h3>
+          <p>
+            ・<b>hitomozi</b>：条の見出し「（定義）」「（不利益処分…）」など、全体を一文字右に寄せる部分。<br>
+            ・<b>joubun0</b>：「第十三条」「２」など、1行目は基準位置から始まり、2行目以降を一文字下げる部分。<br>
+            ・<b>joubun</b>：「一」「二」「イ」「ロ」など、全体を一文字下げ、2行目以降をさらに一文字（合計2文字）下げる部分。
+          </p>
+        </div>
+      </section>
+
+      <!-- ────────── セクション3：過去問演習 ────────── -->
+      <section>
+        <h1 id="sec-kakomon">過去問演習（本科一次試験形式）</h1>
+        <p>過去問資料（babel071016.html）の形式を踏襲したインタラクティブ演習問題です。選択肢をクリックするとその場で正誤が表示されます。</p>
+
+        <h2 id="kakomon-q1">03　第１問：行政法（過去問）</h2>
+        <div class="mondai">
+          <div class="mondai-title">第１問　行政行為の職権取消し及び撤回に関する次の記述のうち、最も適切なものはどれか。</div>
+          <ul class="sentakushi">
+            <li>１　職権取消しは、処分当時に瑕疵がなかった行政行為について、後発的事由に基づきその効力を将来に向かって失わせるものをいう。</li>
+            <li data-seikai>２　受益的行政行為の撤回は、法律に明文の根拠規定がない場合であっても、公益上の必要性が私人の受ける不利益を上回るときは許されると解されている。</li>
+            <li>３　違法な受益的処分の職権取消しについては、法治主義の要請から、処分の相手方の信頼保護や不利益を考慮することなく、必ず遡及して取り消さなければならない。</li>
+            <li>４　行政行為の撤回がなされた場合、その効力は処分の当初にさかのぼって生じるのが原則である。</li>
+          </ul>
+
+          <details class="answer">
+            <summary class="kaitou-toggle">▶ 解答・解説を表示する</summary>
+            <div class="kaitou-content">
+              <p><b>正解：２</b></p>
+              <p>
+                <b>１：誤り。</b>記述は「撤回」の説明である。職権取消しは処分の当初から瑕疵（違法・不当）があった場合になされる。<br>
+                <b>２：正しい。</b>撤回は本来適法に成立した行政行為を後発的事由により失効させるものであるが、法律の明文規定がなくとも、公益上の必要性と相手方の不利益を比較衡量して許されるとされる（東京中央卸売市場拡張事件等参照）。<br>
+                <b>３：誤り。</b>違法な受益的処分の取消しであっても、相手方の帰責性や信頼の程度を比較考量する必要がある。<br>
+                <b>４：誤り。</b>撤回の効果は「将来効」が原則であり、当初にさかのぼる（遡及効）わけではない。
+              </p>
+            </div>
+          </details>
+        </div>
+      </section>
+
+
+    </main>
+  </div>
+
+  <!-- フッター（過去資料 -.html 踏襲） -->
+  <footer>
+    <p>税法について</p>
+  </footer>
+
+  <script>
+    'use strict';
+    const $ = (s, r = document) => r.querySelector(s);
+    const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+    // ── 目次の自動生成（h1, h2, h3） ──
+    const tocList = $('#toc-list');
+    const headings = $$('#content h1, #content h2, #content h3');
+    let autoId = 0;
+
+    headings.forEach(h => {
+      if (!h.id) {
+        h.id = 'heading-auto-' + (++autoId);
+      }
+      const li = document.createElement('li');
+      const tag = h.tagName.toLowerCase();
+      li.className = tag === 'h1' ? 'lv1' : tag === 'h2' ? 'lv2' : 'lv3';
+
+      const a = document.createElement('a');
+      a.href = '#' + h.id;
+      a.dataset.target = h.id;
+      a.textContent = h.textContent.trim();
+
+      a.addEventListener('click', () => {
+        if (window.innerWidth <= 900) {
+          document.body.classList.remove('sidebar-open');
+          syncMenuBtn();
+        }
+      });
+
+      li.appendChild(a);
+      tocList.appendChild(li);
+    });
+
+    // ── 目次の現在位置スクロール追従 ──
+    window.addEventListener('scroll', () => {
+      const topOffset = 100;
+      let current = headings[0];
+      for (const h of headings) {
+        if (h.getBoundingClientRect().top - topOffset <= 0) {
+          current = h;
+        } else {
+          break;
+        }
+      }
+      if (current) {
+        $$('#toc-list a').forEach(a => {
+          a.classList.toggle('is-active', a.dataset.target === current.id);
+        });
+      }
+    }, { passive: true });
+
+    // ── 目次検索フィルタ ──
+    $('#toc-filter').addEventListener('input', e => {
+      const q = e.target.value.trim().toLowerCase();
+      $$('#toc-list li').forEach(li => {
+        const text = li.textContent.toLowerCase();
+        li.style.display = (!q || text.includes(q)) ? '' : 'none';
+      });
+    });
+
+    // ── ハンバーガーボタン動作 ──
+    const btnMenu = $('#btn-menu');
+    function syncMenuBtn() {
+      const isOpen = window.innerWidth <= 900
+        ? document.body.classList.contains('sidebar-open')
+        : !document.body.classList.contains('sidebar-collapsed');
+      btnMenu.setAttribute('aria-expanded', String(isOpen));
+    }
+    btnMenu.addEventListener('click', () => {
+      if (window.innerWidth <= 900) {
+        document.body.classList.toggle('sidebar-open');
+      } else {
+        document.body.classList.toggle('sidebar-collapsed');
+      }
+      syncMenuBtn();
+    });
+    $('#sidebar-overlay').addEventListener('click', () => {
+      document.body.classList.remove('sidebar-open');
+      syncMenuBtn();
+    });
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        document.body.classList.remove('sidebar-open');
+        syncMenuBtn();
+      }
+    });
+
+    // ── ダークテーマ切替 ──
+    $('#btn-theme').addEventListener('click', () => {
+      const isDark = document.body.classList.toggle('theme-dark');
+      $('#btn-theme').textContent = isDark ? '☀ ライト切替' : '🌓 ダーク切替';
+    });
+
+    // ── 過去問演習クリック正誤判定 ──
+    $$('.sentakushi li').forEach(li => {
+      li.addEventListener('click', () => {
+        const isOk = li.hasAttribute('data-seikai');
+        li.classList.remove('is-correct', 'is-wrong');
+        li.classList.add(isOk ? 'is-correct' : 'is-wrong');
+      });
+    });
+  </script>
+</body>
+</html>
