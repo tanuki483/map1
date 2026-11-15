@@ -804,8 +804,10 @@
           <div class="btn-group" style="margin-bottom: 12px;">
             <button class="btn btn-primary" id="btn-nack-scan">📷 残存QR情報を読み取る</button>
             <button class="btn btn-secondary hidden" id="btn-nack-cam-switch">🔄 カメラ切替</button>
+            <button class="btn btn-secondary" id="btn-nack-media" title="HTTP環境等でカメラが直接起動できない場合">🖼️ 撮影/画像・動画から読取</button>
             <button class="btn btn-danger hidden" id="btn-nack-scan-stop">⏹ カメラ停止</button>
           </div>
+          <input type="file" id="s-nack-media-input" accept="image/*,video/*" capture="environment" multiple style="display:none;">
           <div class="nack-scan-area" id="s-nack-scan-area">
             <div class="camera-container">
               <video id="s-nack-video" playsinline autoplay muted></video>
@@ -881,11 +883,13 @@
 
       <div class="card">
         <div class="card-title"><span class="icon">📷</span> カメラ</div>
+        <div class="card-title"><span class="icon">📷</span> カメラ / 画像・動画読取</div>
         <div class="camera-container" id="camera-container">
           <video id="video" playsinline autoplay muted></video>
           <div class="camera-placeholder" id="camera-placeholder">
             <span class="icon">📷</span>
             <div>カメラを開始してください</div>
+            <div id="camera-placeholder-text">カメラを開始してください</div>
           </div>
           <div class="scan-overlay" id="scan-overlay">
             <div class="corner-bl"></div>
@@ -895,11 +899,13 @@
           <div class="detection-flash" id="detection-flash"></div>
         </div>
         <canvas id="scan-canvas" style="display:none;"></canvas>
+        <input type="file" id="rcv-media-input" accept="image/*,video/*" capture="environment" multiple style="display:none;">
       </div>
 
       <div class="btn-group">
         <button class="btn btn-primary" id="btn-camera">📷 カメラ開始</button>
         <button class="btn btn-secondary hidden" id="btn-rcv-cam-switch">🔄 カメラ切替</button>
+        <button class="btn btn-secondary" id="btn-rcv-media" title="HTTP環境等でリアルタイムカメラが使えない場合にも利用可能">🖼️ カメラ撮影/動画・画像から読取</button>
         <button class="btn btn-secondary hidden" id="btn-rcv-nack-quick" disabled>📱 残存情報QRを表示</button>
         <button class="btn btn-success hidden" id="btn-save" disabled>💾 保存</button>
       </div>
@@ -966,11 +972,13 @@
 
       <div class="card missing-section" id="r-missing-section">
         <div class="card-title"><span class="icon">⚠️</span> 受信未済フレーム情報（データ・パリティ）</div>
-        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">
         <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
           QRコードを表示して送信側に読み取らせるか、以下の番号を送信側に入力してください
         </p>
         <div class="settings-grid" style="margin-bottom: 14px; background: var(--bg-tertiary); padding: 12px; border-radius: var(--radius-sm);">
+      <div class="card">
+        <div class="card-title"><span class="icon">⚙️</span> 残存情報QR設定（受信未済番号の送信用）</div>
+        <div class="settings-grid">
           <div class="setting-row">
             <div class="setting-header">
               <span class="setting-label">残存情報QRのペイロードサイズ (文字数)</span>
@@ -987,8 +995,14 @@
             <input type="range" id="nack-fps-slider" min="1" max="10" value="2" step="1">
           </div>
         </div>
+      </div>
+
+      <div class="card missing-section" id="r-missing-section">
+        <div class="card-title"><span class="icon">⚠️</span> 受信未済フレーム情報（データ・パリティ）</div>
+        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+          QRコードを表示して送信側に読み取らせるか、以下の番号を送信側に入力してください
+        </p>
         <div class="btn-group" style="margin-bottom: 10px;">
-          <button class="btn btn-primary" id="btn-show-nack-qr">📱 残存情報QRを表示</button>
           <button class="btn btn-primary" id="btn-show-nack-qr">📱 残存情報QRを表示（自動送り）</button>
           <button class="btn btn-secondary hidden" id="btn-hide-nack-qr">✕ QRを閉じる</button>
         </div>
@@ -1547,6 +1561,8 @@
     // --- Retransmission & NACK Scanner ---
     const sndBtnNackScan = document.getElementById('btn-nack-scan');
     const sndBtnNackCamSwitch = document.getElementById('btn-nack-cam-switch');
+    const sndBtnNackMedia = document.getElementById('btn-nack-media');
+    const sndNackMediaInput = document.getElementById('s-nack-media-input');
     const sndBtnNackScanStop = document.getElementById('btn-nack-scan-stop');
     const sndNackScanArea = document.getElementById('s-nack-scan-area');
     const sndNackVideo = document.getElementById('s-nack-video');
@@ -1563,6 +1579,49 @@
     let sndNackTotalPages = 0;
     let sndNackFacingMode = 'environment';
 
+    async function scanMediaFiles(files, onQrCode, onProgress) {
+      for (const file of files) {
+        if (file.type.startsWith('image/')) {
+          const bmp = await createImageBitmap(file);
+          const canvas = document.createElement('canvas');
+          canvas.width = bmp.width; canvas.height = bmp.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(bmp, 0, 0);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'attemptBoth' });
+          if (code && code.data) onQrCode(code.data);
+        } else if (file.type.startsWith('video/')) {
+          await new Promise((resolve) => {
+            const vid = document.createElement('video');
+            vid.muted = true; vid.playsInline = true;
+            const url = URL.createObjectURL(file);
+            vid.src = url;
+            vid.onloadedmetadata = async () => {
+              const dur = vid.duration || 0;
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d', { willReadFrequently: true });
+              const step = 0.08; // ~12.5 fps sampling
+              for (let t = 0; t <= dur; t += step) {
+                vid.currentTime = t;
+                await new Promise(r => { vid.onseeked = r; setTimeout(r, 300); });
+                if (vid.videoWidth > 0 && vid.videoHeight > 0) {
+                  canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
+                  ctx.drawImage(vid, 0, 0);
+                  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                  const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'attemptBoth' });
+                  if (code && code.data) onQrCode(code.data);
+                }
+                if (onProgress && dur > 0) onProgress(Math.min(100, Math.round((t / dur) * 100)));
+              }
+              URL.revokeObjectURL(url);
+              resolve();
+            };
+            vid.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+          });
+        }
+      }
+    }
+
     async function sndStartNackScanner() {
       try {
         sndStopTransmission();
@@ -1576,6 +1635,13 @@
         sndRetransmitSection.classList.add('visible');
         sndNackScanArea.classList.add('visible', 'fade-in');
         sndNackStatus.textContent = 'カメラ起動中...';
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          sndNackScanArea.classList.remove('visible');
+          sndSetStatus('active', 'カメラ撮影/画像・動画から残存QRを読み取ります');
+          sndNackMediaInput.click();
+          return;
+        }
 
         try {
           sndNackStream = await navigator.mediaDevices.getUserMedia({
@@ -1598,6 +1664,8 @@
       } catch (err) {
         sndNackStatus.textContent = 'カメラエラー: ' + err.message;
         alert('カメラにアクセスできません。\nHTTPSまたはlocalhostで開いているか確認してください。\n\n' + err.message);
+        sndNackStatus.textContent = 'カメラ直接起動不可 —「🖼️ 撮影/画像・動画から読取」ボタンを使用してください';
+        alert('ブラウザからカメラを直接起動できませんでした（' + err.message + '）。\n隣の「🖼️ 撮影/画像・動画から読取」ボタンからカメラ撮影または動画選択で読み取ることができます。');
       }
     }
 
@@ -1652,7 +1720,6 @@
       const K = sndFrames.length - sndParityCount;
       const page = obj.p || 1;
       const totalPages = obj.pt || 1;
-      sndNackTotalPages = totalPages;
 
       if (sndNackTotalPages !== totalPages) {
         sndNackPartsReceived.clear();
@@ -1690,10 +1757,8 @@
         const dataMissingCount = allIndices.filter(i => i < K).length;
         const parityMissingCount = allIndices.filter(i => i >= K).length;
         sndStopNackScanner();
-        sndSetStatus('complete', `残存QR情報の読み取り完了（データ:${dataMissingCount}枚 / パリティ:${parityMissingCount}枚）`);
         sndSetStatus('complete', `残存QR情報の全ページ(${totalPages}枚)読み取り完了！（データ:${dataMissingCount}枚 / パリティ:${parityMissingCount}枚）`);
       } else {
-        sndNackStatus.textContent = `読み取り成功 (${sndNackPartsReceived.size}/${totalPages}枚目) — 次の残存情報QRを映してください`;
         const missingPages = [];
         for (let i = 1; i <= totalPages; i++) {
           if (!sndNackPartsReceived.has(i)) missingPages.push(i);
@@ -1816,6 +1881,17 @@
     sndBtnRetransmit.addEventListener('click', sndStartRetransmission);
     sndBtnNackScan.addEventListener('click', sndStartNackScanner);
     sndBtnNackCamSwitch.addEventListener('click', sndSwitchNackCamera);
+    sndBtnNackMedia.addEventListener('click', () => sndNackMediaInput.click());
+    sndNackMediaInput.addEventListener('change', async (e) => {
+      if (!e.target.files || e.target.files.length === 0) return;
+      sndSetStatus('active', '画像・動画から残存QRを解析中...');
+      await scanMediaFiles(
+        e.target.files,
+        (data) => sndProcessNackQRData(data),
+        (pct) => sndSetStatus('active', `動画を解析中... ${pct}%`)
+      );
+      sndNackMediaInput.value = '';
+    });
     sndBtnNackScanStop.addEventListener('click', sndStopNackScanner);
 
 
@@ -1853,6 +1929,8 @@
     const rcvDetectionFlash = document.getElementById('detection-flash');
     const rcvBtnCamera = document.getElementById('btn-camera');
     const rcvBtnCamSwitch = document.getElementById('btn-rcv-cam-switch');
+    const rcvBtnMedia = document.getElementById('btn-rcv-media');
+    const rcvMediaInput = document.getElementById('rcv-media-input');
     const rcvBtnCameraStop = document.getElementById('btn-camera-stop');
     const rcvBtnSave = document.getElementById('btn-save');
     const rcvBtnDownload = document.getElementById('btn-download');
@@ -1887,6 +1965,9 @@
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           throw new Error('このブラウザまたは接続環境(非HTTPS)ではカメラAPIが使用できません');
+          rcvSetStatus('active', 'カメラ撮影/動画選択', '非HTTPS環境のためファイル読取を使用');
+          rcvMediaInput.click();
+          return;
         }
 
         try {
@@ -1924,6 +2005,8 @@
       } catch (err) {
         rcvSetStatus('error', 'カメラエラー', err.message);
         alert('カメラにアクセスできません。\n・カメラの権限を許可してください\n・別アプリや別タブでカメラを使用中の場合は閉じてください\n・HTTPSまたはlocalhost接続が必要です\n\n詳細: ' + err.message);
+        rcvSetStatus('error', 'カメラ直接起動不可', '隣の「🖼️ カメラ撮影/動画・画像から読取」を使用してください');
+        alert('ブラウザからカメラを直接起動できませんでした（' + err.message + '）。\n隣の「🖼️ カメラ撮影/動画・画像から読取」ボタンからOS標準カメラでの撮影や動画・画像選択で読み取ることができます。');
       }
     }
 
@@ -2297,16 +2380,13 @@
       }
 
       const fullRangeStr = formatAsRanges(allMissing);
-      // Keep each NACK QR compact (~250 chars max) so smartphones can scan it effortlessly
       const tokens = fullRangeStr.split(', ');
       const chunks = [];
       let currentChunk = [];
       let currentLen = 0;
-      const MAX_R_LEN = 220;
       const maxLen = Math.max(20, rcvNackMaxLen);
 
       for (const tok of tokens) {
-        if (currentLen + tok.length + 2 > MAX_R_LEN && currentChunk.length > 0) {
         if (currentLen + tok.length + 1 > maxLen && currentChunk.length > 0) {
           chunks.push(currentChunk.join(','));
           currentChunk = [tok];
@@ -2331,14 +2411,6 @@
 
       if (rcvNackCurrentPage >= rcvNackPayloads.length) rcvNackCurrentPage = 0;
       rcvRenderCurrentNackQR();
-
-      if (rcvNackAutoTimer) { clearInterval(rcvNackAutoTimer); rcvNackAutoTimer = null; }
-      if (rcvNackPayloads.length > 1) {
-        rcvNackAutoTimer = setInterval(() => {
-          rcvNackCurrentPage = (rcvNackCurrentPage + 1) % rcvNackPayloads.length;
-          rcvRenderCurrentNackQR();
-        }, 1200);
-      }
       rcvStartNackAutoTimer();
     }
 
@@ -2361,8 +2433,6 @@
 
         const missingDataCnt = rcvGetMissingFrames().length;
         const missingParityCnt = rcvGetMissingParityFrames().length;
-        const pageStr = payload.pt > 1 ? ` (自動切替中: ${payload.p}/${payload.pt}枚目)` : '';
-        rcvNackQrInfo.textContent = `未受信: データ ${missingDataCnt}枚 / パリティ ${missingParityCnt}枚${pageStr}`;
         if (rcvNackQrPage) {
           const stateStr = payload.pt > 1 ? (rcvNackPaused ? ' [一時停止中]' : ' [自動送り中]') : '';
           rcvNackQrPage.textContent = `NACK QR ${payload.p} / ${payload.pt} 枚目${stateStr} (${payload.r.length}文字)`;
@@ -2541,6 +2611,21 @@
     // --- Event Listeners ---
     rcvBtnCamera.addEventListener('click', rcvStartCamera);
     rcvBtnCamSwitch.addEventListener('click', rcvSwitchCamera);
+    rcvBtnMedia.addEventListener('click', () => rcvMediaInput.click());
+    rcvMediaInput.addEventListener('change', async (e) => {
+      if (!e.target.files || e.target.files.length === 0) return;
+      rcvSetStatus('active', '画像・動画解析中...', '');
+      await scanMediaFiles(
+        e.target.files,
+        (data) => rcvProcessQRData(data),
+        (pct) => rcvSetStatus('active', '動画解析中...', pct + '%')
+      );
+      if (rcvTotalFrames > 0 && !rcvCheckAllDataReady()) {
+        rcvUpdateMissingList();
+        rcvSetStatus('idle', '解析完了', `受信: ${rcvReceivedFrames.size}`);
+      }
+      rcvMediaInput.value = '';
+    });
     rcvBtnCameraStop.addEventListener('click', () => {
       rcvStopCamera();
       if (rcvTotalFrames > 0 && !rcvCheckAllDataReady()) {
