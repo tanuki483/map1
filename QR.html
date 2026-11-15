@@ -802,13 +802,11 @@
             受信側で表示した「残存QR情報」をカメラで読み取るか、番号を手動入力してください（パリティは <code>P0</code>, <code>P1-5</code> または通し番号で指定可）
           </p>
           <div class="btn-group" style="margin-bottom: 12px;">
-            <button class="btn btn-secondary" id="btn-nack-scan">📷 残存QR情報を読み取る</button>
             <button class="btn btn-primary" id="btn-nack-scan">📷 残存QR情報を読み取る</button>
             <button class="btn btn-secondary hidden" id="btn-nack-cam-switch">🔄 カメラ切替</button>
             <button class="btn btn-danger hidden" id="btn-nack-scan-stop">⏹ カメラ停止</button>
           </div>
           <div class="nack-scan-area" id="s-nack-scan-area">
-            <div class="camera-container" style="max-height: 280px;">
             <div class="camera-container">
               <video id="s-nack-video" playsinline autoplay muted></video>
               <div class="scan-overlay" id="s-nack-overlay">
@@ -901,6 +899,7 @@
 
       <div class="btn-group">
         <button class="btn btn-primary" id="btn-camera">📷 カメラ開始</button>
+        <button class="btn btn-secondary hidden" id="btn-rcv-cam-switch">🔄 カメラ切替</button>
         <button class="btn btn-secondary hidden" id="btn-rcv-nack-quick" disabled>📱 残存情報QRを表示</button>
         <button class="btn btn-success hidden" id="btn-save" disabled>💾 保存</button>
       </div>
@@ -968,17 +967,41 @@
       <div class="card missing-section" id="r-missing-section">
         <div class="card-title"><span class="icon">⚠️</span> 受信未済フレーム情報（データ・パリティ）</div>
         <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">
+        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
           QRコードを表示して送信側に読み取らせるか、以下の番号を送信側に入力してください
         </p>
+        <div class="settings-grid" style="margin-bottom: 14px; background: var(--bg-tertiary); padding: 12px; border-radius: var(--radius-sm);">
+          <div class="setting-row">
+            <div class="setting-header">
+              <span class="setting-label">残存情報QRのペイロードサイズ (文字数)</span>
+              <span class="setting-value" id="nack-payload-value">120</span>
+            </div>
+            <input type="range" id="nack-payload-slider" min="30" max="600" value="120" step="10">
+            <div class="setting-hint">小さくするほどQRの目が粗くなりスマホで読み取りやすくなります</div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-header">
+              <span class="setting-label">残存情報QRの自動送り速度 (FPS)</span>
+              <span class="setting-value" id="nack-fps-value">2</span>
+            </div>
+            <input type="range" id="nack-fps-slider" min="1" max="10" value="2" step="1">
+          </div>
+        </div>
         <div class="btn-group" style="margin-bottom: 10px;">
           <button class="btn btn-primary" id="btn-show-nack-qr">📱 残存情報QRを表示</button>
+          <button class="btn btn-primary" id="btn-show-nack-qr">📱 残存情報QRを表示（自動送り）</button>
           <button class="btn btn-secondary hidden" id="btn-hide-nack-qr">✕ QRを閉じる</button>
         </div>
         <div class="nack-qr-area" id="r-nack-qr-area">
           <canvas class="nack-qr-canvas" id="r-nack-qr-canvas"></canvas>
+          <div style="font-size: 13px; color: var(--accent-1); font-weight: 600; font-family: var(--font-mono);" id="r-nack-qr-page"></div>
           <div style="font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono);" id="r-nack-qr-info"></div>
+          <div class="progress-bar-container" id="r-nack-progress-wrap" style="max-width: 280px; height: 6px; display: none;">
+            <div class="progress-bar-fill" id="r-nack-progress-fill"></div>
+          </div>
           <div class="btn-group" id="r-nack-qr-nav" style="width: 100%; display: none;">
             <button class="btn btn-secondary" id="btn-nack-prev" style="padding: 6px 12px; font-size: 12px;">◀ 前へ</button>
+            <button class="btn btn-secondary" id="btn-nack-pause" style="padding: 6px 12px; font-size: 12px;">⏸ 一時停止</button>
             <button class="btn btn-secondary" id="btn-nack-next" style="padding: 6px 12px; font-size: 12px;">次へ ▶</button>
           </div>
         </div>
@@ -1553,10 +1576,6 @@
         sndRetransmitSection.classList.add('visible');
         sndNackScanArea.classList.add('visible', 'fade-in');
         sndNackStatus.textContent = 'カメラ起動中...';
-        sndNackStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false
-        });
 
         try {
           sndNackStream = await navigator.mediaDevices.getUserMedia({
@@ -1569,7 +1588,6 @@
 
         sndNackVideo.srcObject = sndNackStream;
         await sndNackVideo.play();
-        sndNackScanArea.classList.add('visible', 'fade-in');
         sndBtnNackScan.classList.add('hidden');
         sndBtnNackCamSwitch.classList.remove('hidden');
         sndBtnNackScanStop.classList.remove('hidden');
@@ -1578,7 +1596,6 @@
         sndNackScanArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
         requestAnimationFrame(sndNackScanLoop);
       } catch (err) {
-        alert('カメラにアクセスできません。\n\n' + err.message);
         sndNackStatus.textContent = 'カメラエラー: ' + err.message;
         alert('カメラにアクセスできません。\nHTTPSまたはlocalhostで開いているか確認してください。\n\n' + err.message);
       }
@@ -1614,7 +1631,6 @@
             sndNackCanvas.width = vw; sndNackCanvas.height = vh;
             sndNackCtx.drawImage(sndNackVideo, 0, 0, vw, vh);
             const imageData = sndNackCtx.getImageData(0, 0, vw, vh);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
             const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
             if (code && code.data) sndProcessNackQRData(code.data);
           }
@@ -1629,7 +1645,6 @@
       if (!obj || obj.type !== 'nack') return;
 
       if (sndTransferId && obj.id && obj.id !== sndTransferId) {
-        sndNackStatus.textContent = `⚠️ Transfer IDが一致しません (受信側:${obj.id.toUpperCase()} / 送信側:${sndTransferId.toUpperCase()})`;
         sndNackStatus.textContent = `⚠️ Transfer ID不一致 (受信側:${obj.id.toUpperCase()} / 送信側:${sndTransferId.toUpperCase()})`;
         return;
       }
@@ -1638,6 +1653,11 @@
       const page = obj.p || 1;
       const totalPages = obj.pt || 1;
       sndNackTotalPages = totalPages;
+
+      if (sndNackTotalPages !== totalPages) {
+        sndNackPartsReceived.clear();
+        sndNackTotalPages = totalPages;
+      }
 
       let indices = [];
       if (typeof obj.r === 'string') {
@@ -1671,12 +1691,17 @@
         const parityMissingCount = allIndices.filter(i => i >= K).length;
         sndStopNackScanner();
         sndSetStatus('complete', `残存QR情報の読み取り完了（データ:${dataMissingCount}枚 / パリティ:${parityMissingCount}枚）`);
+        sndSetStatus('complete', `残存QR情報の全ページ(${totalPages}枚)読み取り完了！（データ:${dataMissingCount}枚 / パリティ:${parityMissingCount}枚）`);
       } else {
         sndNackStatus.textContent = `読み取り成功 (${sndNackPartsReceived.size}/${totalPages}枚目) — 次の残存情報QRを映してください`;
+        const missingPages = [];
+        for (let i = 1; i <= totalPages; i++) {
+          if (!sndNackPartsReceived.has(i)) missingPages.push(i);
+        }
+        sndNackStatus.textContent = `受信済: ${sndNackPartsReceived.size}/${totalPages}枚 (未読ページ: ${formatAsRanges(missingPages)}) — 自動送り中のQRをそのまま映してください`;
       }
     }
 
-    function sndStartRetransmission() {
     async function sndStartRetransmission() {
       const input = sndRetransmitInput.value.trim();
       if (!input) { alert('不足フレーム番号を入力するか、残存QR情報を読み取ってください。'); return; }
@@ -1827,6 +1852,7 @@
     const rcvScanLine = document.getElementById('scan-line');
     const rcvDetectionFlash = document.getElementById('detection-flash');
     const rcvBtnCamera = document.getElementById('btn-camera');
+    const rcvBtnCamSwitch = document.getElementById('btn-rcv-cam-switch');
     const rcvBtnCameraStop = document.getElementById('btn-camera-stop');
     const rcvBtnSave = document.getElementById('btn-save');
     const rcvBtnDownload = document.getElementById('btn-download');
@@ -1847,19 +1873,48 @@
     const rcvResultText = document.getElementById('r-result-text');
     const rcvResultInfo = document.getElementById('r-result-info');
 
+    let rcvFacingMode = 'environment';
+
     // --- Camera ---
     async function rcvStartCamera() {
       try {
+        sndStopNackScanner();
+        if (rcvCameraStream) {
+          rcvCameraStream.getTracks().forEach(t => t.stop());
+          rcvCameraStream = null;
+        }
         rcvSetStatus('idle', 'カメラ起動中...', '');
-        rcvCameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false
-        });
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('このブラウザまたは接続環境(非HTTPS)ではカメラAPIが使用できません');
+        }
+
+        try {
+          rcvCameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: rcvFacingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false
+          });
+        } catch (e1) {
+          try {
+            rcvCameraStream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: rcvFacingMode },
+              audio: false
+            });
+          } catch (e2) {
+            rcvCameraStream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false
+            });
+          }
+        }
+
         rcvVideo.srcObject = rcvCameraStream;
+        rcvVideo.setAttribute('playsinline', 'true');
         await rcvVideo.play();
         rcvCameraPlaceholder.style.display = 'none';
         rcvScanLine.style.display = 'block';
         rcvBtnCamera.classList.add('hidden');
+        rcvBtnCamSwitch.classList.remove('hidden');
         rcvBtnCameraStop.classList.remove('hidden');
         rcvScanActive = true;
         rcvState = 'scanning';
@@ -1868,7 +1923,14 @@
         requestAnimationFrame(rcvScanLoop);
       } catch (err) {
         rcvSetStatus('error', 'カメラエラー', err.message);
-        alert('カメラにアクセスできません。\nHTTPS接続が必要です。\n\n' + err.message);
+        alert('カメラにアクセスできません。\n・カメラの権限を許可してください\n・別アプリや別タブでカメラを使用中の場合は閉じてください\n・HTTPSまたはlocalhost接続が必要です\n\n詳細: ' + err.message);
+      }
+    }
+
+    async function rcvSwitchCamera() {
+      rcvFacingMode = (rcvFacingMode === 'environment') ? 'user' : 'environment';
+      if (rcvScanActive) {
+        await rcvStartCamera();
       }
     }
 
@@ -1879,6 +1941,7 @@
       rcvCameraPlaceholder.style.display = 'flex';
       rcvScanLine.style.display = 'none';
       rcvBtnCamera.classList.remove('hidden');
+      if (rcvBtnCamSwitch) rcvBtnCamSwitch.classList.add('hidden');
       rcvBtnCameraStop.classList.add('hidden');
       if (rcvState === 'scanning') { rcvState = 'idle'; rcvSetStatus('idle', '待機中', ''); }
     }
@@ -2101,7 +2164,6 @@
 
       rcvSetStatus('active', '受信中', pct.toFixed(0) + '%');
 
-      if ((K - totalData) > 0 && totalData > 0) rcvUpdateMissingList();
       if ((K - totalData) > 0 && totalData > 0) {
         rcvUpdateMissingList();
         rcvBtnNackQuick.classList.remove('hidden');
@@ -2175,17 +2237,30 @@
     const rcvBtnHideNackQr = document.getElementById('btn-hide-nack-qr');
     const rcvNackQrArea = document.getElementById('r-nack-qr-area');
     const rcvNackQrCanvas = document.getElementById('r-nack-qr-canvas');
+    const rcvNackQrPage = document.getElementById('r-nack-qr-page');
     const rcvNackQrInfo = document.getElementById('r-nack-qr-info');
+    const rcvNackProgressWrap = document.getElementById('r-nack-progress-wrap');
+    const rcvNackProgressFill = document.getElementById('r-nack-progress-fill');
     const rcvNackQrNav = document.getElementById('r-nack-qr-nav');
     const rcvBtnNackPrev = document.getElementById('btn-nack-prev');
+    const rcvBtnNackPause = document.getElementById('btn-nack-pause');
     const rcvBtnNackNext = document.getElementById('btn-nack-next');
+    const rcvNackPayloadSlider = document.getElementById('nack-payload-slider');
+    const rcvNackPayloadValue = document.getElementById('nack-payload-value');
+    const rcvNackFpsSlider = document.getElementById('nack-fps-slider');
+    const rcvNackFpsValue = document.getElementById('nack-fps-value');
 
     let rcvNackPayloads = [];
     let rcvNackCurrentPage = 0;
     let rcvNackAutoTimer = null;
+    let rcvNackPaused = false;
+    let rcvNackMaxLen = 120;
+    let rcvNackFps = 2;
 
     function rcvShowNackQR() {
       if (rcvTotalFrames === 0) return;
+      rcvNackPaused = false;
+      if (rcvBtnNackPause) rcvBtnNackPause.textContent = '⏸ 一時停止';
       rcvMissingSection.classList.add('visible');
       rcvNackQrArea.classList.add('visible', 'fade-in');
       rcvBtnShowNackQr.classList.add('hidden');
@@ -2202,6 +2277,16 @@
       rcvBtnHideNackQr.classList.add('hidden');
     }
 
+    function rcvStartNackAutoTimer() {
+      if (rcvNackAutoTimer) { clearInterval(rcvNackAutoTimer); rcvNackAutoTimer = null; }
+      if (rcvNackPayloads.length > 1 && !rcvNackPaused) {
+        rcvNackAutoTimer = setInterval(() => {
+          rcvNackCurrentPage = (rcvNackCurrentPage + 1) % rcvNackPayloads.length;
+          rcvRenderCurrentNackQR();
+        }, 1000 / rcvNackFps);
+      }
+    }
+
     function rcvBuildAndRenderNackQR() {
       const missingData = rcvGetMissingFrames();
       const missingParity = rcvGetMissingParityFrames();
@@ -2212,17 +2297,17 @@
       }
 
       const fullRangeStr = formatAsRanges(allMissing);
-      // Split range tokens into chunks if very long so each QR easily fits
       // Keep each NACK QR compact (~250 chars max) so smartphones can scan it effortlessly
       const tokens = fullRangeStr.split(', ');
       const chunks = [];
       let currentChunk = [];
       let currentLen = 0;
-      const MAX_R_LEN = 900;
       const MAX_R_LEN = 220;
+      const maxLen = Math.max(20, rcvNackMaxLen);
 
       for (const tok of tokens) {
         if (currentLen + tok.length + 2 > MAX_R_LEN && currentChunk.length > 0) {
+        if (currentLen + tok.length + 1 > maxLen && currentChunk.length > 0) {
           chunks.push(currentChunk.join(','));
           currentChunk = [tok];
           currentLen = tok.length;
@@ -2254,6 +2339,7 @@
           rcvRenderCurrentNackQR();
         }, 1200);
       }
+      rcvStartNackAutoTimer();
     }
 
     function rcvRenderCurrentNackQR() {
@@ -2261,12 +2347,10 @@
       const payload = rcvNackPayloads[rcvNackCurrentPage];
       const jsonStr = asciiSafeStringify(payload);
       try {
-        const qr = qrcode(0, 'M');
         const qr = qrcode(0, 'L');
         qr.addData(jsonStr, 'Byte');
         qr.make();
         const srcCanvas = sndRenderQRToCanvas(qr);
-        const size = 280;
         const maxDisplay = Math.min(340, window.innerWidth - 64);
         const size = Math.max(240, maxDisplay);
         rcvNackQrCanvas.width = size;
@@ -2277,10 +2361,18 @@
 
         const missingDataCnt = rcvGetMissingFrames().length;
         const missingParityCnt = rcvGetMissingParityFrames().length;
-        const pageStr = payload.pt > 1 ? ` (${payload.p}/${payload.pt}枚目)` : '';
         const pageStr = payload.pt > 1 ? ` (自動切替中: ${payload.p}/${payload.pt}枚目)` : '';
         rcvNackQrInfo.textContent = `未受信: データ ${missingDataCnt}枚 / パリティ ${missingParityCnt}枚${pageStr}`;
+        if (rcvNackQrPage) {
+          const stateStr = payload.pt > 1 ? (rcvNackPaused ? ' [一時停止中]' : ' [自動送り中]') : '';
+          rcvNackQrPage.textContent = `NACK QR ${payload.p} / ${payload.pt} 枚目${stateStr} (${payload.r.length}文字)`;
+        }
+        rcvNackQrInfo.textContent = `未受信合計: データ ${missingDataCnt}枚 / パリティ ${missingParityCnt}枚`;
         rcvNackQrNav.style.display = payload.pt > 1 ? 'flex' : 'none';
+        if (rcvNackProgressWrap && rcvNackProgressFill) {
+          rcvNackProgressWrap.style.display = payload.pt > 1 ? 'block' : 'none';
+          rcvNackProgressFill.style.width = ((payload.p / payload.pt) * 100) + '%';
+        }
       } catch (e) {
         rcvNackQrInfo.textContent = 'QR生成エラー: ' + e.message;
       }
@@ -2448,6 +2540,7 @@
 
     // --- Event Listeners ---
     rcvBtnCamera.addEventListener('click', rcvStartCamera);
+    rcvBtnCamSwitch.addEventListener('click', rcvSwitchCamera);
     rcvBtnCameraStop.addEventListener('click', () => {
       rcvStopCamera();
       if (rcvTotalFrames > 0 && !rcvCheckAllDataReady()) {
@@ -2471,10 +2564,31 @@
         rcvRenderCurrentNackQR();
       }
     });
+    rcvBtnNackPause.addEventListener('click', () => {
+      rcvNackPaused = !rcvNackPaused;
+      rcvBtnNackPause.textContent = rcvNackPaused ? '▶ 自動送り再開' : '⏸ 一時停止';
+      rcvStartNackAutoTimer();
+      rcvRenderCurrentNackQR();
+    });
     rcvBtnNackNext.addEventListener('click', () => {
       if (rcvNackPayloads.length > 1) {
         rcvNackCurrentPage = (rcvNackCurrentPage + 1) % rcvNackPayloads.length;
         rcvRenderCurrentNackQR();
+      }
+    });
+    rcvNackPayloadSlider.addEventListener('input', (e) => {
+      rcvNackMaxLen = parseInt(e.target.value, 10);
+      rcvNackPayloadValue.textContent = rcvNackMaxLen;
+      if (rcvNackQrArea && rcvNackQrArea.classList.contains('visible')) {
+        rcvNackCurrentPage = 0;
+        rcvBuildAndRenderNackQR();
+      }
+    });
+    rcvNackFpsSlider.addEventListener('input', (e) => {
+      rcvNackFps = parseInt(e.target.value, 10);
+      rcvNackFpsValue.textContent = rcvNackFps;
+      if (rcvNackQrArea && rcvNackQrArea.classList.contains('visible')) {
+        rcvStartNackAutoTimer();
       }
     });
     rcvBtnSave.addEventListener('click', rcvDownloadFile);
