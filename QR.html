@@ -789,6 +789,7 @@
             <button class="btn btn-danger hidden" id="btn-stop">⏹ 停止</button>
             <button class="btn btn-secondary" id="btn-fullscreen" disabled>⛶ 全画面</button>
             <button class="btn btn-secondary" id="btn-toggle-retransmit" disabled>🔄 再送・残存QR読取</button>
+            <button class="btn btn-secondary" id="btn-toggle-retransmit">🔄 再送・残存QR読取</button>
           </div>
           <div class="s-status-indicator" style="margin-top: 12px;">
             <div class="status-dot" id="s-status-dot"></div>
@@ -797,6 +798,7 @@
         </div>
 
         <div class="card retransmit-section" id="retransmit-section">
+        <div class="card retransmit-section visible" id="retransmit-section">
           <div class="card-title"><span class="icon">🔄</span> 再送（残存QR情報受領・フレーム指定）</div>
           <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">
             受信側で表示した「残存QR情報」をカメラで読み取るか、番号を手動入力してください（パリティは <code>P0</code>, <code>P1-5</code> または通し番号で指定可）
@@ -882,13 +884,11 @@
     <div class="receiver-container">
 
       <div class="card">
-        <div class="card-title"><span class="icon">📷</span> カメラ</div>
         <div class="card-title"><span class="icon">📷</span> カメラ / 画像・動画読取</div>
         <div class="camera-container" id="camera-container">
           <video id="video" playsinline autoplay muted></video>
           <div class="camera-placeholder" id="camera-placeholder">
             <span class="icon">📷</span>
-            <div>カメラを開始してください</div>
             <div id="camera-placeholder-text">カメラを開始してください</div>
           </div>
           <div class="scan-overlay" id="scan-overlay">
@@ -907,6 +907,7 @@
         <button class="btn btn-secondary hidden" id="btn-rcv-cam-switch">🔄 カメラ切替</button>
         <button class="btn btn-secondary" id="btn-rcv-media" title="HTTP環境等でリアルタイムカメラが使えない場合にも利用可能">🖼️ カメラ撮影/動画・画像から読取</button>
         <button class="btn btn-secondary hidden" id="btn-rcv-nack-quick" disabled>📱 残存情報QRを表示</button>
+        <button class="btn btn-secondary" id="btn-rcv-nack-quick">📱 残存情報QRを表示</button>
         <button class="btn btn-success hidden" id="btn-save" disabled>💾 保存</button>
       </div>
       <button class="btn btn-danger hidden" id="btn-camera-stop" style="width:100%;">⏹ カメラ停止</button>
@@ -970,14 +971,9 @@
         </div>
       </div>
 
-      <div class="card missing-section" id="r-missing-section">
-        <div class="card-title"><span class="icon">⚠️</span> 受信未済フレーム情報（データ・パリティ）</div>
-        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
-          QRコードを表示して送信側に読み取らせるか、以下の番号を送信側に入力してください
-        </p>
-        <div class="settings-grid" style="margin-bottom: 14px; background: var(--bg-tertiary); padding: 12px; border-radius: var(--radius-sm);">
       <div class="card">
         <div class="card-title"><span class="icon">⚙️</span> 残存情報QR設定（受信未済番号の送信用）</div>
+        <div class="card-title"><span class="icon">⚙️</span> 残存情報QR（送受信未済番号の送信・設定）</div>
         <div class="settings-grid">
           <div class="setting-row">
             <div class="setting-header">
@@ -1003,6 +999,7 @@
           QRコードを表示して送信側に読み取らせるか、以下の番号を送信側に入力してください
         </p>
         <div class="btn-group" style="margin-bottom: 10px;">
+        <div class="btn-group" style="margin-top: 14px;">
           <button class="btn btn-primary" id="btn-show-nack-qr">📱 残存情報QRを表示（自動送り）</button>
           <button class="btn btn-secondary hidden" id="btn-hide-nack-qr">✕ QRを閉じる</button>
         </div>
@@ -1019,6 +1016,13 @@
             <button class="btn btn-secondary" id="btn-nack-next" style="padding: 6px 12px; font-size: 12px;">次へ ▶</button>
           </div>
         </div>
+      </div>
+
+      <div class="card missing-section" id="r-missing-section">
+        <div class="card-title"><span class="icon">⚠️</span> 受信未済フレーム一覧（データ・パリティ）</div>
+        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+          以下の番号を送信側に手動入力して再送することもできます
+        </p>
         <div class="missing-sublabel">未受信データフレーム:</div>
         <div class="missing-list" id="r-missing-list"></div>
         <div class="missing-sublabel" id="r-missing-parity-label">未受信パリティフレーム (P番号 / 通し番号):</div>
@@ -1662,8 +1666,6 @@
         sndNackScanArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
         requestAnimationFrame(sndNackScanLoop);
       } catch (err) {
-        sndNackStatus.textContent = 'カメラエラー: ' + err.message;
-        alert('カメラにアクセスできません。\nHTTPSまたはlocalhostで開いているか確認してください。\n\n' + err.message);
         sndNackStatus.textContent = 'カメラ直接起動不可 —「🖼️ 撮影/画像・動画から読取」ボタンを使用してください';
         alert('ブラウザからカメラを直接起動できませんでした（' + err.message + '）。\n隣の「🖼️ 撮影/画像・動画から読取」ボタンからカメラ撮影または動画選択で読み取ることができます。');
       }
@@ -1718,6 +1720,7 @@
       }
 
       const K = sndFrames.length - sndParityCount;
+      const K = sndFrames.length > 0 ? (sndFrames.length - sndParityCount) : (obj.k || 0);
       const page = obj.p || 1;
       const totalPages = obj.pt || 1;
 
@@ -1744,10 +1747,12 @@
       }
 
       // Merge all received pages so far
+      const maxFrameLimit = sndFrames.length > 0 ? sndFrames.length : Infinity;
       const allIndicesSet = new Set();
       for (const arr of sndNackPartsReceived.values()) {
         for (const idx of arr) {
           if (idx >= 0 && idx < sndFrames.length) allIndicesSet.add(idx);
+          if (idx >= 0 && idx < maxFrameLimit) allIndicesSet.add(idx);
         }
       }
       const allIndices = [...allIndicesSet].sort((a, b) => a - b);
@@ -1964,7 +1969,6 @@
         rcvSetStatus('idle', 'カメラ起動中...', '');
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error('このブラウザまたは接続環境(非HTTPS)ではカメラAPIが使用できません');
           rcvSetStatus('active', 'カメラ撮影/動画選択', '非HTTPS環境のためファイル読取を使用');
           rcvMediaInput.click();
           return;
@@ -2003,8 +2007,6 @@
         if ('wakeLock' in navigator) { try { await navigator.wakeLock.request('screen'); } catch(e){} }
         requestAnimationFrame(rcvScanLoop);
       } catch (err) {
-        rcvSetStatus('error', 'カメラエラー', err.message);
-        alert('カメラにアクセスできません。\n・カメラの権限を許可してください\n・別アプリや別タブでカメラを使用中の場合は閉じてください\n・HTTPSまたはlocalhost接続が必要です\n\n詳細: ' + err.message);
         rcvSetStatus('error', 'カメラ直接起動不可', '隣の「🖼️ カメラ撮影/動画・画像から読取」を使用してください');
         alert('ブラウザからカメラを直接起動できませんでした（' + err.message + '）。\n隣の「🖼️ カメラ撮影/動画・画像から読取」ボタンからOS標準カメラでの撮影や動画・画像選択で読み取ることができます。');
       }
@@ -2342,9 +2344,25 @@
 
     function rcvShowNackQR() {
       if (rcvTotalFrames === 0) return;
+      // まだ1枚もQRを受信していない場合でも、同一画面の送信側データがあればそれを補完、なければ総フレーム数を確認して確実に表示する
+      if (rcvTotalFrames === 0) {
+        if (typeof sndFrames !== 'undefined' && sndFrames.length > 0) {
+          rcvTransferId = sndTransferId;
+          rcvTotalFrames = sndFrames.length - sndParityCount;
+          rcvParityCount = sndParityCount;
+        } else {
+          const input = prompt('まだQRを1枚も受信していません。\n未受信QRを生成するため、送信側の総データフレーム数（例: 100）を入力してください:', '100');
+          const kVal = parseInt(input, 10);
+          if (!kVal || kVal <= 0) return;
+          rcvTotalFrames = kVal;
+          rcvParityCount = 0;
+          rcvTransferId = null;
+        }
+      }
       rcvNackPaused = false;
       if (rcvBtnNackPause) rcvBtnNackPause.textContent = '⏸ 一時停止';
       rcvMissingSection.classList.add('visible');
+      rcvUpdateMissingList();
       rcvNackQrArea.classList.add('visible', 'fade-in');
       rcvBtnShowNackQr.classList.add('hidden');
       rcvBtnHideNackQr.classList.remove('hidden');
@@ -2381,13 +2399,34 @@
 
       const fullRangeStr = formatAsRanges(allMissing);
       const tokens = fullRangeStr.split(', ');
+      // ペイロードサイズ設定(rcvNackMaxLen)に応じて、1枚あたりのフレーム上限や文字数上限で分割する
+      const maxLen = Math.max(30, rcvNackMaxLen);
+      const maxFramesPerPage = Math.max(5, Math.floor(maxLen / 4));
+      const tokens = [];
+      let idx = 0;
+      while (idx < allMissing.length) {
+        let start = allMissing[idx];
+        let end = start;
+        let count = 1;
+        while (idx + 1 < allMissing.length && allMissing[idx + 1] === end + 1 && count < maxFramesPerPage) {
+          idx++;
+          end = allMissing[idx];
+          count++;
+        }
+        tokens.push(start === end ? String(start) : `${start}-${end}`);
+        idx++;
+      }
+
       const chunks = [];
       let currentChunk = [];
       let currentLen = 0;
       const maxLen = Math.max(20, rcvNackMaxLen);
+      // JSONヘッダ分の文字数(約65文字)を考慮したrフィールドの最大文字数
+      const maxRLen = Math.max(12, maxLen - 65);
 
       for (const tok of tokens) {
         if (currentLen + tok.length + 1 > maxLen && currentChunk.length > 0) {
+        if (currentLen + tok.length + 1 > maxRLen && currentChunk.length > 0) {
           chunks.push(currentChunk.join(','));
           currentChunk = [tok];
           currentLen = tok.length;
@@ -2597,6 +2636,7 @@
       rcvResultSection.classList.remove('visible');
       rcvBtnSave.classList.add('hidden'); rcvBtnSave.disabled = true;
       rcvBtnNackQuick.classList.add('hidden'); rcvBtnNackQuick.disabled = true;
+      rcvBtnNackQuick.classList.remove('hidden'); rcvBtnNackQuick.disabled = false;
 
       rcvDebugScanCount = 0; rcvDebugJsonCount = 0; rcvDebugAcceptCount = 0;
       document.getElementById('r-debug-scan-count').textContent = '0';
