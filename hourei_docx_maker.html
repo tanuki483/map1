@@ -1,1 +1,2907 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>法令条文 Word (.docx) 作成ツール</title>
+<style>
+  :root {
+    --primary: #1e3a5f;
+    --primary-hover: #152c4a;
+    --accent: #2563eb;
+    --accent-light: #eff6ff;
+    --accent-border: #bfdbfe;
+    --bg: #f1f5f9;
+    --surface: #ffffff;
+    --border: #cbd5e1;
+    --border-light: #e2e8f0;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --danger: #dc2626;
+    --success: #059669;
+    --doc-font: "ＭＳ 明朝", "MS Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+    --doc-size: 10.5pt;
+  }
 
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    font-family: "Meiryo", "Yu Gothic UI", "Hiragino Kaku Gothic ProN", sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    font-size: 14px;
+  }
+
+  /* App Shell */
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* Header / Toolbar */
+  .header {
+    background: var(--primary);
+    color: #fff;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    z-index: 30;
+  }
+
+  .app-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Search Box */
+  .search-wrap {
+    position: relative;
+    flex: 1 1 300px;
+    max-width: 480px;
+    min-width: 220px;
+  }
+
+  .search-input-box {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition: border-color 0.15s;
+  }
+
+  .search-input-box:focus-within {
+    border-color: #60a5fa;
+  }
+
+  .search-input {
+    width: 100%;
+    border: none;
+    outline: none;
+    padding: 7px 10px;
+    font-size: 14px;
+    color: var(--text);
+    background: transparent;
+  }
+
+  .search-clear-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 8px;
+    font-size: 16px;
+    display: none;
+  }
+
+  .search-clear-btn.visible {
+    display: inline-block;
+  }
+
+  .search-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #cbd5e1;
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin-right: 8px;
+    display: none;
+  }
+
+  .search-spinner.visible {
+    display: inline-block;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .suggest-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    max-height: 360px;
+    overflow-y: auto;
+    z-index: 100;
+    display: none;
+  }
+
+  .suggest-list.open {
+    display: block;
+  }
+
+  .suggest-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .suggest-item:last-child {
+    border-bottom: none;
+  }
+
+  .suggest-item:hover,
+  .suggest-item.highlighted {
+    background: var(--accent-light);
+  }
+
+  .suggest-title {
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .suggest-meta {
+    font-size: 11.5px;
+    color: var(--text-muted);
+  }
+
+  .badge-repealed {
+    font-size: 10px;
+    background: #fee2e2;
+    color: #b91c1c;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+
+  .suggest-msg {
+    padding: 12px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  /* Toolbar Controls */
+  .toolbar-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    flex-wrap: wrap;
+  }
+
+  .control-label {
+    font-size: 12px;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .toolbar-select {
+    background: #fff;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 5px 8px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .btn {
+    border: none;
+    border-radius: 5px;
+    padding: 7px 13px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s, opacity 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: #334155;
+    color: #fff;
+    border: 1px solid #475569;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background: #475569;
+  }
+
+  .btn-primary {
+    background: #2563eb;
+    color: #fff;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #1d4ed8;
+  }
+
+  .btn-success {
+    background: #059669;
+    color: #fff;
+  }
+
+  .btn-success:hover:not(:disabled) {
+    background: #047857;
+  }
+
+  .btn-light {
+    background: #f8fafc;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-light:hover:not(:disabled) {
+    background: #e2e8f0;
+  }
+
+  .count-pill {
+    background: rgba(255, 255, 255, 0.22);
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 11.5px;
+  }
+
+  /* Selected Laws Bar */
+  .selected-laws-bar {
+    background: #e2e8f0;
+    border-bottom: 1px solid var(--border);
+    padding: 6px 16px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    z-index: 20;
+  }
+
+  .selected-laws-bar.visible {
+    display: flex;
+  }
+
+  .selected-bar-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #334155;
+    white-space: nowrap;
+  }
+
+  .law-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 3px 8px 3px 10px;
+    font-size: 12.5px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .law-chip.active-law {
+    border-color: var(--accent);
+    background: var(--accent-light);
+  }
+
+  .law-chip-name {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--primary);
+  }
+
+  .law-chip-name:hover {
+    text-decoration: underline;
+  }
+
+  .law-chip-count {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .chip-icon-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 1px 3px;
+    font-size: 12px;
+    border-radius: 3px;
+    line-height: 1;
+  }
+
+  .chip-icon-btn:hover:not(:disabled) {
+    background: #e2e8f0;
+    color: var(--text);
+  }
+
+  .chip-icon-btn.remove:hover {
+    background: #fee2e2;
+    color: var(--danger);
+  }
+
+  .chip-icon-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  /* Main 2-Column Workspace */
+  .workspace {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Left Column: Article List */
+  .left-pane {
+    width: 330px;
+    min-width: 260px;
+    max-width: 45vw;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .left-pane-header {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-light);
+    background: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .left-filter-input {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 12.5px;
+    outline: none;
+  }
+
+  .left-filter-input:focus {
+    border-color: var(--accent);
+  }
+
+  .left-list-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+  }
+
+  .select-all-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    background: #f1f5f9;
+    border-bottom: 1px solid var(--border);
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #334155;
+    user-select: none;
+    cursor: pointer;
+  }
+
+  .select-all-row:hover {
+    background: #e2e8f0;
+  }
+
+  .select-all-row.bottom {
+    border-bottom: none;
+    border-top: 1px solid var(--border);
+  }
+
+  .select-all-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent);
+    margin: 0;
+  }
+
+  .section-divider {
+    background: #e2e8f0;
+    color: #334155;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .article-nav-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 12px 7px 10px;
+    border-bottom: 1px solid var(--border-light);
+    border-left: 3px solid transparent;
+    transition: background 0.1s;
+  }
+
+  .article-nav-item:hover {
+    background: #f8fafc;
+  }
+
+  .article-nav-item.checked {
+    background: #f0f7ff;
+  }
+
+  .article-nav-item.active {
+    border-left-color: var(--accent);
+    background: #dbeafe;
+  }
+
+  .article-nav-cb {
+    margin-top: 2px;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+    accent-color: var(--accent);
+  }
+
+  .article-nav-link {
+    flex: 1;
+    cursor: pointer;
+    min-width: 0;
+    line-height: 1.35;
+  }
+
+  .article-nav-num {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text);
+    display: block;
+  }
+
+  .article-nav-caption {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Right Column: Law Body */
+  .right-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: #f8fafc;
+  }
+
+  .law-meta-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: none;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .law-meta-header.visible {
+    display: flex;
+  }
+
+  .law-meta-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .law-meta-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .right-body-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 28px 80px;
+  }
+
+  /* Empty / Loading State */
+  .empty-state {
+    max-width: 580px;
+    margin: 56px auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px 32px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  .empty-state h2 {
+    margin: 0 0 10px;
+    font-size: 18px;
+    color: var(--primary);
+  }
+
+  .empty-state p {
+    margin: 0 0 14px;
+    color: var(--text-muted);
+    line-height: 1.65;
+    font-size: 13.5px;
+  }
+
+  .sample-hint-btn {
+    margin-top: 6px;
+  }
+
+  .error-banner {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* Article Cards in Right Pane */
+  .law-section-heading {
+    margin: 22px 0 10px;
+    padding: 6px 12px;
+    background: #e2e8f0;
+    border-left: 4px solid var(--primary);
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--primary);
+    border-radius: 0 4px 4px 0;
+  }
+
+  .law-section-heading:first-child {
+    margin-top: 0;
+  }
+
+  .article-card {
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    border-left: 4px solid transparent;
+    border-radius: 6px;
+    padding: 14px 20px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .article-card.checked {
+    border-left-color: var(--accent);
+    background: #fcfdff;
+  }
+
+  .article-card-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 4px;
+  }
+
+  .article-inline-toggle {
+    font-size: 12px;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    user-select: none;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .article-inline-toggle:hover {
+    background: #f1f5f9;
+  }
+
+  .article-inline-toggle input {
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  /* Official Japanese Legal Formatting (Koyobun Indent) */
+  .legal-doc {
+    font-family: var(--doc-font);
+    font-size: var(--doc-size);
+    line-height: 1.65;
+    color: #000;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  .legal-law-header {
+    margin: 0 0 0.8em;
+    padding-bottom: 0.25em;
+    border-bottom: 1px solid #000;
+    font-weight: normal;
+  }
+
+  .legal-suppl-header {
+    margin: 1.1em 0 0.4em;
+    font-weight: normal;
+  }
+
+  .legal-caption {
+    margin: 0.6em 0 0;
+    padding-left: 1em;
+  }
+
+  .legal-para {
+    margin: 0;
+  }
+
+  .legal-para.article-gap {
+    margin-top: 0.6em;
+  }
+
+  .legal-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5em 0;
+    font-size: 0.95em;
+  }
+
+  .legal-table th,
+  .legal-table td {
+    border: 1px solid #333;
+    padding: 4px 6px;
+    vertical-align: top;
+  }
+
+  /* Modal (Preview & Export) */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 20px;
+  }
+
+  .modal-backdrop.open {
+    display: flex;
+  }
+
+  .modal {
+    background: #e2e8f0;
+    border-radius: 10px;
+    width: min(980px, 96vw);
+    height: min(90vh, 920px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  }
+
+  .modal-header {
+    background: var(--primary);
+    color: #fff;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .modal-title {
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .modal-controls {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .modal-controls label {
+    font-size: 12.5px;
+    color: #334155;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .filename-input {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font-size: 13px;
+    width: 220px;
+  }
+
+  .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+  }
+
+  .a4-paper {
+    background: #fff;
+    width: min(210mm, 100%);
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 25mm 25mm 28mm;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+    position: relative;
+  }
+
+  .a4-footer-note {
+    text-align: center;
+    font-size: 10pt;
+    font-family: var(--doc-font);
+    color: #333;
+    margin-top: 24px;
+    padding-top: 10px;
+    border-top: 1px dashed #cbd5e1;
+  }
+
+  .modal-footer {
+    background: #fff;
+    border-top: 1px solid var(--border);
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .modal-status {
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #1e293b;
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 300;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <header class="header">
+    <div class="app-title">法令条文 Word (.docx) 作成ツール</div>
+
+    <div class="search-wrap" id="searchWrap">
+      <div class="search-input-box">
+        <input
+          type="text"
+          id="lawSearchInput"
+          class="search-input"
+          placeholder="法令名を入力して検索（例：相続税法、民法、会社法）"
+          autocomplete="off"
+        >
+        <div class="search-spinner" id="searchSpinner"></div>
+        <button type="button" class="search-clear-btn" id="searchClearBtn" title="クリア">×</button>
+      </div>
+      <div class="suggest-list" id="suggestList" role="listbox"></div>
+    </div>
+
+    <div class="toolbar-controls">
+      <label class="control-label">
+        フォント:
+        <select id="fontSelect" class="toolbar-select">
+          <option value="ＭＳ 明朝" selected>ＭＳ 明朝</option>
+          <option value="游明朝">游明朝</option>
+          <option value="BIZ UD明朝">BIZ UD明朝</option>
+          <option value="ＭＳ ゴシック">ＭＳ ゴシック</option>
+          <option value="游ゴシック">游ゴシック</option>
+          <option value="メイリオ">メイリオ</option>
+          <option value="BIZ UDゴシック">BIZ UDゴシック</option>
+        </select>
+      </label>
+
+      <button type="button" id="previewBtn" class="btn btn-secondary" disabled>
+        プレビュー <span class="count-pill" id="previewCount">0</span>
+      </button>
+      <button type="button" id="createDocxBtn" class="btn btn-primary" disabled>
+        Word (.docx) 作成
+      </button>
+    </div>
+  </header>
+
+  <!-- Selected Laws Bar (multi-law support) -->
+  <div class="selected-laws-bar" id="selectedLawsBar">
+    <span class="selected-bar-label">出力対象法令（出力順）:</span>
+    <div id="selectedLawsChips" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
+  </div>
+
+  <!-- Main 2-Column Workspace -->
+  <main class="workspace">
+    <!-- Left Column -->
+    <aside class="left-pane">
+      <div class="left-pane-header">
+        <input
+          type="text"
+          id="articleFilterInput"
+          class="left-filter-input"
+          placeholder="表示中の法令内を絞り込み（例：41、物納、附則）"
+          disabled
+        >
+      </div>
+      <div class="left-list-scroll" id="leftListScroll">
+        <div style="padding:20px 14px;color:#64748b;font-size:12.5px;line-height:1.6;">
+          上部の検索ボックスから法令を選択すると、本則・附則の条文一覧が表示されます。
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right Column -->
+    <section class="right-pane">
+      <div class="law-meta-header" id="lawMetaHeader">
+        <div class="law-meta-title" id="lawMetaTitle"></div>
+        <div class="law-meta-sub" id="lawMetaSub"></div>
+      </div>
+      <div class="right-body-scroll" id="rightBodyScroll">
+        <div class="empty-state" id="emptyState">
+          <h2>法令を検索して条文を選択してください</h2>
+          <p>
+            デジタル庁 e-Gov法令API v2 と連携し、法令名からインクリメンタルサーチで条文を取得します。<br>
+            左カラムで出力したい条文にチェックを入れ、別法令も追加検索して1つの Word (.docx) ファイルに公用文インデント形式で出力できます。
+          </p>
+          <button type="button" id="loadSampleBtn" class="btn btn-light sample-hint-btn">
+            サンプルデータ（相続税法 抜粋）で動作を試す
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Preview & Download Modal -->
+<div class="modal-backdrop" id="previewModalBackdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="previewModalTitle">
+    <div class="modal-header">
+      <div class="modal-title" id="previewModalTitle">出力プレビュー（Word .docx）</div>
+      <button type="button" id="closeModalBtn" class="btn btn-secondary" style="padding:4px 10px;">閉じる ×</button>
+    </div>
+    <div class="modal-controls">
+      <label>
+        フォント:
+        <select id="modalFontSelect" class="toolbar-select">
+          <option value="ＭＳ 明朝">ＭＳ 明朝</option>
+          <option value="游明朝">游明朝</option>
+          <option value="BIZ UD明朝">BIZ UD明朝</option>
+          <option value="ＭＳ ゴシック">ＭＳ ゴシック</option>
+          <option value="游ゴシック">游ゴシック</option>
+          <option value="メイリオ">メイリオ</option>
+          <option value="BIZ UDゴシック">BIZ UDゴシック</option>
+        </select>
+      </label>
+      <label>
+        文字サイズ:
+        <select id="modalFontSizeSelect" class="toolbar-select">
+          <option value="9.5">9.5 pt</option>
+          <option value="10">10 pt</option>
+          <option value="10.5" selected>10.5 pt</option>
+          <option value="11">11 pt</option>
+          <option value="12">12 pt</option>
+        </select>
+      </label>
+      <label>
+        ファイル名:
+        <input type="text" id="docxFilenameInput" class="filename-input" value="関係法令抜粋">
+        <span>.docx</span>
+      </label>
+      <button type="button" id="modalDownloadBtn" class="btn btn-success" style="margin-left:auto;">
+        Word (.docx) をダウンロード
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="a4-paper">
+        <div id="previewPaperContent" class="legal-doc"></div>
+        <div class="a4-footer-note">※ Word出力時は各ページ下部中央に「現在ページ/総ページ数（例：1/3）」が自動挿入されます。</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-status" id="modalStatusText"></div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" id="closeModalBtnBottom" class="btn btn-light">閉じる</button>
+        <button type="button" id="modalDownloadBtnBottom" class="btn btn-success">Word (.docx) をダウンロード</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  // =========================================================================
+  // 1. Constants & State
+  // =========================================================================
+  const API_BASE = 'https://laws.e-gov.go.jp/api/2';
+
+  const FONT_CSS_MAP = {
+    'ＭＳ 明朝': '"ＭＳ 明朝", "MS Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif',
+    '游明朝': '"游明朝", "Yu Mincho", "Hiragino Mincho ProN", serif',
+    'BIZ UD明朝': '"BIZ UD明朝", "BIZ UDMincho", "ＭＳ 明朝", serif',
+    'ＭＳ ゴシック': '"ＭＳ ゴシック", "MS Gothic", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif',
+    '游ゴシック': '"游ゴシック", "Yu Gothic", "Hiragino Kaku Gothic ProN", sans-serif',
+    'メイリオ': '"メイリオ", "Meiryo", "Hiragino Kaku Gothic ProN", sans-serif',
+    'BIZ UDゴシック': '"BIZ UDゴシック", "BIZ UDGothic", "Meiryo", sans-serif'
+  };
+
+  const state = {
+    currentLawId: null,
+    lawCache: new Map(),       // lawId -> ParsedLaw
+    selectedByLaw: new Map(),  // lawId -> Set<articleUid>
+    selectedLawOrder: [],      // [lawId, ...]
+    fontFamily: 'ＭＳ 明朝',
+    fontSizePt: 10.5,
+    suggestItems: [],
+    suggestIndex: -1,
+    activeArticleUid: null,
+    isProgrammaticJump: false,
+    jumpResetTimer: null,
+    searchAbortController: null,
+    searchDebounceTimer: null
+  };
+
+  // DOM References
+  const el = {
+    searchWrap: document.getElementById('searchWrap'),
+    searchInput: document.getElementById('lawSearchInput'),
+    searchClearBtn: document.getElementById('searchClearBtn'),
+    searchSpinner: document.getElementById('searchSpinner'),
+    suggestList: document.getElementById('suggestList'),
+    fontSelect: document.getElementById('fontSelect'),
+    previewBtn: document.getElementById('previewBtn'),
+    previewCount: document.getElementById('previewCount'),
+    createDocxBtn: document.getElementById('createDocxBtn'),
+    selectedLawsBar: document.getElementById('selectedLawsBar'),
+    selectedLawsChips: document.getElementById('selectedLawsChips'),
+    articleFilterInput: document.getElementById('articleFilterInput'),
+    leftListScroll: document.getElementById('leftListScroll'),
+    lawMetaHeader: document.getElementById('lawMetaHeader'),
+    lawMetaTitle: document.getElementById('lawMetaTitle'),
+    lawMetaSub: document.getElementById('lawMetaSub'),
+    rightBodyScroll: document.getElementById('rightBodyScroll'),
+    loadSampleBtn: document.getElementById('loadSampleBtn'),
+    modalBackdrop: document.getElementById('previewModalBackdrop'),
+    closeModalBtn: document.getElementById('closeModalBtn'),
+    closeModalBtnBottom: document.getElementById('closeModalBtnBottom'),
+    modalFontSelect: document.getElementById('modalFontSelect'),
+    modalFontSizeSelect: document.getElementById('modalFontSizeSelect'),
+    docxFilenameInput: document.getElementById('docxFilenameInput'),
+    modalDownloadBtn: document.getElementById('modalDownloadBtn'),
+    modalDownloadBtnBottom: document.getElementById('modalDownloadBtnBottom'),
+    previewPaperContent: document.getElementById('previewPaperContent'),
+    modalStatusText: document.getElementById('modalStatusText'),
+    toast: document.getElementById('toast')
+  };
+
+  // =========================================================================
+  // 2. Utilities: Kanji Numbers, Koyobun Width/Number Formatting, Toast
+  // =========================================================================
+  const KANJI_DIGITS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+
+  function intToKanji(num) {
+    const n = parseInt(num, 10);
+    if (isNaN(n) || n < 0) return String(num);
+    if (n === 0) return '〇';
+    if (n >= 10000) {
+      const man = Math.floor(n / 10000);
+      const rem = n % 10000;
+      return intToKanji(man) + '万' + (rem > 0 ? intToKanji(rem) : '');
+    }
+    let res = '';
+    const thousands = Math.floor(n / 1000);
+    const hundreds = Math.floor((n % 1000) / 100);
+    const tens = Math.floor((n % 100) / 10);
+    const ones = n % 10;
+
+    if (thousands > 0) res += (thousands === 1 ? '' : KANJI_DIGITS[thousands]) + '千';
+    if (hundreds > 0) res += (hundreds === 1 ? '' : KANJI_DIGITS[hundreds]) + '百';
+    if (tens > 0) res += (tens === 1 ? '' : KANJI_DIGITS[tens]) + '十';
+    if (ones > 0) res += KANJI_DIGITS[ones];
+    return res;
+  }
+
+  function toHalfWidthDigits(str) {
+    return String(str || '').replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+  }
+
+  function toFullWidthDigits(str) {
+    return String(str || '').replace(/[0-9]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0xFEE0));
+  }
+
+  /**
+   * 公用文ルールに従い、1桁の算用数字は全角（１〜９）、2桁以上は半角（10〜）へ正規化
+   */
+  function formatKoyobunDigits(numStr) {
+    const half = toHalfWidthDigits(numStr);
+    return half.length === 1 ? toFullWidthDigits(half) : half;
+  }
+
+  /**
+   * 条文番号の漢数字正規化
+   * 例: 第103条 -> 第百三条 / 第3条の3 -> 第三条の三 / 第２１条の９ -> 第二十一条の九
+   */
+  function normalizeArticleTitleKanji(rawTitle, numAttr) {
+    let title = String(rawTitle || '').trim();
+    if (!title && numAttr) {
+      const parts = String(numAttr).split(/[_－\-:]/).filter(Boolean);
+      if (parts.length > 0 && /^\d+$/.test(parts[0])) {
+        title = '第' + intToKanji(parts[0]) + '条';
+        for (let i = 1; i < parts.length; i++) {
+          title += 'の' + (/^\d+$/.test(parts[i]) ? intToKanji(parts[i]) : parts[i]);
+        }
+        return title;
+      }
+    }
+    if (!title) return '';
+    title = toHalfWidthDigits(title);
+    title = title.replace(/\d+/g, m => intToKanji(m));
+    return title;
+  }
+
+  /**
+   * 項番号の公用文正規化
+   * 2項〜9項: 全角数字（２〜９）
+   * 10項以降: 半角数字（10、11…）
+   */
+  function normalizeParagraphNum(raw) {
+    const half = toHalfWidthDigits(String(raw || '').trim());
+    if (!half) return '';
+    return half.replace(/\d+/g, m => formatKoyobunDigits(m));
+  }
+
+  /**
+   * 号・細分ラベルの公用文正規化
+   * 例: (1) / （１） -> （１）
+   *     (10) / （１０） -> （10）
+   *     1 / １ -> １
+   *     10 / １０ -> 10
+   *     漢数字・カタカナ（一、イ等）はそのまま
+   */
+  function normalizeHierarchyLabel(raw) {
+    let s = String(raw || '').trim();
+    if (!s) return '';
+    // 半角括弧は全角括弧へ統一
+    s = s.replace(/\(/g, '（').replace(/\)/g, '）');
+    // 数字列を公用文ルール（1桁全角・2桁以上半角）で正規化
+    s = toHalfWidthDigits(s).replace(/\d+/g, m => formatKoyobunDigits(m));
+    return s;
+  }
+
+  /**
+   * ラベルの全角文字換算幅を算出（ASCII半角は0.5字、それ以外は1.0字）
+   * 例: 「２」-> 1, 「10」-> 1, 「（１）」-> 3, 「（10）」-> 3, 「（イ）」-> 3
+   */
+  function estimateEmWidth(str) {
+    let w = 0;
+    for (const ch of String(str || '')) {
+      const code = ch.charCodeAt(0);
+      w += (code >= 0x20 && code <= 0x7E) ? 0.5 : 1.0;
+    }
+    return w;
+  }
+
+  /**
+   * 公用文インデント計算（プレビュー・Word (.docx) 共通の単一ロジック）
+   *
+   * - 折り返し位置（2行目以降 leftEm）は常に level + 1 字
+   *   (条・項: 1字 / 号: 2字 / イロハ: 3字 / (１): 4字 / 細分3: 5字 ...)
+   * - 1行目の本文開始位置は原則として折り返し位置＋1字（見かけ上「文頭一字下げ」）
+   *   - 第1項（条名）: 1行目0字開始＋条名＋全角スペース＋本文（折り返し1字）
+   *   - 第2項以降:     1行目0字開始＋全角1桁/半角2桁項番＋全角スペース＋本文（本文2字開始、折り返し1字）
+   *   - 1字幅ラベル（一、イ、ア等）: 1行目 level字開始＋ラベル(1字)＋全角スペース(1字)＋本文（本文 level+2字開始、折り返し level+1字）
+   *   - 括弧付き等の全角1字超ラベル（（１）、（10）、（イ）等）:
+   *       全角スペースを入れず、1行目開始位置を (level+2) - ラベル幅 に調整（（１）は3字→2字へ1字左寄せ＋スペース削除で計2字落とし）
+   *       → 本文開始は level+2字（折り返し level+1字 に対し見かけ上「文頭一字下げ」）
+   */
+  function computeLineLayout(item) {
+    const leftEm = item.level + 1;
+    const label = item.label || '';
+
+    // 1. 条の第1項（例: 第四十一条　本文）
+    if (item.isArticleStart && !item.isParagraphNum && label) {
+      return {
+        leftEm: 1,
+        hangingEm: 1,
+        separator: item.text ? '　' : ''
+      };
+    }
+
+    // 2. ラベルなし行（List 等）
+    if (!label) {
+      return {
+        leftEm,
+        hangingEm: 1,
+        separator: ''
+      };
+    }
+
+    // 3. 第2項以降の項番号（２〜９、10〜）
+    if (item.isParagraphNum) {
+      return {
+        leftEm: 1,
+        hangingEm: 1,
+        separator: item.text ? '　' : ''
+      };
+    }
+
+    // 4. 号・細分（一、イ、（１）、（10）、ア、（イ）…）
+    const labelWidth = estimateEmWidth(label);
+    const isBracketed = /^（.+）/.test(label);
+
+    if (labelWidth > 1 && isBracketed) {
+      // （１）（10）（イ）等の全角1字を超える括弧付き番号:
+      // 全角スペースを削り、本文開始位置が折り返し位置(leftEm)+1字になるよう1行目開始位置を計算
+      const targetBodyEm = leftEm + 1;
+      const roundedWidth = Math.round(labelWidth);
+      const firstLineEm = Math.max(0, targetBodyEm - roundedWidth);
+      const hangingEm = Math.max(0, leftEm - firstLineEm);
+      return {
+        leftEm,
+        hangingEm,
+        separator: ''
+      };
+    }
+
+    // 1字幅ラベル（一、イ、ア等）および括弧なし漢数字号（十一等：本文との癒着防止のため全角スペース維持）
+    return {
+      leftEm,
+      hangingEm: 1,
+      separator: item.text ? '　' : ''
+    };
+  }
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function sanitizeXmlText(str) {
+    return String(str || '').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  }
+
+  function escapeXml(str) {
+    return sanitizeXmlText(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  let toastTimer = null;
+  function showToast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.remove('show'), 2600);
+  }
+
+  // =========================================================================
+  // 3. e-Gov Law API v2 Parsing (JSON Tree & XML DOM fallback)
+  // =========================================================================
+  function xmlDomToJsonTree(node) {
+    if (node.nodeType === 3) return node.nodeValue;
+    if (node.nodeType !== 1) return null;
+    const attr = {};
+    if (node.attributes) {
+      for (const a of node.attributes) {
+        attr[a.name] = a.value;
+      }
+    }
+    const children = [];
+    for (const ch of node.childNodes) {
+      const converted = xmlDomToJsonTree(ch);
+      if (converted !== null && converted !== '') {
+        children.push(converted);
+      }
+    }
+    return { tag: node.nodeName, attr, children };
+  }
+
+  function getChildren(node, tagName) {
+    if (!node || !Array.isArray(node.children)) return [];
+    if (!tagName) return node.children;
+    return node.children.filter(c => c && typeof c === 'object' && c.tag === tagName);
+  }
+
+  function findFirst(node, tagName) {
+    if (!node || !Array.isArray(node.children)) return null;
+    for (const c of node.children) {
+      if (c && typeof c === 'object') {
+        if (c.tag === tagName) return c;
+        const found = findFirst(c, tagName);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * テキスト抽出（Rt/Rpのルビふりがなを除外、複数Columnは全角スペース結合）
+   */
+  function extractText(node) {
+    if (node == null) return '';
+    if (typeof node === 'string') return node;
+    if (typeof node !== 'object') return String(node);
+    const tag = node.tag || '';
+    if (tag === 'Rt' || tag === 'Rp') return '';
+
+    const children = Array.isArray(node.children) ? node.children : [];
+    const columns = children.filter(c => c && typeof c === 'object' && c.tag === 'Column');
+    if (columns.length > 0) {
+      const parts = [];
+      for (const ch of children) {
+        if (ch && typeof ch === 'object' && (ch.tag === 'Column' || ch.tag === 'Sentence')) {
+          const t = extractText(ch).trim();
+          if (t) parts.push(t);
+        }
+      }
+      return parts.join('　');
+    }
+
+    let out = '';
+    for (const ch of children) {
+      out += extractText(ch);
+    }
+    return out.replace(/\r?\n/g, '').replace(/[ \t]+/g, ' ');
+  }
+
+  function extractSentenceFromContainer(node, sentenceTagName) {
+    const sNode = getChildren(node, sentenceTagName)[0];
+    if (!sNode) return '';
+    return extractText(sNode).trim();
+  }
+
+  function parseTableStruct(tableStructNode) {
+    const titleNode = getChildren(tableStructNode, 'TableStructTitle')[0];
+    const title = titleNode ? extractText(titleNode).trim() : '';
+    const tableNode = getChildren(tableStructNode, 'Table')[0];
+    const rows = [];
+    if (tableNode) {
+      for (const rowNode of getChildren(tableNode, 'TableRow')) {
+        const cells = [];
+        for (const colNode of getChildren(rowNode, 'TableColumn')) {
+          const text = extractText(colNode).trim();
+          const rowspan = parseInt((colNode.attr && colNode.attr.rowspan) || '1', 10) || 1;
+          const colspan = parseInt((colNode.attr && colNode.attr.colspan) || '1', 10) || 1;
+          cells.push({ text, rowspan, colspan });
+        }
+        if (cells.length > 0) rows.push(cells);
+      }
+    }
+    return { type: 'table', title, rows };
+  }
+
+  function parseHierarchicalChildren(parentNode, currentLevel, lines) {
+    const children = Array.isArray(parentNode.children) ? parentNode.children : [];
+    for (const ch of children) {
+      if (!ch || typeof ch !== 'object') continue;
+      const tag = ch.tag || '';
+
+      if (tag === 'Item') {
+        const rawTitle = extractText(getChildren(ch, 'ItemTitle')[0]).trim();
+        const title = normalizeHierarchyLabel(rawTitle);
+        const text = extractSentenceFromContainer(ch, 'ItemSentence');
+        if (title || text) {
+          lines.push({
+            type: 'line',
+            level: 1,
+            label: title,
+            text,
+            isParagraphNum: false
+          });
+        }
+        parseHierarchicalChildren(ch, 1, lines);
+      } else if (/^Subitem(\d+)$/.test(tag)) {
+        const n = parseInt(tag.match(/^Subitem(\d+)$/)[1], 10);
+        const level = n + 1;
+        const rawTitle = extractText(getChildren(ch, `${tag}Title`)[0]).trim();
+        const title = normalizeHierarchyLabel(rawTitle);
+        const text = extractSentenceFromContainer(ch, `${tag}Sentence`);
+        if (title || text) {
+          lines.push({
+            type: 'line',
+            level,
+            label: title,
+            text,
+            isParagraphNum: false
+          });
+        }
+        parseHierarchicalChildren(ch, level, lines);
+      } else if (tag === 'List') {
+        const level = currentLevel + 1;
+        const text = extractSentenceFromContainer(ch, 'ListSentence');
+        if (text) {
+          lines.push({
+            type: 'line',
+            level,
+            label: '',
+            text,
+            isParagraphNum: false
+          });
+        }
+        parseHierarchicalChildren(ch, level, lines);
+      } else if (/^Sublist(\d+)$/.test(tag)) {
+        const level = currentLevel + 1;
+        const text = extractSentenceFromContainer(ch, `${tag}Sentence`);
+        if (text) {
+          lines.push({
+            type: 'line',
+            level,
+            label: '',
+            text,
+            isParagraphNum: false
+          });
+        }
+        parseHierarchicalChildren(ch, level, lines);
+      } else if (tag === 'TableStruct') {
+        const tbl = parseTableStruct(ch);
+        if (tbl.rows.length > 0 || tbl.title) {
+          lines.push(tbl);
+        }
+      } else if (tag === 'Remarks') {
+        const label = extractText(getChildren(ch, 'RemarksLabel')[0]).trim();
+        const sentences = getChildren(ch, 'Sentence').map(s => extractText(s).trim()).filter(Boolean);
+        if (label || sentences.length > 0) {
+          lines.push({
+            type: 'line',
+            level: currentLevel + 1,
+            label,
+            text: sentences.join(''),
+            isParagraphNum: false
+          });
+        }
+      }
+    }
+  }
+
+  function parseParagraphsIntoLines(paragraphs, articleTitle, lines) {
+    paragraphs.forEach((pNode, pIdx) => {
+      const pCaption = extractText(getChildren(pNode, 'ParagraphCaption')[0]).trim();
+      const rawPNum = extractText(getChildren(pNode, 'ParagraphNum')[0]).trim();
+      const pNum = normalizeParagraphNum(rawPNum);
+      const pText = extractSentenceFromContainer(pNode, 'ParagraphSentence');
+
+      if (pCaption) {
+        lines.push({ type: 'caption', text: pCaption });
+      }
+
+      if (pIdx === 0 && articleTitle) {
+        lines.push({
+          type: 'line',
+          level: 0,
+          label: articleTitle,
+          text: pText,
+          isParagraphNum: false,
+          isArticleStart: true
+        });
+      } else {
+        lines.push({
+          type: 'line',
+          level: 0,
+          label: pNum,
+          text: pText,
+          isParagraphNum: Boolean(pNum),
+          isArticleStart: pIdx === 0
+        });
+      }
+
+      parseHierarchicalChildren(pNode, 0, lines);
+    });
+  }
+
+  function parseArticleNode(articleNode, sectionMeta, uidCounter) {
+    const caption = extractText(getChildren(articleNode, 'ArticleCaption')[0]).trim();
+    const rawTitle = extractText(getChildren(articleNode, 'ArticleTitle')[0]).trim();
+    const numAttr = articleNode.attr ? articleNode.attr.Num : '';
+    const title = normalizeArticleTitleKanji(rawTitle, numAttr) || '（条名なし）';
+    const paragraphs = getChildren(articleNode, 'Paragraph');
+
+    const lines = [];
+    if (caption) {
+      lines.push({ type: 'caption', text: caption });
+    }
+    if (paragraphs.length > 0) {
+      parseParagraphsIntoLines(paragraphs, title, lines);
+    } else {
+      lines.push({
+        type: 'line',
+        level: 0,
+        label: title,
+        text: '',
+        isParagraphNum: false,
+        isArticleStart: true
+      });
+    }
+
+    const uid = `art_${uidCounter.val++}`;
+    return {
+      uid,
+      title,
+      caption,
+      sectionKey: sectionMeta.sectionKey,
+      sectionLabel: sectionMeta.sectionLabel,
+      isSuppl: sectionMeta.isSuppl,
+      supplHeader: sectionMeta.supplHeader || '',
+      lines,
+      searchText: `${title} ${caption} ${sectionMeta.sectionLabel}`.toLowerCase()
+    };
+  }
+
+  function collectArticlesRecursive(node, sectionMeta, articles, uidCounter) {
+    if (!node || !Array.isArray(node.children)) return;
+    for (const ch of node.children) {
+      if (!ch || typeof ch !== 'object') continue;
+      if (ch.tag === 'Article') {
+        articles.push(parseArticleNode(ch, sectionMeta, uidCounter));
+      } else if (['Part', 'Chapter', 'Section', 'Subsection', 'Division'].includes(ch.tag)) {
+        collectArticlesRecursive(ch, sectionMeta, articles, uidCounter);
+      }
+    }
+  }
+
+  function parseLawApiResponse(apiData, fallbackMeta = {}) {
+    const lawInfo = apiData.law_info || {};
+    const revInfo = apiData.revision_info || {};
+    let fullText = apiData.law_full_text;
+
+    if (typeof fullText === 'string') {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(fullText, 'application/xml');
+      fullText = xmlDomToJsonTree(xmlDoc.documentElement);
+    }
+
+    const lawBody = findFirst(fullText, 'LawBody') || fullText;
+    const lawTitleNode = findFirst(lawBody, 'LawTitle');
+    const lawTitle = (lawTitleNode ? extractText(lawTitleNode).trim() : '') ||
+                     revInfo.law_title || fallbackMeta.lawTitle || '名称不明の法令';
+    const lawNumNode = findFirst(fullText, 'LawNum');
+    const lawNum = (lawNumNode ? extractText(lawNumNode).trim() : '') ||
+                   lawInfo.law_num || fallbackMeta.lawNum || '';
+    const lawId = lawInfo.law_id || fallbackMeta.lawId || ('law_' + Date.now());
+
+    const articles = [];
+    const uidCounter = { val: 1 };
+
+    // 1. 本則 (MainProvision)
+    const mainProv = findFirst(lawBody, 'MainProvision');
+    if (mainProv) {
+      const mainMeta = {
+        sectionKey: 'main',
+        sectionLabel: '本則',
+        isSuppl: false,
+        supplHeader: ''
+      };
+      const beforeCount = articles.length;
+      collectArticlesRecursive(mainProv, mainMeta, articles, uidCounter);
+
+      if (articles.length === beforeCount) {
+        const directParagraphs = getChildren(mainProv, 'Paragraph');
+        if (directParagraphs.length > 0) {
+          const lines = [];
+          parseParagraphsIntoLines(directParagraphs, '', lines);
+          articles.push({
+            uid: `art_${uidCounter.val++}`,
+            title: '本則',
+            caption: '',
+            sectionKey: 'main',
+            sectionLabel: '本則',
+            isSuppl: false,
+            supplHeader: '',
+            lines,
+            searchText: '本則'
+          });
+        }
+      }
+    }
+
+    // 2. 附則 (SupplProvision)
+    const supplNodes = getChildren(lawBody, 'SupplProvision');
+    supplNodes.forEach((sp, idx) => {
+      const spLabelRaw = extractText(getChildren(sp, 'SupplProvisionLabel')[0]).trim() || '附則';
+      const amendNum = sp.attr && sp.attr.AmendLawNum ? sp.attr.AmendLawNum.trim() : '';
+      const isExtract = sp.attr && (sp.attr.Extract === 'true' || sp.attr.Extract === true);
+
+      let supplDisplay = spLabelRaw.replace(/\s+/g, '');
+      if (amendNum) {
+        supplDisplay += `（${amendNum}）`;
+      }
+      if (isExtract) {
+        supplDisplay += '抄';
+      }
+
+      const spMeta = {
+        sectionKey: `suppl_${idx}`,
+        sectionLabel: supplDisplay,
+        isSuppl: true,
+        supplHeader: supplDisplay
+      };
+
+      const beforeCount = articles.length;
+      collectArticlesRecursive(sp, spMeta, articles, uidCounter);
+
+      if (articles.length === beforeCount) {
+        const directParagraphs = getChildren(sp, 'Paragraph');
+        if (directParagraphs.length > 0) {
+          const lines = [];
+          parseParagraphsIntoLines(directParagraphs, '', lines);
+          articles.push({
+            uid: `art_${uidCounter.val++}`,
+            title: supplDisplay,
+            caption: directParagraphs.length > 1 ? `（全${directParagraphs.length}項）` : '',
+            sectionKey: spMeta.sectionKey,
+            sectionLabel: spMeta.sectionLabel,
+            isSuppl: true,
+            supplHeader: supplDisplay,
+            isDirectSupplBlock: true,
+            lines,
+            searchText: `${supplDisplay} 附則`.toLowerCase()
+          });
+        }
+      }
+    });
+
+    return {
+      lawId,
+      lawTitle,
+      lawNum,
+      enforcementDate: revInfo.amendment_enforcement_date || '',
+      articles
+    };
+  }
+
+  // =========================================================================
+  // 4. e-Gov API v2 Communication (Debounced Incremental Search & Fetch)
+  // =========================================================================
+  async function searchLawsApi(keyword) {
+    if (state.searchAbortController) {
+      state.searchAbortController.abort();
+    }
+    const controller = new AbortController();
+    state.searchAbortController = controller;
+
+    el.searchSpinner.classList.add('visible');
+    try {
+      const url = `${API_BASE}/laws?law_title=${encodeURIComponent(keyword)}&limit=30`;
+      const resp = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal
+      });
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+      }
+      const data = await resp.json();
+      const laws = Array.isArray(data.laws) ? data.laws : [];
+
+      const mapped = laws.map(item => {
+        const li = item.law_info || {};
+        const ri = item.revision_info || {};
+        const repealed = ri.repeal_status && ri.repeal_status !== 'None';
+        return {
+          lawId: li.law_id,
+          lawTitle: ri.law_title || li.law_num || '',
+          lawNum: li.law_num || '',
+          category: ri.category || '',
+          repealed
+        };
+      });
+
+      mapped.sort((a, b) => Number(a.repealed) - Number(b.repealed));
+      state.suggestItems = mapped;
+      state.suggestIndex = -1;
+      renderSuggestList();
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      state.suggestItems = [];
+      renderSuggestMessage(
+        `検索に失敗しました（${err.message}）。ネットワーク接続や社内プロキシ設定をご確認ください。`
+      );
+    } finally {
+      if (state.searchAbortController === controller) {
+        el.searchSpinner.classList.remove('visible');
+      }
+    }
+  }
+
+  async function loadLawById(lawId, fallbackMeta = {}) {
+    closeSuggestList();
+
+    if (state.lawCache.has(lawId)) {
+      displayLaw(state.lawCache.get(lawId));
+      return;
+    }
+
+    el.lawMetaHeader.classList.add('visible');
+    el.lawMetaTitle.textContent = fallbackMeta.lawTitle || '読み込み中...';
+    el.lawMetaSub.textContent = 'e-Gov法令API v2 から条文データを取得しています...';
+    el.rightBodyScroll.innerHTML = `<div class="empty-state"><p>条文を読み込んでいます...</p></div>`;
+    el.leftListScroll.innerHTML = `<div style="padding:16px;color:#64748b;font-size:12.5px;">読み込み中...</div>`;
+    el.articleFilterInput.disabled = true;
+
+    try {
+      const url = `${API_BASE}/law_data/${encodeURIComponent(lawId)}?response_format=json`;
+      const resp = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+      }
+      const data = await resp.json();
+      const parsed = parseLawApiResponse(data, fallbackMeta);
+      state.lawCache.set(parsed.lawId, parsed);
+      displayLaw(parsed);
+    } catch (err) {
+      el.rightBodyScroll.innerHTML = `
+        <div class="error-banner">
+          <strong>条文の取得に失敗しました：</strong>${escapeHtml(err.message)}<br>
+          e-Gov法令API v2 への通信がネットワーク設定により制限されている可能性があります。
+        </div>
+      `;
+      el.leftListScroll.innerHTML = '';
+    }
+  }
+
+  // =========================================================================
+  // 5. Rendering: Suggest List, Left Column, Right Column, Selected Chips
+  // =========================================================================
+  function renderSuggestList() {
+    if (state.suggestItems.length === 0) {
+      renderSuggestMessage('一致する法令が見つかりませんでした。');
+      return;
+    }
+    const html = state.suggestItems.map((item, idx) => `
+      <div class="suggest-item ${idx === state.suggestIndex ? 'highlighted' : ''}" data-idx="${idx}" role="option">
+        <div class="suggest-title">
+          <span>${escapeHtml(item.lawTitle)}</span>
+          ${item.repealed ? '<span class="badge-repealed">廃止等</span>' : ''}
+        </div>
+        <div class="suggest-meta">${escapeHtml(item.lawNum)}${item.category ? ' / ' + escapeHtml(item.category) : ''}</div>
+      </div>
+    `).join('');
+    el.suggestList.innerHTML = html;
+    el.suggestList.classList.add('open');
+  }
+
+  function renderSuggestMessage(msg) {
+    el.suggestList.innerHTML = `<div class="suggest-msg">${escapeHtml(msg)}</div>`;
+    el.suggestList.classList.add('open');
+  }
+
+  function closeSuggestList() {
+    el.suggestList.classList.remove('open');
+    state.suggestIndex = -1;
+  }
+
+  function renderLegalLinesHtml(lines, isFirstArticleInSection) {
+    return lines.map((item, idx) => {
+      if (item.type === 'caption') {
+        return `<p class="legal-caption">${escapeHtml(item.text)}</p>`;
+      }
+      if (item.type === 'table') {
+        const captionHtml = item.title ? `<p class="legal-caption">${escapeHtml(item.title)}</p>` : '';
+        const rowsHtml = item.rows.map(row => `<tr>${
+          row.map(c => `<td${c.rowspan > 1 ? ` rowspan="${c.rowspan}"` : ''}${c.colspan > 1 ? ` colspan="${c.colspan}"` : ''}>${escapeHtml(c.text)}</td>`).join('')
+        }</tr>`).join('');
+        return `${captionHtml}<table class="legal-table"><tbody>${rowsHtml}</tbody></table>`;
+      }
+
+      const layout = computeLineLayout(item);
+      const gapClass = (idx === 0 && !isFirstArticleInSection) ? ' article-gap' : '';
+      const fullText = item.label ? `${item.label}${layout.separator}${item.text || ''}` : (item.text || '');
+
+      return `<p class="legal-para${gapClass}" style="padding-left:${layout.leftEm}em;text-indent:-${layout.hangingEm}em;">${escapeHtml(fullText)}</p>`;
+    }).join('');
+  }
+
+  function displayLaw(law) {
+    state.currentLawId = law.lawId;
+    state.activeArticleUid = law.articles.length > 0 ? law.articles[0].uid : null;
+
+    el.lawMetaHeader.classList.add('visible');
+    el.lawMetaTitle.textContent = law.lawTitle;
+    el.lawMetaSub.textContent = [
+      law.lawNum,
+      `全${law.articles.length}項目（本則・附則）`
+    ].filter(Boolean).join(' ／ ');
+
+    el.articleFilterInput.disabled = false;
+    el.articleFilterInput.value = '';
+
+    renderLeftColumn(law, '');
+    renderRightColumn(law);
+    renderSelectedLawsBar();
+
+    el.leftListScroll.scrollTop = 0;
+    el.rightBodyScroll.scrollTop = 0;
+  }
+
+  function getSelectedSet(lawId) {
+    return state.selectedByLaw.get(lawId) || new Set();
+  }
+
+  function buildSelectAllRowHtml(positionClass, law) {
+    const selectedSet = getSelectedSet(law.lawId);
+    const total = law.articles.length;
+    const count = selectedSet.size;
+    const allChecked = total > 0 && count === total;
+    return `
+      <div class="select-all-row ${positionClass} js-select-all-trigger" role="checkbox" aria-checked="${allChecked}">
+        <input type="checkbox" class="js-select-all-cb" ${allChecked ? 'checked' : ''}>
+        <span class="js-select-all-label">すべて選択 / 解除（${count} / ${total}）</span>
+      </div>
+    `;
+  }
+
+  function renderLeftColumn(law, filterText) {
+    const q = toHalfWidthDigits(filterText.trim()).toLowerCase();
+    const qKanji = q ? q.replace(/\d+/g, m => intToKanji(m)) : '';
+    const selectedSet = getSelectedSet(law.lawId);
+
+    const filtered = law.articles.filter(art => {
+      if (!q) return true;
+      return art.searchText.includes(q) || (qKanji && art.searchText.includes(qKanji));
+    });
+
+    let html = buildSelectAllRowHtml('top', law);
+    let lastSectionKey = null;
+
+    if (filtered.length === 0) {
+      html += `<div style="padding:18px 12px;color:#64748b;font-size:12.5px;">条件に一致する条文がありません。</div>`;
+    } else {
+      for (const art of filtered) {
+        if (art.sectionKey !== lastSectionKey) {
+          lastSectionKey = art.sectionKey;
+          html += `<div class="section-divider">${escapeHtml(art.sectionLabel)}</div>`;
+        }
+        const isChecked = selectedSet.has(art.uid);
+        const isActive = state.activeArticleUid === art.uid;
+        html += `
+          <div class="article-nav-item ${isChecked ? 'checked' : ''} ${isActive ? 'active' : ''}" data-uid="${art.uid}">
+            <input type="checkbox" class="article-nav-cb" data-uid="${art.uid}" ${isChecked ? 'checked' : ''}>
+            <div class="article-nav-link" data-jump-uid="${art.uid}" title="クリックして本文へ移動">
+              <span class="article-nav-num">${escapeHtml(art.title)}</span>
+              ${art.caption ? `<span class="article-nav-caption">${escapeHtml(art.caption)}</span>` : ''}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    html += buildSelectAllRowHtml('bottom', law);
+    el.leftListScroll.innerHTML = html;
+    syncSelectAllCheckboxesUI();
+  }
+
+  function renderRightColumn(law) {
+    const selectedSet = getSelectedSet(law.lawId);
+    let html = '';
+    let lastSectionKey = null;
+
+    for (const art of law.articles) {
+      if (art.sectionKey !== lastSectionKey) {
+        lastSectionKey = art.sectionKey;
+        html += `<div class="law-section-heading">${escapeHtml(art.sectionLabel)}</div>`;
+      }
+      const isChecked = selectedSet.has(art.uid);
+      html += `
+        <article class="article-card ${isChecked ? 'checked' : ''}" id="card_${art.uid}" data-uid="${art.uid}">
+          <div class="article-card-toolbar">
+            <label class="article-inline-toggle">
+              <input type="checkbox" class="js-right-cb" data-uid="${art.uid}" ${isChecked ? 'checked' : ''}>
+              <span>出力対象に含める</span>
+            </label>
+          </div>
+          <div class="legal-doc">
+            ${renderLegalLinesHtml(art.lines, true)}
+          </div>
+        </article>
+      `;
+    }
+
+    el.rightBodyScroll.innerHTML = html || `<div class="empty-state"><p>表示できる条文がありません。</p></div>`;
+  }
+
+  function syncSelectAllCheckboxesUI() {
+    if (!state.currentLawId) return;
+    const law = state.lawCache.get(state.currentLawId);
+    if (!law) return;
+    const total = law.articles.length;
+    const count = getSelectedSet(law.lawId).size;
+    const allChecked = total > 0 && count === total;
+    const indeterminate = count > 0 && count < total;
+
+    el.leftListScroll.querySelectorAll('.js-select-all-trigger').forEach(row => {
+      row.setAttribute('aria-checked', indeterminate ? 'mixed' : String(allChecked));
+    });
+    el.leftListScroll.querySelectorAll('.js-select-all-cb').forEach(cb => {
+      cb.checked = allChecked;
+      cb.indeterminate = indeterminate;
+    });
+    el.leftListScroll.querySelectorAll('.js-select-all-label').forEach(span => {
+      span.textContent = `すべて選択 / 解除（${count} / ${total}）`;
+    });
+  }
+
+  function updateTotalSelectionUI() {
+    let totalCount = 0;
+    for (const lawId of state.selectedLawOrder) {
+      const s = state.selectedByLaw.get(lawId);
+      if (s) totalCount += s.size;
+    }
+    el.previewCount.textContent = String(totalCount);
+    el.previewBtn.disabled = totalCount === 0;
+    el.createDocxBtn.disabled = totalCount === 0;
+  }
+
+  function renderSelectedLawsBar() {
+    updateTotalSelectionUI();
+    if (state.selectedLawOrder.length === 0) {
+      el.selectedLawsBar.classList.remove('visible');
+      el.selectedLawsChips.innerHTML = '';
+      return;
+    }
+
+    el.selectedLawsBar.classList.add('visible');
+    const html = state.selectedLawOrder.map((lawId, idx) => {
+      const law = state.lawCache.get(lawId);
+      const count = getSelectedSet(lawId).size;
+      const isCurrent = lawId === state.currentLawId;
+      return `
+        <div class="law-chip ${isCurrent ? 'active-law' : ''}" data-law-id="${escapeHtml(lawId)}">
+          <span class="law-chip-name" data-switch-law="${escapeHtml(lawId)}" title="クリックしてこの法令を表示">${escapeHtml(law ? law.lawTitle : lawId)}</span>
+          <span class="law-chip-count">(${count})</span>
+          <button type="button" class="chip-icon-btn" data-move-law="${escapeHtml(lawId)}" data-dir="-1" title="前へ" ${idx === 0 ? 'disabled' : ''}>◀</button>
+          <button type="button" class="chip-icon-btn" data-move-law="${escapeHtml(lawId)}" data-dir="1" title="後ろへ" ${idx === state.selectedLawOrder.length - 1 ? 'disabled' : ''}>▶</button>
+          <button type="button" class="chip-icon-btn remove" data-remove-law="${escapeHtml(lawId)}" title="この法令の選択を解除">×</button>
+        </div>
+      `;
+    }).join('');
+    el.selectedLawsChips.innerHTML = html;
+  }
+
+  // =========================================================================
+  // 6. Selection State Management
+  // =========================================================================
+  function setArticleSelected(lawId, uid, checked) {
+    let set = state.selectedByLaw.get(lawId);
+    if (!set) {
+      set = new Set();
+      state.selectedByLaw.set(lawId, set);
+    }
+    if (checked) {
+      set.add(uid);
+      if (!state.selectedLawOrder.includes(lawId)) {
+        state.selectedLawOrder.push(lawId);
+      }
+    } else {
+      set.delete(uid);
+      if (set.size === 0) {
+        state.selectedLawOrder = state.selectedLawOrder.filter(id => id !== lawId);
+      }
+    }
+
+    if (lawId === state.currentLawId) {
+      const leftItem = el.leftListScroll.querySelector(`.article-nav-item[data-uid="${uid}"]`);
+      if (leftItem) {
+        leftItem.classList.toggle('checked', checked);
+        const cb = leftItem.querySelector('.article-nav-cb');
+        if (cb) cb.checked = checked;
+      }
+      const rightCard = document.getElementById(`card_${uid}`);
+      if (rightCard) {
+        rightCard.classList.toggle('checked', checked);
+        const cb = rightCard.querySelector('.js-right-cb');
+        if (cb) cb.checked = checked;
+      }
+      syncSelectAllCheckboxesUI();
+    }
+    renderSelectedLawsBar();
+  }
+
+  function toggleAllCurrentLaw() {
+    if (!state.currentLawId) return;
+    const law = state.lawCache.get(state.currentLawId);
+    if (!law || law.articles.length === 0) return;
+
+    const currentSet = getSelectedSet(law.lawId);
+    const isCurrentlyAllSelected = currentSet.size === law.articles.length;
+
+    if (isCurrentlyAllSelected) {
+      state.selectedByLaw.set(law.lawId, new Set());
+      state.selectedLawOrder = state.selectedLawOrder.filter(id => id !== law.lawId);
+    } else {
+      const newSet = new Set(law.articles.map(a => a.uid));
+      state.selectedByLaw.set(law.lawId, newSet);
+      if (!state.selectedLawOrder.includes(law.lawId)) {
+        state.selectedLawOrder.push(law.lawId);
+      }
+    }
+
+    const selectAll = !isCurrentlyAllSelected;
+    el.leftListScroll.querySelectorAll('.article-nav-item').forEach(item => {
+      item.classList.toggle('checked', selectAll);
+      const cb = item.querySelector('.article-nav-cb');
+      if (cb) cb.checked = selectAll;
+    });
+    el.rightBodyScroll.querySelectorAll('.article-card').forEach(card => {
+      card.classList.toggle('checked', selectAll);
+      const cb = card.querySelector('.js-right-cb');
+      if (cb) cb.checked = selectAll;
+    });
+
+    syncSelectAllCheckboxesUI();
+    renderSelectedLawsBar();
+  }
+
+  // =========================================================================
+  // 7. One-Way Scroll Synchronization (Right -> Left ONLY)
+  // =========================================================================
+  let scrollRafId = null;
+
+  function setActiveNavItem(uid, scrollLeftPane) {
+    if (state.activeArticleUid === uid && !scrollLeftPane) return;
+    const prev = el.leftListScroll.querySelector('.article-nav-item.active');
+    if (prev) prev.classList.remove('active');
+
+    state.activeArticleUid = uid;
+    const target = el.leftListScroll.querySelector(`.article-nav-item[data-uid="${uid}"]`);
+    if (!target) return;
+    target.classList.add('active');
+
+    if (scrollLeftPane) {
+      const container = el.leftListScroll;
+      const itemTop = target.offsetTop;
+      const itemBottom = itemTop + target.offsetHeight;
+      const viewTop = container.scrollTop;
+      const viewBottom = viewTop + container.clientHeight;
+      const margin = 48;
+
+      if (itemTop < viewTop + margin || itemBottom > viewBottom - margin) {
+        container.scrollTop = Math.max(0, itemTop - container.clientHeight * 0.3);
+      }
+    }
+  }
+
+  el.rightBodyScroll.addEventListener('scroll', () => {
+    if (state.isProgrammaticJump) return;
+    if (scrollRafId) return;
+    scrollRafId = requestAnimationFrame(() => {
+      scrollRafId = null;
+      const cards = el.rightBodyScroll.querySelectorAll('.article-card');
+      if (cards.length === 0) return;
+
+      const containerTop = el.rightBodyScroll.getBoundingClientRect().top;
+      const threshold = containerTop + 90;
+      let currentUid = cards[0].dataset.uid;
+
+      for (const card of cards) {
+        const rect = card.getBoundingClientRect();
+        if (rect.top <= threshold) {
+          currentUid = card.dataset.uid;
+        } else {
+          break;
+        }
+      }
+
+      setActiveNavItem(currentUid, true);
+    });
+  }, { passive: true });
+
+  // =========================================================================
+  // 8. Export Data Builder & Preview Rendering
+  // =========================================================================
+  function collectExportBundle() {
+    const bundle = [];
+    for (const lawId of state.selectedLawOrder) {
+      const law = state.lawCache.get(lawId);
+      const selectedSet = state.selectedByLaw.get(lawId);
+      if (!law || !selectedSet || selectedSet.size === 0) continue;
+      const selectedArticles = law.articles.filter(a => selectedSet.has(a.uid));
+      if (selectedArticles.length > 0) {
+        bundle.push({
+          lawId: law.lawId,
+          lawTitle: law.lawTitle,
+          lawNum: law.lawNum,
+          articles: selectedArticles
+        });
+      }
+    }
+    return bundle;
+  }
+
+  function renderPreviewPaper() {
+    const bundle = collectExportBundle();
+    if (bundle.length === 0) {
+      el.previewPaperContent.innerHTML = '<p style="color:#64748b;">出力対象の条文が選択されていません。</p>';
+      el.modalStatusText.textContent = '';
+      return;
+    }
+
+    let totalArticles = 0;
+    const htmlParts = bundle.map((lawEntry, lawIdx) => {
+      totalArticles += lawEntry.articles.length;
+      let inner = '';
+      let lastSupplHeader = null;
+
+      lawEntry.articles.forEach((art, artIdx) => {
+        if (art.isSuppl && art.supplHeader && art.supplHeader !== lastSupplHeader) {
+          lastSupplHeader = art.supplHeader;
+          inner += `<p class="legal-suppl-header">${escapeHtml(art.supplHeader)}</p>`;
+        }
+        inner += renderLegalLinesHtml(art.lines, artIdx === 0);
+      });
+
+      const marginTop = lawIdx > 0 ? 'margin-top:2em;' : '';
+      return `
+        <section style="${marginTop}">
+          <p class="legal-law-header">○${escapeHtml(lawEntry.lawTitle)}</p>
+          ${inner}
+        </section>
+      `;
+    });
+
+    el.previewPaperContent.innerHTML = htmlParts.join('');
+    el.modalStatusText.textContent = `対象: ${bundle.length}法令 ／ 合計 ${totalArticles}条項`;
+  }
+
+  function openPreviewModal(autoDownload = false) {
+    const bundle = collectExportBundle();
+    if (bundle.length === 0) {
+      showToast('出力する条文にチェックを入れてください。');
+      return;
+    }
+
+    if (bundle.length === 1) {
+      el.docxFilenameInput.value = `${bundle[0].lawTitle}_抜粋`;
+    } else {
+      el.docxFilenameInput.value = `${bundle[0].lawTitle}ほか${bundle.length - 1}法令_抜粋`;
+    }
+
+    el.modalFontSelect.value = state.fontFamily;
+    el.modalFontSizeSelect.value = String(state.fontSizePt);
+    renderPreviewPaper();
+    el.modalBackdrop.classList.add('open');
+
+    if (autoDownload) {
+      downloadDocx();
+    }
+  }
+
+  function closePreviewModal() {
+    el.modalBackdrop.classList.remove('open');
+  }
+
+  // =========================================================================
+  // 9. Pure JS OpenXML (.docx) & ZIP (STORE) Generator (No External CDN)
+  // =========================================================================
+  const CRC32_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let j = 0; j < 8; j++) {
+        c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      }
+      table[i] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32(bytes) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) {
+      crc = CRC32_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function buildZipBlob(files) {
+    const encoder = new TextEncoder();
+    const now = new Date();
+    const dosTime = ((now.getHours() & 0x1F) << 11) | ((now.getMinutes() & 0x3F) << 5) | ((now.getSeconds() >> 1) & 0x1F);
+    const dosDate = (((Math.max(1980, now.getFullYear()) - 1980) & 0x7F) << 9) | (((now.getMonth() + 1) & 0x0F) << 5) | (now.getDate() & 0x1F);
+
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+
+    for (const file of files) {
+      const nameBytes = encoder.encode(file.name);
+      const dataBytes = (file.content instanceof Uint8Array) ? file.content : encoder.encode(file.content);
+      const crc = crc32(dataBytes);
+      const size = dataBytes.length;
+
+      const localHeader = new Uint8Array(30 + nameBytes.length);
+      const lv = new DataView(localHeader.buffer);
+      lv.setUint32(0, 0x04034b50, true);
+      lv.setUint16(4, 20, true);
+      lv.setUint16(6, 0x0800, true);
+      lv.setUint16(8, 0, true);
+      lv.setUint16(10, dosTime, true);
+      lv.setUint16(12, dosDate, true);
+      lv.setUint32(14, crc, true);
+      lv.setUint32(18, size, true);
+      lv.setUint32(22, size, true);
+      lv.setUint16(26, nameBytes.length, true);
+      lv.setUint16(28, 0, true);
+      localHeader.set(nameBytes, 30);
+
+      localParts.push(localHeader, dataBytes);
+
+      const centralHeader = new Uint8Array(46 + nameBytes.length);
+      const cv = new DataView(centralHeader.buffer);
+      cv.setUint32(0, 0x02014b50, true);
+      cv.setUint16(4, 20, true);
+      cv.setUint16(6, 20, true);
+      cv.setUint16(8, 0x0800, true);
+      cv.setUint16(10, 0, true);
+      cv.setUint16(12, dosTime, true);
+      cv.setUint16(14, dosDate, true);
+      cv.setUint32(16, crc, true);
+      cv.setUint32(20, size, true);
+      cv.setUint32(24, size, true);
+      cv.setUint16(28, nameBytes.length, true);
+      cv.setUint16(30, 0, true);
+      cv.setUint16(32, 0, true);
+      cv.setUint16(34, 0, true);
+      cv.setUint16(36, 0, true);
+      cv.setUint32(38, 0, true);
+      cv.setUint32(42, offset, true);
+      centralHeader.set(nameBytes, 46);
+
+      centralParts.push(centralHeader);
+      offset += localHeader.length + dataBytes.length;
+    }
+
+    let centralSize = 0;
+    for (const cp of centralParts) centralSize += cp.length;
+
+    const eocd = new Uint8Array(22);
+    const ev = new DataView(eocd.buffer);
+    ev.setUint32(0, 0x06054b50, true);
+    ev.setUint16(4, 0, true);
+    ev.setUint16(6, 0, true);
+    ev.setUint16(8, files.length, true);
+    ev.setUint16(10, files.length, true);
+    ev.setUint32(12, centralSize, true);
+    ev.setUint32(16, offset, true);
+    ev.setUint16(20, 0, true);
+
+    return new Blob([...localParts, ...centralParts, eocd], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    });
+  }
+
+  function buildDocxBlob(bundle, fontFamily, fontSizePt) {
+    const halfPts = Math.round(fontSizePt * 2);
+    const charTwips = Math.round(fontSizePt * 20);
+    const fontEsc = escapeXml(fontFamily);
+
+    const makeRPr = () =>
+      `<w:rPr><w:rFonts w:ascii="${fontEsc}" w:hAnsi="${fontEsc}" w:eastAsia="${fontEsc}" w:cs="${fontEsc}"/><w:sz w:val="${halfPts}"/><w:szCs w:val="${halfPts}"/></w:rPr>`;
+
+    const makeRun = (text) =>
+      `<w:r>${makeRPr()}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`;
+
+    const bodyParagraphs = [];
+
+    bundle.forEach((lawEntry, lawIdx) => {
+      // 法令名見出し: ○法令名 ＋ 下罫線
+      const beforeLaw = lawIdx === 0 ? 0 : 320;
+      bodyParagraphs.push(`
+        <w:p>
+          <w:pPr>
+            <w:pBdr>
+              <w:bottom w:val="single" w:sz="6" w:space="4" w:color="000000"/>
+            </w:pBdr>
+            <w:spacing w:before="${beforeLaw}" w:after="120" w:line="320" w:lineRule="auto"/>
+            <w:keepNext/>
+          </w:pPr>
+          ${makeRun('○' + lawEntry.lawTitle)}
+        </w:p>
+      `);
+
+      let lastSupplHeader = null;
+
+      lawEntry.articles.forEach((art, artIdx) => {
+        if (art.isSuppl && art.supplHeader && art.supplHeader !== lastSupplHeader) {
+          lastSupplHeader = art.supplHeader;
+          bodyParagraphs.push(`
+            <w:p>
+              <w:pPr>
+                <w:spacing w:before="200" w:after="60" w:line="320" w:lineRule="auto"/>
+                <w:keepNext/>
+              </w:pPr>
+              ${makeRun(art.supplHeader)}
+            </w:p>
+          `);
+        }
+
+        art.lines.forEach((item, lineIdx) => {
+          if (item.type === 'caption') {
+            const beforeCap = (artIdx === 0 && lineIdx === 0) ? 40 : 140;
+            bodyParagraphs.push(`
+              <w:p>
+                <w:pPr>
+                  <w:spacing w:before="${beforeCap}" w:after="0" w:line="320" w:lineRule="auto"/>
+                  <w:ind w:left="${charTwips}" w:leftChars="100"/>
+                  <w:keepNext/>
+                </w:pPr>
+                ${makeRun(item.text)}
+              </w:p>
+            `);
+            return;
+          }
+
+          if (item.type === 'table') {
+            if (item.title) {
+              bodyParagraphs.push(`
+                <w:p>
+                  <w:pPr>
+                    <w:spacing w:before="80" w:after="40" w:line="300" w:lineRule="auto"/>
+                    <w:ind w:left="${charTwips}" w:leftChars="100"/>
+                    <w:keepNext/>
+                  </w:pPr>
+                  ${makeRun(item.title)}
+                </w:p>
+              `);
+            }
+            const tblRowsXml = item.rows.map(row => {
+              const cellsXml = row.map(c => {
+                const gridSpanXml = c.colspan > 1 ? `<w:gridSpan w:val="${c.colspan}"/>` : '';
+                return `
+                  <w:tc>
+                    <w:tcPr>${gridSpanXml}<w:tcMar><w:top w:w="60" w:type="dxa"/><w:bottom w:w="60" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tcMar></w:tcPr>
+                    <w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="280" w:lineRule="auto"/></w:pPr>${makeRun(c.text)}</w:p>
+                  </w:tc>
+                `;
+              }).join('');
+              return `<w:tr>${cellsXml}</w:tr>`;
+            }).join('');
+
+            bodyParagraphs.push(`
+              <w:tbl>
+                <w:tblPr>
+                  <w:tblW w:w="5000" w:type="pct"/>
+                  <w:tblBorders>
+                    <w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+                    <w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+                    <w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+                    <w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+                    <w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+                    <w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>
+                  </w:tblBorders>
+                </w:tblPr>
+                ${tblRowsXml}
+              </w:tbl>
+            `);
+            return;
+          }
+
+          const layout = computeLineLayout(item);
+          const leftTwips = Math.round(layout.leftEm * charTwips);
+          const leftChars = Math.round(layout.leftEm * 100);
+          const hangingTwips = Math.round(layout.hangingEm * charTwips);
+          const hangingChars = Math.round(layout.hangingEm * 100);
+          const beforeSp = (lineIdx === 0 && artIdx > 0) ? 140 : 0;
+
+          const fullText = item.label ? `${item.label}${layout.separator}${item.text || ''}` : (item.text || '');
+          const indAttrs = layout.hangingEm > 0
+            ? `w:left="${leftTwips}" w:leftChars="${leftChars}" w:hanging="${hangingTwips}" w:hangingChars="${hangingChars}"`
+            : `w:left="${leftTwips}" w:leftChars="${leftChars}"`;
+
+          bodyParagraphs.push(`
+            <w:p>
+              <w:pPr>
+                <w:spacing w:before="${beforeSp}" w:after="0" w:line="320" w:lineRule="auto"/>
+                <w:ind ${indAttrs}/>
+              </w:pPr>
+              ${makeRun(fullText)}
+            </w:p>
+          `);
+        });
+      });
+    });
+
+    const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
+</Types>`;
+
+    const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+    const docRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+</Relationships>`;
+
+    const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault>
+      <w:rPr>
+        <w:rFonts w:ascii="${fontEsc}" w:hAnsi="${fontEsc}" w:eastAsia="${fontEsc}" w:cs="${fontEsc}"/>
+        <w:sz w:val="${halfPts}"/>
+        <w:szCs w:val="${halfPts}"/>
+        <w:lang w:val="en-US" w:eastAsia="ja-JP"/>
+      </w:rPr>
+    </w:rPrDefault>
+    <w:pPrDefault>
+      <w:pPr>
+        <w:spacing w:before="0" w:after="0" w:line="320" w:lineRule="auto"/>
+      </w:pPr>
+    </w:pPrDefault>
+  </w:docDefaults>
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+    <w:name w:val="Normal"/>
+    <w:qFormat/>
+  </w:style>
+</w:styles>`;
+
+    const settingsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="true"/>
+  <w:compat>
+    <w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>
+  </w:compat>
+</w:settings>`;
+
+    const footerXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p>
+    <w:pPr>
+      <w:jc w:val="center"/>
+    </w:pPr>
+    <w:r>${makeRPr()}<w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r>${makeRPr()}<w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>
+    <w:r>${makeRPr()}<w:fldChar w:fldCharType="separate"/></w:r>
+    <w:r>${makeRPr()}<w:t>1</w:t></w:r>
+    <w:r>${makeRPr()}<w:fldChar w:fldCharType="end"/></w:r>
+    <w:r>${makeRPr()}<w:t>/</w:t></w:r>
+    <w:r>${makeRPr()}<w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r>${makeRPr()}<w:instrText xml:space="preserve"> NUMPAGES </w:instrText></w:r>
+    <w:r>${makeRPr()}<w:fldChar w:fldCharType="separate"/></w:r>
+    <w:r>${makeRPr()}<w:t>1</w:t></w:r>
+    <w:r>${makeRPr()}<w:fldChar w:fldCharType="end"/></w:r>
+  </w:p>
+</w:ftr>`;
+
+    const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    ${bodyParagraphs.join('')}
+    <w:sectPr>
+      <w:footerReference w:type="default" r:id="rId3"/>
+      <w:pgSz w:w="11906" w:h="16838"/>
+      <w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417" w:header="851" w:footer="992" w:gutter="0"/>
+      <w:docGrid w:type="lines" w:linePitch="360"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+
+    return buildZipBlob([
+      { name: '[Content_Types].xml', content: contentTypesXml },
+      { name: '_rels/.rels', content: relsXml },
+      { name: 'word/document.xml', content: documentXml },
+      { name: 'word/_rels/document.xml.rels', content: docRelsXml },
+      { name: 'word/styles.xml', content: stylesXml },
+      { name: 'word/settings.xml', content: settingsXml },
+      { name: 'word/footer1.xml', content: footerXml }
+    ]);
+  }
+
+  function downloadDocx() {
+    const bundle = collectExportBundle();
+    if (bundle.length === 0) {
+      showToast('出力対象の条文がありません。');
+      return;
+    }
+
+    const blob = buildDocxBlob(bundle, state.fontFamily, state.fontSizePt);
+    const rawName = (el.docxFilenameInput.value || '関係法令抜粋').trim().replace(/[\\/:*?"<>|]/g, '_');
+    const filename = rawName.toLowerCase().endsWith('.docx') ? rawName : `${rawName}.docx`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast(`「${filename}」をダウンロードしました。`);
+  }
+
+  // =========================================================================
+  // 10. Built-in Sample Data (for Offline Testing)
+  // =========================================================================
+  function loadSampleLaw() {
+    const sampleApiData = {
+      law_info: {
+        law_id: 'SAMPLE_SOZOKUZEI',
+        law_num: '昭和二十五年法律第七十三号'
+      },
+      revision_info: {
+        law_title: '相続税法（サンプル）'
+      },
+      law_full_text: {
+        tag: 'Law',
+        children: [
+          {
+            tag: 'LawBody',
+            children: [
+              { tag: 'LawTitle', children: ['相続税法'] },
+              {
+                tag: 'MainProvision',
+                children: [
+                  {
+                    tag: 'Article',
+                    attr: { Num: '41' },
+                    children: [
+                      { tag: 'ArticleCaption', children: ['（物納の要件）'] },
+                      { tag: 'ArticleTitle', children: ['第41条'] },
+                      {
+                        tag: 'Paragraph',
+                        attr: { Num: '1' },
+                        children: [
+                          { tag: 'ParagraphNum', children: [] },
+                          {
+                            tag: 'ParagraphSentence',
+                            children: [
+                              { tag: 'Sentence', children: ['税務署長は、納税義務者について第三十三条又は国税通則法第三十五条第二項（申告納税方式による国税等の納付）の規定により納付すべき相続税額を延納によつても金銭で納付することを困難とする事由がある場合においては、納税義務者の申請により、その納付を困難とする金額として政令で定める額を限度として、物納の許可をすることができる。'] }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        tag: 'Paragraph',
+                        attr: { Num: '2' },
+                        children: [
+                          { tag: 'ParagraphNum', children: ['2'] },
+                          {
+                            tag: 'ParagraphSentence',
+                            children: [
+                              { tag: 'Sentence', children: ['前項の規定による物納に充てることができる財産は、納税義務者の課税価格計算の基礎となつた財産でこの法律の施行地にあるもののうち次に掲げるものとする。２項から９項までは全角数字＋全角スペースとなり、本文は見かけ上文頭一字下げ、２行目以降は第１項の２行目と同じインデントになります。'] }
+                            ]
+                          },
+                          {
+                            tag: 'Item',
+                            attr: { Num: '1' },
+                            children: [
+                              { tag: 'ItemTitle', children: ['一'] },
+                              { tag: 'ItemSentence', children: [{ tag: 'Sentence', children: ['不動産及び船舶（長い文章で折り返しが発生した場合、２行目以降は全角２字下げとなり、１行目の本文は見かけ上文頭一字下げになります。）'] }] }
+                            ]
+                          },
+                          {
+                            tag: 'Item',
+                            attr: { Num: '2' },
+                            children: [
+                              { tag: 'ItemTitle', children: ['二'] },
+                              { tag: 'ItemSentence', children: [{ tag: 'Sentence', children: ['次に掲げる有価証券'] }] },
+                              {
+                                tag: 'Subitem1',
+                                attr: { Num: '1' },
+                                children: [
+                                  { tag: 'Subitem1Title', children: ['イ'] },
+                                  { tag: 'Subitem1Sentence', children: [{ tag: 'Sentence', children: ['国債証券及び地方債証券（２行目以降は全角３字下げとなり、１行目の本文は見かけ上文頭一字下げになります。）'] }] }
+                                ]
+                              },
+                              {
+                                tag: 'Subitem1',
+                                attr: { Num: '2' },
+                                children: [
+                                  { tag: 'Subitem1Title', children: ['ロ'] },
+                                  { tag: 'Subitem1Sentence', children: [{ tag: 'Sentence', children: ['金融商品取引所に上場されている有価証券で次に掲げるもの'] }] },
+                                  {
+                                    tag: 'Subitem2',
+                                    attr: { Num: '1' },
+                                    children: [
+                                      { tag: 'Subitem2Title', children: ['（１）'] },
+                                      { tag: 'Subitem2Sentence', children: [{ tag: 'Sentence', children: ['新株予約権証券（全角３字の括弧番号はインデントを１字左に寄せ、番号直後の全角スペースを省くことで計２字落とし、２行目以降の全角４字下げに対して見かけ上文頭一字下げに揃います。）'] }] },
+                                      {
+                                        tag: 'Subitem3',
+                                        attr: { Num: '1' },
+                                        children: [
+                                          { tag: 'Subitem3Title', children: ['ア'] },
+                                          { tag: 'Subitem3Sentence', children: [{ tag: 'Sentence', children: ['１文字の下位階層ラベル（細分３）も、２行目以降が全角５字下げ、１行目の本文が見かけ上文頭一字下げになります。'] }] }
+                                        ]
+                                      },
+                                      {
+                                        tag: 'Subitem3',
+                                        attr: { Num: '2' },
+                                        children: [
+                                          { tag: 'Subitem3Title', children: ['（イ）'] },
+                                          { tag: 'Subitem3Sentence', children: [{ tag: 'Sentence', children: ['括弧付きの下位階層ラベル（細分３）も全角スペースなしで２行目以降５字下げに対して文頭一字下げになります。'] }] }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    tag: 'Subitem2',
+                                    attr: { Num: '10' },
+                                    children: [
+                                      { tag: 'Subitem2Title', children: ['（１０）'] },
+                                      { tag: 'Subitem2Sentence', children: [{ tag: 'Sentence', children: ['10以降の括弧番号は公用文ルールに従い（10）と半角数字になり、全角スペースなしで（１）と同じ本文開始位置に揃います。'] }] }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        tag: 'Paragraph',
+                        attr: { Num: '10' },
+                        children: [
+                          { tag: 'ParagraphNum', children: ['１０'] },
+                          {
+                            tag: 'ParagraphSentence',
+                            children: [
+                              { tag: 'Sentence', children: ['10項以降の項番号は公用文ルールに従い半角数字＋全角スペースとなり、本文は２項〜９項と同様に２行目以降（１字下げ）に対して見かけ上文頭一字下げに揃います。'] }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    tag: 'Article',
+                    attr: { Num: '103_3' },
+                    children: [
+                      { tag: 'ArticleCaption', children: ['（漢数字変換テスト用）'] },
+                      { tag: 'ArticleTitle', children: ['第103条の3'] },
+                      {
+                        tag: 'Paragraph',
+                        attr: { Num: '1' },
+                        children: [
+                          { tag: 'ParagraphNum', children: [] },
+                          { tag: 'ParagraphSentence', children: [{ tag: 'Sentence', children: ['三桁の条文番号および枝番が「第百三条の三」と漢数字で表示される確認用サンプルです。'] }] }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                tag: 'SupplProvision',
+                attr: { AmendLawNum: '昭和二十五年法律第七十三号' },
+                children: [
+                  { tag: 'SupplProvisionLabel', children: ['附則'] },
+                  {
+                    tag: 'Paragraph',
+                    attr: { Num: '1' },
+                    children: [
+                      { tag: 'ParagraphNum', children: ['1'] },
+                      { tag: 'ParagraphSentence', children: [{ tag: 'Sentence', children: ['この法律は、昭和二十五年四月一日から施行する。'] }] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    };
+    const parsed = parseLawApiResponse(sampleApiData);
+    state.lawCache.set(parsed.lawId, parsed);
+    displayLaw(parsed);
+    showToast('サンプル法令を読み込みました。');
+  }
+
+  // =========================================================================
+  // 11. Event Bindings
+  // =========================================================================
+  function applyFont(fontFamily) {
+    state.fontFamily = fontFamily;
+    el.fontSelect.value = fontFamily;
+    el.modalFontSelect.value = fontFamily;
+    const cssFont = FONT_CSS_MAP[fontFamily] || `"${fontFamily}", serif`;
+    document.documentElement.style.setProperty('--doc-font', cssFont);
+  }
+
+  function applyFontSize(pt) {
+    state.fontSizePt = parseFloat(pt) || 10.5;
+    document.documentElement.style.setProperty('--doc-size', `${state.fontSizePt}pt`);
+  }
+
+  // Search Input (Debounced Incremental Search)
+  el.searchInput.addEventListener('input', () => {
+    const val = el.searchInput.value.trim();
+    el.searchClearBtn.classList.toggle('visible', val.length > 0);
+    clearTimeout(state.searchDebounceTimer);
+
+    if (val.length === 0) {
+      closeSuggestList();
+      return;
+    }
+
+    state.searchDebounceTimer = setTimeout(() => {
+      searchLawsApi(val);
+    }, 350);
+  });
+
+  el.searchInput.addEventListener('keydown', (e) => {
+    if (!el.suggestList.classList.contains('open')) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (state.suggestItems.length > 0) {
+        state.suggestIndex = (state.suggestIndex + 1) % state.suggestItems.length;
+        renderSuggestList();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (state.suggestItems.length > 0) {
+        state.suggestIndex = (state.suggestIndex - 1 + state.suggestItems.length) % state.suggestItems.length;
+        renderSuggestList();
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const target = state.suggestItems[state.suggestIndex >= 0 ? state.suggestIndex : 0];
+      if (target) {
+        el.searchInput.value = target.lawTitle;
+        el.searchClearBtn.classList.add('visible');
+        loadLawById(target.lawId, target);
+      }
+    } else if (e.key === 'Escape') {
+      closeSuggestList();
+    }
+  });
+
+  el.searchClearBtn.addEventListener('click', () => {
+    el.searchInput.value = '';
+    el.searchClearBtn.classList.remove('visible');
+    closeSuggestList();
+    el.searchInput.focus();
+  });
+
+  el.suggestList.addEventListener('click', (e) => {
+    const itemEl = e.target.closest('.suggest-item');
+    if (!itemEl) return;
+    const idx = parseInt(itemEl.dataset.idx, 10);
+    const target = state.suggestItems[idx];
+    if (!target) return;
+    el.searchInput.value = target.lawTitle;
+    el.searchClearBtn.classList.add('visible');
+    loadLawById(target.lawId, target);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!el.searchWrap.contains(e.target)) {
+      closeSuggestList();
+    }
+  });
+
+  // Left Column Filter
+  el.articleFilterInput.addEventListener('input', () => {
+    if (!state.currentLawId) return;
+    const law = state.lawCache.get(state.currentLawId);
+    if (law) {
+      renderLeftColumn(law, el.articleFilterInput.value);
+    }
+  });
+
+  // Left Column Interactions: Select-All / Checkbox / Jump
+  el.leftListScroll.addEventListener('click', (e) => {
+    const selectAllRow = e.target.closest('.js-select-all-trigger');
+    if (selectAllRow) {
+      e.preventDefault();
+      toggleAllCurrentLaw();
+      return;
+    }
+
+    const cb = e.target.closest('.article-nav-cb');
+    if (cb) {
+      const uid = cb.dataset.uid;
+      if (state.currentLawId && uid) {
+        setArticleSelected(state.currentLawId, uid, cb.checked);
+      }
+      return;
+    }
+
+    const jumpEl = e.target.closest('[data-jump-uid]');
+    if (jumpEl) {
+      const uid = jumpEl.dataset.jumpUid;
+      const card = document.getElementById(`card_${uid}`);
+      if (card) {
+        setActiveNavItem(uid, false);
+        state.isProgrammaticJump = true;
+        clearTimeout(state.jumpResetTimer);
+        const top = card.offsetTop - 14;
+        el.rightBodyScroll.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+        state.jumpResetTimer = setTimeout(() => {
+          state.isProgrammaticJump = false;
+        }, 550);
+      }
+    }
+  });
+
+  // Right Column Inline Checkbox
+  el.rightBodyScroll.addEventListener('change', (e) => {
+    const cb = e.target.closest('.js-right-cb');
+    if (!cb) return;
+    const uid = cb.dataset.uid;
+    if (state.currentLawId && uid) {
+      setArticleSelected(state.currentLawId, uid, cb.checked);
+    }
+  });
+
+  // Selected Laws Chips Bar
+  el.selectedLawsChips.addEventListener('click', (e) => {
+    const switchEl = e.target.closest('[data-switch-law]');
+    if (switchEl) {
+      const lawId = switchEl.dataset.switchLaw;
+      if (state.lawCache.has(lawId)) {
+        displayLaw(state.lawCache.get(lawId));
+      }
+      return;
+    }
+
+    const moveBtn = e.target.closest('[data-move-law]');
+    if (moveBtn && !moveBtn.disabled) {
+      const lawId = moveBtn.dataset.moveLaw;
+      const dir = parseInt(moveBtn.dataset.dir, 10);
+      const idx = state.selectedLawOrder.indexOf(lawId);
+      const targetIdx = idx + dir;
+      if (idx >= 0 && targetIdx >= 0 && targetIdx < state.selectedLawOrder.length) {
+        const tmp = state.selectedLawOrder[idx];
+        state.selectedLawOrder[idx] = state.selectedLawOrder[targetIdx];
+        state.selectedLawOrder[targetIdx] = tmp;
+        renderSelectedLawsBar();
+      }
+      return;
+    }
+
+    const removeBtn = e.target.closest('[data-remove-law]');
+    if (removeBtn) {
+      const lawId = removeBtn.dataset.removeLaw;
+      state.selectedByLaw.set(lawId, new Set());
+      state.selectedLawOrder = state.selectedLawOrder.filter(id => id !== lawId);
+      if (lawId === state.currentLawId) {
+        const law = state.lawCache.get(lawId);
+        if (law) {
+          renderLeftColumn(law, el.articleFilterInput.value);
+          renderRightColumn(law);
+        }
+      }
+      renderSelectedLawsBar();
+    }
+  });
+
+  // Font & Font Size Controls
+  el.fontSelect.addEventListener('change', () => applyFont(el.fontSelect.value));
+  el.modalFontSelect.addEventListener('change', () => applyFont(el.modalFontSelect.value));
+  el.modalFontSizeSelect.addEventListener('change', () => applyFontSize(el.modalFontSizeSelect.value));
+
+  // Preview & Create Buttons
+  el.previewBtn.addEventListener('click', () => openPreviewModal(false));
+  el.createDocxBtn.addEventListener('click', () => openPreviewModal(true));
+  el.modalDownloadBtn.addEventListener('click', downloadDocx);
+  el.modalDownloadBtnBottom.addEventListener('click', downloadDocx);
+  el.closeModalBtn.addEventListener('click', closePreviewModal);
+  el.closeModalBtnBottom.addEventListener('click', closePreviewModal);
+
+  el.modalBackdrop.addEventListener('click', (e) => {
+    if (e.target === el.modalBackdrop) closePreviewModal();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && el.modalBackdrop.classList.contains('open')) {
+      closePreviewModal();
+    }
+  });
+
+  if (el.loadSampleBtn) {
+    el.loadSampleBtn.addEventListener('click', loadSampleLaw);
+  }
+
+  // Initialize default font
+  applyFont('ＭＳ 明朝');
+  applyFontSize(10.5);
+})();
+</script>
+</body>
+</html>
